@@ -1,0 +1,120 @@
+export type Role = 'admin' | 'employee'
+export type Status = 'active' | 'inactive'
+export type PaymentStatus = 'unpaid' | 'paid'
+
+export interface AuthUser {
+  id: string
+  username: string
+  role: Role
+  employee_id: string | null
+  name: string
+  phone: string | null
+}
+
+export interface Employee {
+  id: string
+  name: string
+  phone: string
+  status: Status
+  username: string | null
+}
+
+export interface Customer {
+  id: string
+  name: string
+}
+
+export interface Article {
+  id: string
+  customer_id: string
+  article_name: string
+  price: number
+  status: Status
+  customer_name: string | null
+}
+
+export interface WorkLog {
+  id: string
+  employee_id: string
+  customer_id: string
+  article_id: string
+  work_date: string
+  quantity: number
+  price: number
+  total: number
+  notes: string
+  payroll_id?: string
+  employee_name: string | null
+  customer_name: string | null
+  article_name: string | null
+}
+
+export interface PayrollRow {
+  id: string
+  employee_id: string
+  month: number
+  year: number
+  total_salary: number
+  payment_status: PaymentStatus
+  paid_at: string
+  paid_by: string
+  employee_name: string
+}
+
+export interface PayrollDetail extends PayrollRow {
+  items: WorkLog[]
+}
+
+export interface AdminDashboard {
+  total_employees: number
+  total_customers: number
+  total_articles: number
+  total_work_today: number
+  total_revenue_today: number
+  total_payroll_this_month: number
+  recent_activity: {
+    employee_name: string
+    work_date: string
+    quantity: number
+    total: number
+  }[]
+  top_productivity: { employee_name: string; quantity: number }[]
+  monthly_chart: { label: string; total: number }[]
+}
+
+export interface EmployeeDashboard {
+  income_today: number
+  income_this_month: number
+  work_count_this_month: number
+  total_quantity_this_month: number
+}
+
+export type ReportGroupBy =
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'customer'
+  | 'article'
+  | 'employee'
+
+export interface ReportRow {
+  key: string
+  label: string
+  quantity: number
+  total: number
+  count: number
+}
+
+export interface Report {
+  groupBy: ReportGroupBy
+  rows: ReportRow[]
+  grand_total: number
+  grand_quantity: number
+}
+
+export interface ApiResponse<T> {
+  success: boolean
+  data: T
+  message?: string
+}

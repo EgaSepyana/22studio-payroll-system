@@ -1,0 +1,346 @@
+import * as React from 'react'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { PageHeader } from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import * as employeeApi from '@/services/employeeApi'
+import { getErrorMessage } from '@/services/api'
+import type { Employee } from '@/types'
+
+const createSchema = z.object({
+  name: z.string().min(1, 'Nama wajib diisi'),
+  phone: z.string().min(1, 'Nomor HP wajib diisi'),
+  username: z.string().min(3, 'Username minimal 3 karakter'),
+  password: z.string().min(6, 'Password minimal 6 karakter'),
+  status: z.enum(['active', 'inactive']),
+})
+
+const editSchema = createSchema.extend({
+  password: z.union([z.literal(''), z.string().min(6, 'Password minimal 6 karakter')]),
+})
+
+type FormValues = z.infer<typeof createSchema>
+
+function EmployeeFormDialog({
+  employee,
+  open,
+  onOpenChange,
+}: {
+  employee?: Employee
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const isEdit = !!employee
+  const queryClient = useQueryClient()
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(isEdit ? editSchema : createSchema),
+    defaultValues: {
+      name: employee?.name || '',
+      phone: employee?.phone || '',
+      username: employee?.username || '',
+      password: '',
+      status: employee?.status || 'active',
+    },
+  })
+
+  React.useEffect(() => {
+    if (open) {
+      form.reset({
+        name: employee?.name || '',
+        phone: employee?.phone || '',
+        username: employee?.username || '',
+        password: '',
+        status: employee?.status || 'active',
+      })
+    }
+  }, [open, employee, form])
+
+  const mutation = useMutation({
+    mutationFn: (values: FormValues) => {
+      if (isEdit) {
+        const payload = { ...values, password: values.password || undefined }
+        return employeeApi.updateEmployee(employee.id, payload)
+      }
+      return employeeApi.createEmployee(values)
+    },
+    onSuccess: () => {
+      toast.success(isEdit ? 'Karyawan berhasil diperbarui' : 'Karyawan berhasil ditambahkan')
+      queryClient.invalidateQueries({ queryKey: ['employees'] })
+      onOpenChange(false)
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Edit Karyawan' : 'Tambah Karyawan'}</DialogTitle>
+          <DialogDescription>Lengkapi data karyawan di bawah ini.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          >
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nama karyawan" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nomor HP</FormLabel>
+                  <FormControl>
+                    <Input placeholder="08xxxxxxxxxx" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input placeholder="username" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{isEdit ? 'Password Baru (opsional)' : 'Password'}</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">Aktif</SelectItem>
+                      <SelectItem value="inactive">Nonaktif</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Simpan
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default function Employees() {
+  const queryClient = useQueryClient()
+  const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<Employee | undefined>(undefined)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['employees'],
+    queryFn: employeeApi.listEmployees,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: employeeApi.deleteEmployee,
+    onSuccess: () => {
+      toast.success('Karyawan dihapus')
+      queryClient.invalidateQueries({ queryKey: ['employees'] })
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  return (
+    <div>
+      <PageHeader
+        title="Karyawan"
+        description="Kelola data karyawan 22Studio"
+        action={
+          <Button
+            onClick={() => {
+              setEditing(undefined)
+              setDialogOpen(true)
+            }}
+          >
+            <Plus className="size-4" /> Tambah Karyawan
+          </Button>
+        }
+      />
+
+      <Card className="shadow-sm">
+        <CardContent className="px-0">
+          {isLoading ? (
+            <div className="space-y-3 px-6">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Username</TableHead>
+                  <TableHead>Nomor HP</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-muted-foreground text-center">
+                      Belum ada data karyawan.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {data?.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">{employee.name}</TableCell>
+                    <TableCell>{employee.username}</TableCell>
+                    <TableCell>{employee.phone}</TableCell>
+                    <TableCell>
+                      <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
+                        {employee.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(employee)
+                          setDialogOpen(true)
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="text-destructive size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Hapus Karyawan?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Data karyawan "{employee.name}" beserta akun loginnya akan dihapus
+                              permanen. Tindakan ini tidak dapat dibatalkan.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Batal</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                              onClick={() => deleteMutation.mutate(employee.id)}
+                            >
+                              Hapus
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <EmployeeFormDialog employee={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+    </div>
+  )
+}
