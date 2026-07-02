@@ -1,4 +1,10 @@
-import { WorkLogsRepo, ArticlesRepo, CustomersRepo, EmployeesRepo } from '../google-sheet/models.js';
+import {
+  WorkLogsRepo,
+  ArticlesRepo,
+  CustomersRepo,
+  EmployeesRepo,
+  DEFAULT_WORK_STATUS,
+} from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 
 function clean(record) {
@@ -23,7 +29,7 @@ async function enrich(log) {
   };
 }
 
-export async function createWorkLog(employeeId, { customer_id, article_id, work_date, quantity, notes }) {
+export async function createWorkLog(employeeId, { customer_id, article_id, work_date, quantity, notes, status }) {
   const employee = await EmployeesRepo.getById(employeeId);
   if (!employee) throw new ApiError(400, 'Karyawan tidak valid');
 
@@ -46,6 +52,7 @@ export async function createWorkLog(employeeId, { customer_id, article_id, work_
     price,
     total,
     notes: notes || '',
+    status: status || DEFAULT_WORK_STATUS,
   });
 
   return enrich(log);
@@ -88,11 +95,11 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     throw new ApiError(400, 'Tidak dapat mengubah pekerjaan yang sudah dibayar');
   }
 
-  const { article_id, customer_id, quantity, work_date, notes } = updates;
+  const { article_id, customer_id, quantity, work_date, notes, status } = updates;
   const targetArticleId = article_id || existing.article_id;
   const targetCustomerId = customer_id || existing.customer_id;
   const targetQty = quantity ? Number(quantity) : Number(existing.quantity);
-  
+
   let price = Number(existing.price);
 
   if (article_id || customer_id) {
@@ -114,6 +121,7 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     price,
     total,
     notes: notes !== undefined ? notes : existing.notes,
+    status: status || existing.status || DEFAULT_WORK_STATUS,
   });
 
   return enrich(updated);

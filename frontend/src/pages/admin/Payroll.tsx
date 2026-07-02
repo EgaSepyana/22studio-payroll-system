@@ -91,10 +91,27 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
                 </TableBody>
               </Table>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted px-4 py-3">
-              <span className="text-sm font-medium">Total Gaji</span>
-              <span className="text-lg font-semibold">{formatCurrency(data.total_salary)}</span>
-            </div>
+            {data.kasbon_deduction > 0 ? (
+              <div className="flex flex-col gap-1.5 rounded-md bg-muted px-4 py-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Pendapatan</span>
+                  <span className="font-medium">{formatCurrency(data.total_salary)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Kasbon</span>
+                  <span className="text-destructive font-medium">-{formatCurrency(data.kasbon_deduction)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t pt-1.5">
+                  <span className="text-sm font-medium">Total Dibayar</span>
+                  <span className="text-lg font-semibold">{formatCurrency(data.net_salary)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-md bg-muted px-4 py-3">
+                <span className="text-sm font-medium">Total Gaji</span>
+                <span className="text-lg font-semibold">{formatCurrency(data.total_salary)}</span>
+              </div>
+            )}
             {data.payment_status === 'paid' && (
               <p className="text-muted-foreground text-xs">
                 Dibayar pada {formatDateTime(data.paid_at)}
@@ -198,7 +215,14 @@ export default function Payroll() {
                 {data?.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.employee_name}</TableCell>
-                    <TableCell>{formatCurrency(row.total_salary)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(row.total_salary)}
+                      {row.kasbon_deduction > 0 && (
+                        <span className="text-destructive block text-xs">
+                          -{formatCurrency(row.kasbon_deduction)} kasbon
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={row.payment_status === 'paid' ? 'default' : 'secondary'}
                         className={row.payment_status === 'paid' ? 'bg-success text-success-foreground' : ''}

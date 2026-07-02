@@ -1,4 +1,5 @@
 import { WorkLogsRepo, EmployeesRepo, CustomersRepo, ArticlesRepo } from '../google-sheet/models.js';
+import { batchGetAll } from '../google-sheet/SheetRepository.js';
 import { dayKey, isoWeekKey, monthKey, yearKey } from '../utils/dateUtils.js';
 import { ApiError } from '../utils/response.js';
 
@@ -10,11 +11,12 @@ const GROUPERS = {
 };
 
 export async function buildReport({ groupBy, date_from, date_to, employee_id, customer_id, article_id }) {
-  const [logs, employees, customers, articles] = await Promise.all([
-    WorkLogsRepo.getAll(),
-    EmployeesRepo.getAll(),
-    CustomersRepo.getAll(),
-    ArticlesRepo.getAll(),
+  // One Sheets API call fetches all four sheets instead of four separate ones.
+  const [logs, employees, customers, articles] = await batchGetAll([
+    WorkLogsRepo,
+    EmployeesRepo,
+    CustomersRepo,
+    ArticlesRepo,
   ]);
 
   const employeeMap = new Map(employees.map((e) => [String(e.id), e.name]));

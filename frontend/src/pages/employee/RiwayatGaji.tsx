@@ -35,7 +35,16 @@ export default function RiwayatGaji() {
                   <p className="text-sm font-medium">
                     {MONTH_NAMES[row.month - 1]} {row.year}
                   </p>
-                  <p className="text-lg font-semibold">{formatCurrency(row.total_salary)}</p>
+                  {row.kasbon_deduction > 0 ? (
+                    <div>
+                      <p className="text-muted-foreground text-xs">
+                        Pendapatan {formatCurrency(row.total_salary)} &middot; Kasbon -{formatCurrency(row.kasbon_deduction)}
+                      </p>
+                      <p className="text-lg font-semibold">{formatCurrency(row.net_salary)}</p>
+                    </div>
+                  ) : (
+                    <p className="text-lg font-semibold">{formatCurrency(row.total_salary)}</p>
+                  )}
                 </div>
                 <Badge
                   variant={row.payment_status === 'paid' ? 'default' : 'secondary'}

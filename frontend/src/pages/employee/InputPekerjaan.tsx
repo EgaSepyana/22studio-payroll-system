@@ -29,7 +29,7 @@ import * as workLogApi from '@/services/workLogApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, todayISO } from '@/utils/format'
+import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
@@ -37,6 +37,7 @@ const schema = z.object({
   article_id: z.string().min(1, 'Artikel wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
+  status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
 })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -50,7 +51,14 @@ export default function InputPekerjaan() {
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { work_date: todayISO(), customer_id: '', article_id: '', quantity: undefined, notes: '' },
+    defaultValues: {
+      work_date: todayISO(),
+      customer_id: '',
+      article_id: '',
+      quantity: undefined,
+      notes: '',
+      status: 'selesai',
+    },
   })
 
   const customerId = form.watch('customer_id')
@@ -78,6 +86,7 @@ export default function InputPekerjaan() {
         article_id: values.article_id,
         quantity: values.quantity,
         notes: values.notes,
+        status: values.status,
       }),
     onSuccess: () => {
       toast.success('Pekerjaan berhasil disimpan!')
@@ -200,6 +209,31 @@ export default function InputPekerjaan() {
               </CardContent>
             </Card>
           )}
+
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-base">Status Pekerjaan</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="h-12 w-full text-base">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {WORK_STATUS_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-base">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}

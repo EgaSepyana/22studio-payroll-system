@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import * as workLogService from '../services/workLogService.js';
+import * as workLogExportService from '../services/workLogExportService.js';
+import { WORK_STATUSES } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -9,6 +11,7 @@ const createSchema = z.object({
   work_date: z.string().min(1),
   quantity: z.coerce.number().positive(),
   notes: z.string().optional(),
+  status: z.enum(WORK_STATUSES).optional(),
 });
 
 const filterSchema = z.object({
@@ -53,6 +56,30 @@ export async function listMine(req, res, next) {
     const filters = filterSchema.parse(req.query);
     filters.employee_id = req.user.employee_id;
     ok(res, await workLogService.listWorkLogs(filters));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportWorkLogs(req, res, next) {
+  try {
+    const { format, ...rest } = req.query;
+    const filters = filterSchema.parse(rest);
+    const logs = await workLogService.listWorkLogs(filters);
+
+    if (format === 'excel') {
+      const buffer = await workLogExportService.workLogsToExcel(logs);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="slip-gaji.xlsx"');
+      res.send(buffer);
+    } else if (format === 'pdf') {
+      const buffer = await workLogExportService.workLogsToPdf(logs);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="slip-gaji.pdf"');
+      res.send(buffer);
+    } else {
+      res.status(400).json({ success: false, message: 'format harus pdf atau excel' });
+    }
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, History, Wallet, User, LogOut, KeyRound } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/app/input', label: 'Input', icon: PlusCircle },
   { to: '/app/riwayat-pekerjaan', label: 'Riwayat', icon: History },
   { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },
+  { to: '/app/kasbon', label: 'Kasbon', icon: HandCoins },
   { to: '/app/profile', label: 'Profil', icon: User },
 ]
 

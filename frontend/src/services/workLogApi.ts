@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, WorkLog } from '@/types'
+import type { ApiResponse, WorkLog, WorkStatus } from '@/types'
 
 export interface WorkLogInput {
   customer_id: string
@@ -8,6 +8,7 @@ export interface WorkLogInput {
   quantity: number
   notes?: string
   employee_id?: string
+  status?: WorkStatus
 }
 
 export interface WorkLogFilters {
@@ -36,4 +37,20 @@ export async function listAllWorkLogs(filters: WorkLogFilters = {}) {
 export async function listMyWorkLogs(filters: WorkLogFilters = {}) {
   const res = await api.get<ApiResponse<WorkLog[]>>('/worklogs/mine', { params: filters })
   return res.data.data
+}
+
+export async function exportWorkLogs(filters: WorkLogFilters, format: 'pdf' | 'excel') {
+  const res = await api.get('/worklogs/export', {
+    params: { ...filters, format },
+    responseType: 'blob',
+  })
+  const blob = new Blob([res.data])
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `slip-gaji.${format === 'excel' ? 'xlsx' : 'pdf'}`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }

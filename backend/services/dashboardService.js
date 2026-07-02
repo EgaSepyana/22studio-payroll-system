@@ -5,18 +5,20 @@ import {
   WorkLogsRepo,
   PayrollRepo,
 } from '../google-sheet/models.js';
+import { batchGetAll } from '../google-sheet/SheetRepository.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export async function getAdminDashboard() {
-  const [employees, customers, articles, logs, payroll] = await Promise.all([
-    EmployeesRepo.getAll(),
-    CustomersRepo.getAll(),
-    ArticlesRepo.getAll(),
-    WorkLogsRepo.getAll(),
-    PayrollRepo.getAll(),
+  // One Sheets API call fetches all five sheets instead of five separate ones.
+  const [employees, customers, articles, logs, payroll] = await batchGetAll([
+    EmployeesRepo,
+    CustomersRepo,
+    ArticlesRepo,
+    WorkLogsRepo,
+    PayrollRepo,
   ]);
 
   const today = todayStr();

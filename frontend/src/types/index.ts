@@ -1,6 +1,8 @@
 export type Role = 'admin' | 'employee'
 export type Status = 'active' | 'inactive'
 export type PaymentStatus = 'unpaid' | 'paid'
+export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
+export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
 
 export interface AuthUser {
   id: string
@@ -44,6 +46,7 @@ export interface WorkLog {
   total: number
   notes: string
   payroll_id?: string
+  status: WorkStatus
   employee_name: string | null
   customer_name: string | null
   article_name: string | null
@@ -58,11 +61,27 @@ export interface PayrollRow {
   payment_status: PaymentStatus
   paid_at: string
   paid_by: string
+  kasbon_deduction: number
+  net_salary: number
   employee_name: string
 }
 
 export interface PayrollDetail extends PayrollRow {
   items: WorkLog[]
+}
+
+export interface CashAdvance {
+  id: string
+  employee_id: string
+  amount: number
+  reason: string
+  status: CashAdvanceStatus
+  requested_at: string
+  approved_at: string
+  approved_by: string
+  paid_at: string
+  payroll_id?: string
+  employee_name: string | null
 }
 
 export interface AdminDashboard {

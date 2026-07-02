@@ -11,7 +11,10 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 15_000,
+      // Backend data is served from a shared Google Sheet with a tight API
+      // quota — a longer staleTime means navigating around the app within a
+      // session reuses what's already fetched instead of re-requesting it.
+      staleTime: 45_000,
     },
   },
 })

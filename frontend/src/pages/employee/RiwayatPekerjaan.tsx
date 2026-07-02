@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { WorkStatusBadge } from '@/components/WorkStatusBadge'
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,7 @@ import * as workLogApi from '@/services/workLogApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate } from '@/utils/format'
+import { formatCurrency, formatDate, WORK_STATUS_OPTIONS } from '@/utils/format'
 import type { WorkLog } from '@/types'
 
 const formSchema = z.object({
@@ -43,6 +44,7 @@ const formSchema = z.object({
   article_id: z.string().min(1, 'Artikel wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
+  status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
 })
 type FormInput = z.input<typeof formSchema>
 type FormValues = z.output<typeof formSchema>
@@ -65,7 +67,7 @@ export default function RiwayatPekerjaan() {
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { work_date: '', customer_id: '', article_id: '', quantity: undefined, notes: '' },
+    defaultValues: { work_date: '', customer_id: '', article_id: '', quantity: undefined, notes: '', status: 'selesai' },
   })
 
   const formCustomerId = form.watch('customer_id')
@@ -81,6 +83,7 @@ export default function RiwayatPekerjaan() {
       article_id: log.article_id,
       quantity: log.quantity,
       notes: log.notes || '',
+      status: log.status || 'selesai',
     })
     setEditingLog(log)
   }
@@ -147,6 +150,9 @@ export default function RiwayatPekerjaan() {
                   <p className="text-muted-foreground text-xs">
                     {log.quantity} pcs &times; {formatCurrency(log.price)}
                   </p>
+                  <div className="mt-1.5">
+                    <WorkStatusBadge status={log.status} />
+                  </div>
                 </div>
                 <div className="flex flex-col items-end shrink-0 gap-1">
                   <p className="text-base font-semibold">{formatCurrency(log.total)}</p>
@@ -206,6 +212,20 @@ export default function RiwayatPekerjaan() {
                 <FormItem>
                   <FormLabel>Quantity</FormLabel>
                   <FormControl><Input type="number" min={1} {...field} value={(field.value ?? '') as string | number} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="status" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status Pekerjaan</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {WORK_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )} />

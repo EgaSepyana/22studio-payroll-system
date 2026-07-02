@@ -1,11 +1,12 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { X, Plus, Loader2 } from 'lucide-react'
+import { X, Plus, Loader2, FileSpreadsheet, FileDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { WorkStatusBadge } from '@/components/WorkStatusBadge'
 import {
   Select,
   SelectContent,
@@ -40,7 +41,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/services/api'
-import { todayISO } from '@/utils/format'
+import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
 import * as workLogApi from '@/services/workLogApi'
 import * as employeeApi from '@/services/employeeApi'
@@ -57,6 +58,7 @@ const formSchema = z.object({
   article_id: z.string().min(1, 'Artikel wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
+  status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
 })
 type FormInput = z.input<typeof formSchema>
 type FormValues = z.output<typeof formSchema>
@@ -69,6 +71,7 @@ export default function WorkLogs() {
   const [customerId, setCustomerId] = React.useState(ALL)
   const [articleId, setArticleId] = React.useState(ALL)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [exportingFormat, setExportingFormat] = React.useState<'excel' | 'pdf' | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
@@ -99,9 +102,17 @@ export default function WorkLogs() {
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { employee_id: '', work_date: todayISO(), customer_id: '', article_id: '', quantity: undefined, notes: '' },
+    defaultValues: {
+      employee_id: '',
+      work_date: todayISO(),
+      customer_id: '',
+      article_id: '',
+      quantity: undefined,
+      notes: '',
+      status: 'selesai',
+    },
   })
-  
+
   const formCustomerId = form.watch('customer_id')
   const availableArticles = React.useMemo(
     () => articles?.filter((a) => a.customer_id === formCustomerId && a.status === 'active') || [],
@@ -123,17 +134,42 @@ export default function WorkLogs() {
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
+  async function handleExport(format: 'excel' | 'pdf') {
+    setExportingFormat(format)
+    try {
+      await workLogApi.exportWorkLogs(filters, format)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setExportingFormat(null)
+    }
+  }
+
   const totalQty = data?.reduce((s, l) => s + l.quantity, 0) || 0
   const totalAmount = data?.reduce((s, l) => s + l.total, 0) || 0
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <PageHeader title="Data Pekerjaan" description="Seluruh pekerjaan yang diinput karyawan" />
-        <Button onClick={() => setIsAddOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          Tambah Pekerjaan
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={!!exportingFormat} onClick={() => handleExport('excel')}>
+            {exportingFormat === 'excel' ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="size-4" />
+            )}
+            Excel
+          </Button>
+          <Button variant="outline" disabled={!!exportingFormat} onClick={() => handleExport('pdf')}>
+            {exportingFormat === 'pdf' ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+            PDF
+          </Button>
+          <Button onClick={() => setIsAddOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Tambah Pekerjaan
+          </Button>
+        </div>
       </div>
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -190,6 +226,20 @@ export default function WorkLogs() {
                 <FormItem>
                   <FormLabel>Quantity</FormLabel>
                   <FormControl><Input type="number" min={1} {...field} value={(field.value ?? '') as string | number} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="status" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status Pekerjaan</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger className="w-full"><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {WORK_STATUS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -279,12 +329,13 @@ export default function WorkLogs() {
                   <TableHead>Qty</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Keterangan</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground text-center">
+                    <TableCell colSpan={9} className="text-muted-foreground text-center">
                       Tidak ada data pekerjaan.
                     </TableCell>
                   </TableRow>
@@ -301,6 +352,9 @@ export default function WorkLogs() {
                     <TableCell className="text-muted-foreground max-w-40 truncate">
                       {log.notes || '-'}
                     </TableCell>
+                    <TableCell>
+                      <WorkStatusBadge status={log.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
                 {data && data.length > 0 && (
@@ -308,6 +362,7 @@ export default function WorkLogs() {
                     <TableCell colSpan={5}>Total</TableCell>
                     <TableCell>{totalQty}</TableCell>
                     <TableCell>{formatCurrency(totalAmount)}</TableCell>
+                    <TableCell />
                     <TableCell />
                   </TableRow>
                 )}

@@ -12,11 +12,13 @@ import AdminArticles from '@/pages/admin/Articles'
 import AdminWorkLogs from '@/pages/admin/WorkLogs'
 import AdminPayroll from '@/pages/admin/Payroll'
 import AdminReports from '@/pages/admin/Reports'
+import AdminKasbon from '@/pages/admin/Kasbon'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
 import EmployeeRiwayatPekerjaan from '@/pages/employee/RiwayatPekerjaan'
 import EmployeeRiwayatGaji from '@/pages/employee/RiwayatGaji'
+import EmployeeKasbon from '@/pages/employee/Kasbon'
 import EmployeeProfile from '@/pages/employee/Profile'
 
 function HomeRedirect() {
@@ -41,6 +43,7 @@ export default function App() {
             <Route path="/admin/worklogs" element={<AdminWorkLogs />} />
             <Route path="/admin/payroll" element={<AdminPayroll />} />
             <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/kasbon" element={<AdminKasbon />} />
           </Route>
         </Route>
 
@@ -50,6 +53,7 @@ export default function App() {
             <Route path="/app/input" element={<EmployeeInput />} />
             <Route path="/app/riwayat-pekerjaan" element={<EmployeeRiwayatPekerjaan />} />
             <Route path="/app/riwayat-gaji" element={<EmployeeRiwayatGaji />} />
+            <Route path="/app/kasbon" element={<EmployeeKasbon />} />
             <Route path="/app/profile" element={<EmployeeProfile />} />
           </Route>
         </Route>

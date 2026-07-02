@@ -7,6 +7,7 @@ router.use(requireAuth);
 
 router.post('/', requireRole('employee', 'admin'), workLogController.create);
 router.get('/', requireRole('admin'), workLogController.listAll);
+router.get('/export', requireRole('admin'), workLogController.exportWorkLogs);
 router.get('/mine', requireRole('employee'), workLogController.listMine);
 router.put('/:id', requireRole('employee'), workLogController.update);
 

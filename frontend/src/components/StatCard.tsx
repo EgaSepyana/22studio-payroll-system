@@ -29,7 +29,7 @@ export function StatCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground text-xs font-medium">{label}</p>
-          <p className="text-lg leading-tight font-semibold break-words">{value}</p>
+          <p className="text-base leading-tight font-semibold break-words sm:text-lg">{value}</p>
         </div>
       </CardContent>
     </Card>

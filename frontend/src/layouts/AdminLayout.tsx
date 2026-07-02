@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Wallet,
   FileBarChart,
+  HandCoins,
   LogOut,
   Menu,
   KeyRound,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: '/admin/articles', label: 'Artikel', icon: Package },
   { to: '/admin/worklogs', label: 'Data Pekerjaan', icon: ClipboardList },
   { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
+  { to: '/admin/kasbon', label: 'Kasbon', icon: HandCoins },
   { to: '/admin/reports', label: 'Laporan', icon: FileBarChart },
 ]
 
