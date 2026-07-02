@@ -47,9 +47,7 @@ export default function Login() {
     <div className="bg-background flex min-h-dvh items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="bg-primary text-primary-foreground flex size-12 items-center justify-center rounded-xl text-lg font-bold">
-            22
-          </div>
+          <img src="/logo.svg" alt="22Studio" className="size-16 rounded-xl object-cover" />
           <div>
             <h1 className="font-heading text-xl font-semibold">22Studio Payroll</h1>
             <p className="text-muted-foreground text-sm">Konveksi & Sablon</p>

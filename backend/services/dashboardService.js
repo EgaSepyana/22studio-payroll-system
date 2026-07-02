@@ -4,6 +4,8 @@ import {
   ArticlesRepo,
   WorkLogsRepo,
   PayrollRepo,
+  AttendanceRepo,
+  FINISHING_DIVISION,
 } from '../google-sheet/models.js';
 import { batchGetAll } from '../google-sheet/SheetRepository.js';
 
@@ -83,13 +85,38 @@ export async function getAdminDashboard() {
 }
 
 export async function getEmployeeDashboard(employeeId) {
-  const logs = await WorkLogsRepo.getAll();
-  const mine = logs.filter((l) => String(l.employee_id) === String(employeeId));
-
+  const employee = await EmployeesRepo.getById(employeeId);
   const today = todayStr();
   const now = new Date();
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
+
+  if (employee?.divisi === FINISHING_DIVISION) {
+    const attendance = await AttendanceRepo.getAll();
+    const mine = attendance.filter((a) => String(a.employee_id) === String(employeeId));
+    const todayRecords = mine.filter((a) => a.date === today);
+    const monthRecords = mine.filter((a) => {
+      const d = new Date(a.date);
+      return d.getMonth() + 1 === curMonth && d.getFullYear() === curYear;
+    });
+
+    const hourlyRate = Number(employee.hourly_rate || 0);
+    const hoursToday = todayRecords.reduce((s, a) => s + Number(a.hours || 0), 0);
+    const hoursThisMonth = monthRecords.reduce((s, a) => s + Number(a.hours || 0), 0);
+
+    return {
+      pay_source: 'attendance',
+      income_today: hoursToday * hourlyRate,
+      income_this_month: hoursThisMonth * hourlyRate,
+      hours_today: hoursToday,
+      hours_this_month: hoursThisMonth,
+      work_count_this_month: monthRecords.length,
+      total_quantity_this_month: 0,
+    };
+  }
+
+  const logs = await WorkLogsRepo.getAll();
+  const mine = logs.filter((l) => String(l.employee_id) === String(employeeId));
 
   const todayLogs = mine.filter((l) => l.work_date === today);
   const monthLogs = mine.filter((l) => {
@@ -98,6 +125,7 @@ export async function getEmployeeDashboard(employeeId) {
   });
 
   return {
+    pay_source: 'worklog',
     income_today: todayLogs.reduce((s, l) => s + Number(l.total), 0),
     income_this_month: monthLogs.reduce((s, l) => s + Number(l.total), 0),
     work_count_this_month: monthLogs.length,

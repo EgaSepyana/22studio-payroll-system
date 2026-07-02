@@ -3,6 +3,8 @@ export type Status = 'active' | 'inactive'
 export type PaymentStatus = 'unpaid' | 'paid'
 export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
 export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
+export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
+export type PaySource = 'worklog' | 'attendance'
 
 export interface AuthUser {
   id: string
@@ -11,6 +13,7 @@ export interface AuthUser {
   employee_id: string | null
   name: string
   phone: string | null
+  divisi: Divisi | null
 }
 
 export interface Employee {
@@ -19,6 +22,8 @@ export interface Employee {
   phone: string
   status: Status
   username: string | null
+  divisi: Divisi | ''
+  hourly_rate: number | null
 }
 
 export interface Customer {
@@ -32,6 +37,7 @@ export interface Article {
   article_name: string
   price: number
   status: Status
+  divisi: Divisi | ''
   customer_name: string | null
 }
 
@@ -52,6 +58,18 @@ export interface WorkLog {
   article_name: string | null
 }
 
+export interface Attendance {
+  id: string
+  employee_id: string
+  date: string
+  check_in: string
+  check_out: string
+  hours: number | null
+  payroll_id?: string
+  notes: string
+  employee_name: string | null
+}
+
 export interface PayrollRow {
   id: string
   employee_id: string
@@ -63,11 +81,13 @@ export interface PayrollRow {
   paid_by: string
   kasbon_deduction: number
   net_salary: number
+  pay_source: PaySource
   employee_name: string
 }
 
 export interface PayrollDetail extends PayrollRow {
-  items: WorkLog[]
+  items_type: PaySource
+  items: (WorkLog | Attendance)[]
 }
 
 export interface CashAdvance {
@@ -102,10 +122,13 @@ export interface AdminDashboard {
 }
 
 export interface EmployeeDashboard {
+  pay_source: PaySource
   income_today: number
   income_this_month: number
   work_count_this_month: number
   total_quantity_this_month: number
+  hours_today?: number
+  hours_this_month?: number
 }
 
 export type ReportGroupBy =

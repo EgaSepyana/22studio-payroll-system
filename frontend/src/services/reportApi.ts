@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, Report, ReportGroupBy } from '@/types'
+import type { ApiResponse, Divisi, Report, ReportGroupBy } from '@/types'
 
 export interface ReportFilters {
   groupBy: ReportGroupBy
@@ -8,6 +8,7 @@ export interface ReportFilters {
   employee_id?: string
   customer_id?: string
   article_id?: string
+  divisi?: Divisi
 }
 
 export async function buildReport(filters: ReportFilters) {

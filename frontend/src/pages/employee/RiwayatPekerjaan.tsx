@@ -56,7 +56,7 @@ export default function RiwayatPekerjaan() {
   const [editingLog, setEditingLog] = React.useState<WorkLog | null>(null)
 
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: articleApi.listArticles })
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
 
   const filters = { date_from: dateFrom || undefined, date_to: dateTo || undefined }
 

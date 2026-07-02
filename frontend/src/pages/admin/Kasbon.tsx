@@ -45,9 +45,10 @@ import * as cashAdvanceApi from '@/services/cashAdvanceApi'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime, CASH_ADVANCE_STATUS_OPTIONS } from '@/utils/format'
-import type { CashAdvanceStatus } from '@/types'
+import type { CashAdvanceStatus, Divisi } from '@/types'
 
 const ALL = 'all'
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 function KasbonDetailDialog({ id, onOpenChange }: { id: string | null; onOpenChange: (open: boolean) => void }) {
   const { data, isLoading } = useQuery({
@@ -110,6 +111,7 @@ export default function Kasbon() {
   const [statusFilter, setStatusFilter] = React.useState<CashAdvanceStatus | typeof ALL>(ALL)
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
+  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
   const [detailId, setDetailId] = React.useState<string | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
@@ -118,6 +120,7 @@ export default function Kasbon() {
     status: statusFilter === ALL ? undefined : statusFilter,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
+    divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi),
   }
 
   const { data, isLoading } = useQuery({
@@ -187,6 +190,16 @@ export default function Kasbon() {
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Sampai Tanggal</label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

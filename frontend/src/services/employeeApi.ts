@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, Employee } from '@/types'
+import type { ApiResponse, Divisi, Employee } from '@/types'
 
 export interface EmployeeInput {
   name: string
@@ -7,6 +7,8 @@ export interface EmployeeInput {
   status?: 'active' | 'inactive'
   username: string
   password?: string
+  divisi?: Divisi
+  hourly_rate?: number
 }
 
 export async function listEmployees() {

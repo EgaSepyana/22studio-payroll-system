@@ -13,6 +13,7 @@ import AdminWorkLogs from '@/pages/admin/WorkLogs'
 import AdminPayroll from '@/pages/admin/Payroll'
 import AdminReports from '@/pages/admin/Reports'
 import AdminKasbon from '@/pages/admin/Kasbon'
+import AdminAttendance from '@/pages/admin/Attendance'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -20,6 +21,7 @@ import EmployeeRiwayatPekerjaan from '@/pages/employee/RiwayatPekerjaan'
 import EmployeeRiwayatGaji from '@/pages/employee/RiwayatGaji'
 import EmployeeKasbon from '@/pages/employee/Kasbon'
 import EmployeeProfile from '@/pages/employee/Profile'
+import EmployeeAbsensi from '@/pages/employee/Absensi'
 
 function HomeRedirect() {
   const { user } = useAuth()
@@ -44,6 +46,7 @@ export default function App() {
             <Route path="/admin/payroll" element={<AdminPayroll />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/kasbon" element={<AdminKasbon />} />
+            <Route path="/admin/attendance" element={<AdminAttendance />} />
           </Route>
         </Route>
 
@@ -55,6 +58,7 @@ export default function App() {
             <Route path="/app/riwayat-gaji" element={<EmployeeRiwayatGaji />} />
             <Route path="/app/kasbon" element={<EmployeeKasbon />} />
             <Route path="/app/profile" element={<EmployeeProfile />} />
+            <Route path="/app/absensi" element={<EmployeeAbsensi />} />
           </Route>
         </Route>
 

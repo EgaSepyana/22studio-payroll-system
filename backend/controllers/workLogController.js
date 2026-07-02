@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import * as workLogService from '../services/workLogService.js';
 import * as workLogExportService from '../services/workLogExportService.js';
-import { WORK_STATUSES } from '../google-sheet/models.js';
+import { WORK_STATUSES, DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -20,6 +20,7 @@ const filterSchema = z.object({
   article_id: z.string().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 export async function create(req, res, next) {

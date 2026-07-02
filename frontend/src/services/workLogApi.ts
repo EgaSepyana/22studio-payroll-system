@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, WorkLog, WorkStatus } from '@/types'
+import type { ApiResponse, Divisi, WorkLog, WorkStatus } from '@/types'
 
 export interface WorkLogInput {
   customer_id: string
@@ -17,6 +17,7 @@ export interface WorkLogFilters {
   article_id?: string
   date_from?: string
   date_to?: string
+  divisi?: Divisi
 }
 
 export async function createWorkLog(data: WorkLogInput) {

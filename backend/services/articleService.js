@@ -11,12 +11,15 @@ async function attachCustomerName(article) {
   return { ...clean(article), customer_name: customer?.name || null };
 }
 
-export async function listArticles() {
-  const articles = await ArticlesRepo.getAll();
+export async function listArticles(filters = {}) {
+  let articles = await ArticlesRepo.getAll();
+  if (filters.divisi) {
+    articles = articles.filter((a) => a.divisi === filters.divisi);
+  }
   return Promise.all(articles.map(attachCustomerName));
 }
 
-export async function createArticle({ customer_id, article_name, price, status }) {
+export async function createArticle({ customer_id, article_name, price, status, divisi }) {
   const customer = await CustomersRepo.getById(customer_id);
   if (!customer) throw new ApiError(400, 'Customer tidak valid');
 
@@ -25,11 +28,12 @@ export async function createArticle({ customer_id, article_name, price, status }
     article_name,
     price,
     status: status || 'active',
+    divisi: divisi || '',
   });
   return attachCustomerName(article);
 }
 
-export async function updateArticle(id, { customer_id, article_name, price, status }) {
+export async function updateArticle(id, { customer_id, article_name, price, status, divisi }) {
   if (customer_id !== undefined) {
     const customer = await CustomersRepo.getById(customer_id);
     if (!customer) throw new ApiError(400, 'Customer tidak valid');
@@ -39,6 +43,7 @@ export async function updateArticle(id, { customer_id, article_name, price, stat
   if (article_name !== undefined) patch.article_name = article_name;
   if (price !== undefined) patch.price = price;
   if (status !== undefined) patch.status = status;
+  if (divisi !== undefined) patch.divisi = divisi;
 
   const updated = await ArticlesRepo.updateById(id, patch);
   if (!updated) throw new ApiError(404, 'Artikel tidak ditemukan');

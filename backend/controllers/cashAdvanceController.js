@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import * as cashAdvanceService from '../services/cashAdvanceService.js';
-import { CASH_ADVANCE_STATUSES } from '../google-sheet/models.js';
+import { CASH_ADVANCE_STATUSES, DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -13,6 +13,7 @@ const filterSchema = z.object({
   status: z.enum(CASH_ADVANCE_STATUSES).optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 export async function create(req, res, next) {

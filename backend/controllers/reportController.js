@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import * as reportService from '../services/reportService.js';
 import * as exportService from '../services/exportService.js';
+import { DIVISIONS } from '../google-sheet/models.js';
 import { ok } from '../utils/response.js';
 
 const filterSchema = z.object({
@@ -10,6 +11,7 @@ const filterSchema = z.object({
   employee_id: z.string().optional(),
   customer_id: z.string().optional(),
   article_id: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 export async function generate(req, res, next) {

@@ -55,7 +55,9 @@ import {
 } from '@/components/ui/form'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
-import type { Employee } from '@/types'
+import type { Divisi, Employee } from '@/types'
+
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 const createSchema = z.object({
   name: z.string().min(1, 'Nama wajib diisi'),
@@ -63,13 +65,16 @@ const createSchema = z.object({
   username: z.string().min(3, 'Username minimal 3 karakter'),
   password: z.string().min(6, 'Password minimal 6 karakter'),
   status: z.enum(['active', 'inactive']),
+  divisi: z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing']),
+  hourly_rate: z.coerce.number().nonnegative().optional(),
 })
 
 const editSchema = createSchema.extend({
   password: z.union([z.literal(''), z.string().min(6, 'Password minimal 6 karakter')]),
 })
 
-type FormValues = z.infer<typeof createSchema>
+type FormInput = z.input<typeof createSchema>
+type FormValues = z.output<typeof createSchema>
 
 function EmployeeFormDialog({
   employee,
@@ -83,7 +88,7 @@ function EmployeeFormDialog({
   const isEdit = !!employee
   const queryClient = useQueryClient()
 
-  const form = useForm<FormValues>({
+  const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(isEdit ? editSchema : createSchema),
     defaultValues: {
       name: employee?.name || '',
@@ -91,8 +96,12 @@ function EmployeeFormDialog({
       username: employee?.username || '',
       password: '',
       status: employee?.status || 'active',
+      divisi: employee?.divisi || 'Jahit',
+      hourly_rate: employee?.hourly_rate ?? undefined,
     },
   })
+
+  const divisi = form.watch('divisi')
 
   React.useEffect(() => {
     if (open) {
@@ -102,6 +111,8 @@ function EmployeeFormDialog({
         username: employee?.username || '',
         password: '',
         status: employee?.status || 'active',
+        divisi: employee?.divisi || 'Jahit',
+        hourly_rate: employee?.hourly_rate ?? undefined,
       })
     }
   }, [open, employee, form])
@@ -188,27 +199,74 @@ function EmployeeFormDialog({
                 )}
               />
             </div>
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="active">Aktif</SelectItem>
+                        <SelectItem value="inactive">Nonaktif</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="divisi"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Divisi</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {DIVISIONS.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {divisi === 'Finishing' && (
+              <FormField
+                control={form.control}
+                name="hourly_rate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Upah per Jam (Rp)</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="0"
+                        {...field}
+                        value={(field.value ?? '') as string | number}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Aktif</SelectItem>
-                      <SelectItem value="inactive">Nonaktif</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <DialogFooter>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -273,6 +331,7 @@ export default function Employees() {
                   <TableHead>Nama</TableHead>
                   <TableHead>Username</TableHead>
                   <TableHead>Nomor HP</TableHead>
+                  <TableHead>Divisi</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
@@ -280,7 +339,7 @@ export default function Employees() {
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground text-center">
                       Belum ada data karyawan.
                     </TableCell>
                   </TableRow>
@@ -290,6 +349,9 @@ export default function Employees() {
                     <TableCell className="font-medium">{employee.name}</TableCell>
                     <TableCell>{employee.username}</TableCell>
                     <TableCell>{employee.phone}</TableCell>
+                    <TableCell>
+                      {employee.divisi ? <Badge variant="outline">{employee.divisi}</Badge> : '-'}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
                         {employee.status === 'active' ? 'Aktif' : 'Nonaktif'}

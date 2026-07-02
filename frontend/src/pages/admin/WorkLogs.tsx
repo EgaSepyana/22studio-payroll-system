@@ -48,8 +48,10 @@ import * as employeeApi from '@/services/employeeApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { formatCurrency, formatDate } from '@/utils/format'
+import type { Divisi } from '@/types'
 
 const ALL = 'all'
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 const formSchema = z.object({
   employee_id: z.string().min(1, 'Karyawan wajib dipilih'),
@@ -70,12 +72,13 @@ export default function WorkLogs() {
   const [employeeId, setEmployeeId] = React.useState(ALL)
   const [customerId, setCustomerId] = React.useState(ALL)
   const [articleId, setArticleId] = React.useState(ALL)
+  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
   const [isAddOpen, setIsAddOpen] = React.useState(false)
   const [exportingFormat, setExportingFormat] = React.useState<'excel' | 'pdf' | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: articleApi.listArticles })
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
 
   const filters = {
     date_from: dateFrom || undefined,
@@ -83,6 +86,7 @@ export default function WorkLogs() {
     employee_id: employeeId === ALL ? undefined : employeeId,
     customer_id: customerId === ALL ? undefined : customerId,
     article_id: articleId === ALL ? undefined : articleId,
+    divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi),
   }
 
   const { data, isLoading } = useQuery({
@@ -90,7 +94,8 @@ export default function WorkLogs() {
     queryFn: () => workLogApi.listAllWorkLogs(filters),
   })
 
-  const hasFilters = dateFrom || dateTo || employeeId !== ALL || customerId !== ALL || articleId !== ALL
+  const hasFilters =
+    dateFrom || dateTo || employeeId !== ALL || customerId !== ALL || articleId !== ALL || divisiFilter !== ALL
 
   function resetFilters() {
     setDateFrom('')
@@ -98,6 +103,7 @@ export default function WorkLogs() {
     setEmployeeId(ALL)
     setCustomerId(ALL)
     setArticleId(ALL)
+    setDivisiFilter(ALL)
   }
 
   const form = useForm<FormInput, unknown, FormValues>({
@@ -298,6 +304,16 @@ export default function WorkLogs() {
               <SelectContent>
                 <SelectItem value={ALL}>Semua Artikel</SelectItem>
                 {articles?.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

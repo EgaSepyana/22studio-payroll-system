@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as articleService from '../services/articleService.js';
+import { DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -7,6 +8,7 @@ const createSchema = z.object({
   article_name: z.string().min(1),
   price: z.coerce.number().positive(),
   status: z.enum(['active', 'inactive']).optional(),
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 const updateSchema = z.object({
@@ -14,11 +16,17 @@ const updateSchema = z.object({
   article_name: z.string().min(1).optional(),
   price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  divisi: z.enum(DIVISIONS).optional(),
+});
+
+const filterSchema = z.object({
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 export async function list(req, res, next) {
   try {
-    ok(res, await articleService.listArticles());
+    const filters = filterSchema.parse(req.query);
+    ok(res, await articleService.listArticles(filters));
   } catch (err) {
     next(err);
   }

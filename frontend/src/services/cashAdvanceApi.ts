@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, CashAdvance, CashAdvanceStatus } from '@/types'
+import type { ApiResponse, CashAdvance, CashAdvanceStatus, Divisi } from '@/types'
 
 export interface CashAdvanceInput {
   amount: number
@@ -11,6 +11,7 @@ export interface CashAdvanceFilters {
   status?: CashAdvanceStatus
   date_from?: string
   date_to?: string
+  divisi?: Divisi
 }
 
 export async function createCashAdvance(data: CashAdvanceInput) {

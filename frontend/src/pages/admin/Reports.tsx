@@ -25,7 +25,7 @@ import {
 import * as reportApi from '@/services/reportApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/format'
-import type { ReportGroupBy } from '@/types'
+import type { Divisi, ReportGroupBy } from '@/types'
 
 const GROUP_OPTIONS: { value: ReportGroupBy; label: string }[] = [
   { value: 'daily', label: 'Harian' },
@@ -37,12 +37,21 @@ const GROUP_OPTIONS: { value: ReportGroupBy; label: string }[] = [
   { value: 'employee', label: 'Per Karyawan' },
 ]
 
+const ALL = 'all'
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
+
 export default function Reports() {
   const [groupBy, setGroupBy] = React.useState<ReportGroupBy>('monthly')
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
+  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
 
-  const filters = { groupBy, date_from: dateFrom || undefined, date_to: dateTo || undefined }
+  const filters = {
+    groupBy,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+    divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi),
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['report', filters],
@@ -78,6 +87,16 @@ export default function Reports() {
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Sampai Tanggal</label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div className="ml-auto flex gap-2">
             <Button variant="outline" disabled={exportMutation.isPending} onClick={() => exportMutation.mutate('excel')}>

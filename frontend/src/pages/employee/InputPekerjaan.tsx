@@ -47,7 +47,7 @@ export default function InputPekerjaan() {
   const queryClient = useQueryClient()
 
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: articleApi.listArticles })
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),

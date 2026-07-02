@@ -1,17 +1,50 @@
 import { z } from 'zod';
 import * as payrollService from '../services/payrollService.js';
+import * as workLogExportService from '../services/workLogExportService.js';
+import { DIVISIONS } from '../google-sheet/models.js';
 import { ok } from '../utils/response.js';
 
 const filterSchema = z.object({
   month: z.coerce.number().min(1).max(12),
   year: z.coerce.number().min(2000),
   employee_id: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
+});
+
+const exportSchema = z.object({
+  id: z.string().optional(),
+  month: z.coerce.number().min(1).max(12).optional(),
+  year: z.coerce.number().min(2000).optional(),
+  employee_id: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
+  format: z.enum(['pdf', 'excel']),
 });
 
 export async function list(req, res, next) {
   try {
-    const { month, year, employee_id } = filterSchema.parse(req.query);
-    ok(res, await payrollService.getOrGeneratePayroll(month, year, employee_id));
+    const { month, year, employee_id, divisi } = filterSchema.parse(req.query);
+    ok(res, await payrollService.getOrGeneratePayroll(month, year, employee_id, divisi));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportPaid(req, res, next) {
+  try {
+    const { format, ...filters } = exportSchema.parse(req.query);
+    const rows = await payrollService.listPaidPayrollForExport(filters);
+
+    if (format === 'excel') {
+      const buffer = await workLogExportService.payrollToExcel(rows);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="slip-gaji-payroll.xlsx"');
+      res.send(buffer);
+    } else {
+      const buffer = await workLogExportService.payrollToPdf(rows);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="slip-gaji-payroll.pdf"');
+      res.send(buffer);
+    }
   } catch (err) {
     next(err);
   }

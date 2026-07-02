@@ -10,7 +10,7 @@ const GROUPERS = {
   yearly: yearKey,
 };
 
-export async function buildReport({ groupBy, date_from, date_to, employee_id, customer_id, article_id }) {
+export async function buildReport({ groupBy, date_from, date_to, employee_id, customer_id, article_id, divisi }) {
   // One Sheets API call fetches all four sheets instead of four separate ones.
   const [logs, employees, customers, articles] = await batchGetAll([
     WorkLogsRepo,
@@ -29,6 +29,12 @@ export async function buildReport({ groupBy, date_from, date_to, employee_id, cu
   if (employee_id) filtered = filtered.filter((l) => String(l.employee_id) === String(employee_id));
   if (customer_id) filtered = filtered.filter((l) => String(l.customer_id) === String(customer_id));
   if (article_id) filtered = filtered.filter((l) => String(l.article_id) === String(article_id));
+  if (divisi) {
+    const idsInDivisi = new Set(
+      employees.filter((e) => e.divisi === divisi).map((e) => String(e.id))
+    );
+    filtered = filtered.filter((l) => idsInDivisi.has(String(l.employee_id)));
+  }
 
   let keyFn;
   let labelFn;

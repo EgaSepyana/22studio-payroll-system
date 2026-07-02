@@ -1,15 +1,20 @@
 import { api } from './api'
-import type { ApiResponse, Article } from '@/types'
+import type { ApiResponse, Article, Divisi } from '@/types'
 
 export interface ArticleInput {
   customer_id: string
   article_name: string
   price: number
   status?: 'active' | 'inactive'
+  divisi?: Divisi
 }
 
-export async function listArticles() {
-  const res = await api.get<ApiResponse<Article[]>>('/articles')
+export interface ArticleFilters {
+  divisi?: Divisi
+}
+
+export async function listArticles(filters: ArticleFilters = {}) {
+  const res = await api.get<ApiResponse<Article[]>>('/articles', { params: filters })
   return res.data.data
 }
 

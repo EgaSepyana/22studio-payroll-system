@@ -76,6 +76,13 @@ export async function listWorkLogs(filters = {}) {
   if (filters.date_to) {
     logs = logs.filter((l) => l.work_date <= filters.date_to);
   }
+  if (filters.divisi) {
+    const employees = await EmployeesRepo.getAll();
+    const idsInDivisi = new Set(
+      employees.filter((e) => e.divisi === filters.divisi).map((e) => String(e.id))
+    );
+    logs = logs.filter((l) => idsInDivisi.has(String(l.employee_id)));
+  }
 
   logs.sort((a, b) => (a.work_date < b.work_date ? 1 : -1));
 

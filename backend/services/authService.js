@@ -4,9 +4,15 @@ import { UsersRepo, EmployeesRepo } from '../google-sheet/models.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
 
-function signToken(user) {
+function signToken(user, profile) {
   return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, employee_id: user.employee_id || null },
+    {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      employee_id: user.employee_id || null,
+      divisi: profile?.divisi || null,
+    },
     env.jwtSecret,
     { expiresIn: '12h' }
   );
@@ -28,7 +34,7 @@ export async function login(username, password) {
     }
   }
 
-  const token = signToken(user);
+  const token = signToken(user, profile);
   return {
     token,
     user: {
@@ -38,6 +44,7 @@ export async function login(username, password) {
       employee_id: user.employee_id || null,
       name: profile?.name || (user.role === 'admin' ? 'Admin' : user.username),
       phone: profile?.phone || null,
+      divisi: profile?.divisi || null,
     },
   };
 }

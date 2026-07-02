@@ -12,6 +12,7 @@ import reportRoutes from './routes/reportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import cashAdvanceRoutes from './routes/cashAdvanceRoutes.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/cashadvances', cashAdvanceRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -31,6 +31,11 @@ export function formatDateTime(dateStr: string): string {
   }).format(new Date(dateStr))
 }
 
+export function formatTime(dateStr: string): string {
+  if (!dateStr) return '-'
+  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date(dateStr))
+}
+
 export const MONTH_NAMES = [
   'Januari',
   'Februari',

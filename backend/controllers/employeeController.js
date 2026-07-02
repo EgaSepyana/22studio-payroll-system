@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as employeeService from '../services/employeeService.js';
+import { DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -8,6 +9,8 @@ const createSchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
   username: z.string().min(3),
   password: z.string().min(6),
+  divisi: z.enum(DIVISIONS).optional(),
+  hourly_rate: z.coerce.number().nonnegative().optional(),
 });
 
 const updateSchema = z.object({
@@ -16,6 +19,8 @@ const updateSchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
   username: z.string().min(3).optional(),
   password: z.string().min(6).optional(),
+  divisi: z.enum(DIVISIONS).optional(),
+  hourly_rate: z.coerce.number().nonnegative().optional(),
 });
 
 export async function list(req, res, next) {

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -15,10 +15,18 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
 
-const NAV_ITEMS = [
+const PIECE_RATE_NAV_ITEMS = [
   { to: '/app', label: 'Beranda', icon: LayoutDashboard, end: true },
   { to: '/app/input', label: 'Input', icon: PlusCircle },
   { to: '/app/riwayat-pekerjaan', label: 'Riwayat', icon: History },
+  { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },
+  { to: '/app/kasbon', label: 'Kasbon', icon: HandCoins },
+  { to: '/app/profile', label: 'Profil', icon: User },
+]
+
+const FINISHING_NAV_ITEMS = [
+  { to: '/app', label: 'Beranda', icon: LayoutDashboard, end: true },
+  { to: '/app/absensi', label: 'Absensi', icon: Clock },
   { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },
   { to: '/app/kasbon', label: 'Kasbon', icon: HandCoins },
   { to: '/app/profile', label: 'Profil', icon: User },
@@ -28,14 +36,13 @@ export default function EmployeeLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false)
+  const NAV_ITEMS = user?.divisi === 'Finishing' ? FINISHING_NAV_ITEMS : PIECE_RATE_NAV_ITEMS
 
   return (
     <div className="bg-background flex min-h-dvh flex-col">
       <header className="bg-background/95 sticky top-0 z-20 flex h-14 items-center justify-between border-b px-4 backdrop-blur supports-backdrop-filter:bg-background/80">
         <div className="flex items-center gap-2">
-          <div className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md text-xs font-bold">
-            22
-          </div>
+          <img src="/logo.svg" alt="22Studio" className="size-7 shrink-0 rounded-md object-cover" />
           <span className="font-heading text-sm font-semibold">22Studio</span>
         </div>
         <DropdownMenu>

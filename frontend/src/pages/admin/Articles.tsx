@@ -57,13 +57,17 @@ import * as articleApi from '@/services/articleApi'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/format'
-import type { Article } from '@/types'
+import type { Article, Divisi } from '@/types'
+
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
+const ALL = 'all'
 
 const schema = z.object({
   customer_id: z.string().min(1, 'Customer wajib dipilih'),
   article_name: z.string().min(1, 'Nama artikel wajib diisi'),
   price: z.coerce.number().positive('Harga harus lebih dari 0'),
   status: z.enum(['active', 'inactive']),
+  divisi: z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing']),
 })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -88,6 +92,7 @@ function ArticleFormDialog({
       article_name: article?.article_name || '',
       price: article?.price || 0,
       status: article?.status || 'active',
+      divisi: article?.divisi || 'Jahit',
     },
   })
 
@@ -98,6 +103,7 @@ function ArticleFormDialog({
         article_name: article?.article_name || '',
         price: article?.price || 0,
         status: article?.status || 'active',
+        divisi: article?.divisi || 'Jahit',
       })
     }
   }, [open, article, form])
@@ -204,6 +210,30 @@ function ArticleFormDialog({
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="divisi"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Divisi</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {DIVISIONS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <DialogFooter>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -221,8 +251,14 @@ export default function Articles() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Article | undefined>(undefined)
+  const [divisiFilter, setDivisiFilter] = React.useState<string>(ALL)
 
-  const { data, isLoading } = useQuery({ queryKey: ['articles'], queryFn: articleApi.listArticles })
+  const filters = { divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi) }
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['articles', filters],
+    queryFn: () => articleApi.listArticles(filters),
+  })
 
   const deleteMutation = useMutation({
     mutationFn: articleApi.deleteArticle,
@@ -250,6 +286,27 @@ export default function Articles() {
         }
       />
 
+      <Card className="mb-4 shadow-sm">
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="shadow-sm">
         <CardContent className="px-0">
           {isLoading ? (
@@ -264,6 +321,7 @@ export default function Articles() {
                 <TableRow>
                   <TableHead>Customer</TableHead>
                   <TableHead>Nama Artikel</TableHead>
+                  <TableHead>Divisi</TableHead>
                   <TableHead>Harga</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
@@ -272,7 +330,7 @@ export default function Articles() {
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground text-center">
                       Belum ada data artikel.
                     </TableCell>
                   </TableRow>
@@ -281,6 +339,9 @@ export default function Articles() {
                   <TableRow key={article.id}>
                     <TableCell>{article.customer_name}</TableCell>
                     <TableCell className="font-medium">{article.article_name}</TableCell>
+                    <TableCell>
+                      {article.divisi ? <Badge variant="outline">{article.divisi}</Badge> : '-'}
+                    </TableCell>
                     <TableCell>{formatCurrency(article.price)}</TableCell>
                     <TableCell>
                       <Badge variant={article.status === 'active' ? 'default' : 'secondary'}>

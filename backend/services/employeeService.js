@@ -20,13 +20,19 @@ export async function getEmployee(id) {
   return attachUserInfo(employee);
 }
 
-export async function createEmployee({ name, phone, status, username, password }) {
+export async function createEmployee({ name, phone, status, username, password, divisi, hourly_rate }) {
   const users = await UsersRepo.getAll({ fresh: true });
   if (users.some((u) => u.username === username)) {
     throw new ApiError(400, 'Username sudah digunakan');
   }
 
-  const employee = await EmployeesRepo.insert({ name, phone, status: status || 'active' });
+  const employee = await EmployeesRepo.insert({
+    name,
+    phone,
+    status: status || 'active',
+    divisi: divisi || '',
+    hourly_rate: hourly_rate || '',
+  });
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
@@ -44,7 +50,7 @@ export async function createEmployee({ name, phone, status, username, password }
   return attachUserInfo(employee);
 }
 
-export async function updateEmployee(id, { name, phone, status, username, password }) {
+export async function updateEmployee(id, { name, phone, status, username, password, divisi, hourly_rate }) {
   const employee = await EmployeesRepo.getById(id);
   if (!employee) throw new ApiError(404, 'Karyawan tidak ditemukan');
 
@@ -52,6 +58,8 @@ export async function updateEmployee(id, { name, phone, status, username, passwo
   if (name !== undefined) patch.name = name;
   if (phone !== undefined) patch.phone = phone;
   if (status !== undefined) patch.status = status;
+  if (divisi !== undefined) patch.divisi = divisi;
+  if (hourly_rate !== undefined) patch.hourly_rate = hourly_rate;
   const updated = Object.keys(patch).length ? await EmployeesRepo.updateById(id, patch) : employee;
 
   const users = await UsersRepo.getAll({ fresh: true });

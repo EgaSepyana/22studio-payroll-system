@@ -55,6 +55,13 @@ export async function listCashAdvances(filters = {}) {
     const bound = filters.date_to.length === 10 ? `${filters.date_to}T23:59:59.999Z` : filters.date_to;
     rows = rows.filter((r) => r.requested_at <= bound);
   }
+  if (filters.divisi) {
+    const employees = await EmployeesRepo.getAll();
+    const idsInDivisi = new Set(
+      employees.filter((e) => e.divisi === filters.divisi).map((e) => String(e.id))
+    );
+    rows = rows.filter((r) => idsInDivisi.has(String(r.employee_id)));
+  }
 
   rows.sort((a, b) => (a.requested_at < b.requested_at ? 1 : -1));
 

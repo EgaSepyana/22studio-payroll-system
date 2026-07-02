@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, CheckCircle2, Loader2 } from 'lucide-react'
+import { Eye, CheckCircle2, Loader2, FileSpreadsheet, FileDown, Printer, FileText } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -40,12 +40,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import * as payrollApi from '@/services/payrollApi'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime, MONTH_NAMES } from '@/utils/format'
+import type { Divisi, PayrollRow } from '@/types'
 
 const ALL = 'all'
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 const now = new Date()
 const YEARS = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)
 
@@ -70,26 +78,57 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
         ) : (
           <div className="flex flex-col gap-3">
             <div className="max-h-72 overflow-y-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tanggal</TableHead>
-                    <TableHead>Artikel</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{formatDate(item.work_date)}</TableCell>
-                      <TableCell>{item.article_name}</TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.total)}</TableCell>
+              {data.items_type === 'attendance' ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Check-in</TableHead>
+                      <TableHead>Check-out</TableHead>
+                      <TableHead className="text-right">Jam Kerja</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {data.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{formatDate('date' in item ? item.date : '')}</TableCell>
+                        <TableCell>
+                          {'check_in' in item && item.check_in ? formatDateTime(item.check_in) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {'check_out' in item && item.check_out ? formatDateTime(item.check_out) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {'hours' in item ? item.hours ?? '-' : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Artikel</TableHead>
+                      <TableHead>Qty</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{'work_date' in item ? formatDate(item.work_date) : '-'}</TableCell>
+                        <TableCell>{'article_name' in item ? item.article_name : '-'}</TableCell>
+                        <TableCell>{'quantity' in item ? item.quantity : '-'}</TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency('total' in item ? item.total : 0)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
             {data.kasbon_deduction > 0 ? (
               <div className="flex flex-col gap-1.5 rounded-md bg-muted px-4 py-3">
@@ -129,13 +168,21 @@ export default function Payroll() {
   const [month, setMonth] = React.useState(String(now.getMonth() + 1))
   const [year, setYear] = React.useState(String(now.getFullYear()))
   const [employeeId, setEmployeeId] = React.useState(ALL)
+  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
   const [detailId, setDetailId] = React.useState<string | null>(null)
+  const [rowAction, setRowAction] = React.useState<{ id: string; type: 'print' | 'excel' | 'pdf' } | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payroll', month, year, employeeId],
-    queryFn: () => payrollApi.listPayroll(Number(month), Number(year), employeeId === ALL ? undefined : employeeId),
+    queryKey: ['payroll', month, year, employeeId, divisiFilter],
+    queryFn: () =>
+      payrollApi.listPayroll(
+        Number(month),
+        Number(year),
+        employeeId === ALL ? undefined : employeeId,
+        divisiFilter === ALL ? undefined : (divisiFilter as Divisi)
+      ),
   })
 
   const payMutation = useMutation({
@@ -146,6 +193,21 @@ export default function Payroll() {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  async function handleGenerateSlip(row: PayrollRow, type: 'print' | 'excel' | 'pdf') {
+    setRowAction({ id: row.id, type })
+    try {
+      if (type === 'print') {
+        await payrollApi.printPayroll({ id: row.id })
+      } else {
+        await payrollApi.exportPayroll({ id: row.id }, type)
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setRowAction(null)
+    }
+  }
 
   return (
     <div>
@@ -180,6 +242,16 @@ export default function Payroll() {
               <SelectContent>
                 <SelectItem value={ALL}>Semua Karyawan</SelectItem>
                 {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -259,6 +331,30 @@ export default function Payroll() {
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                      )}
+                      {row.payment_status === 'paid' && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" disabled={rowAction?.id === row.id}>
+                              {rowAction?.id === row.id ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <FileText className="size-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'print')}>
+                              <Printer className="size-4" /> Print Slip Gaji
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'pdf')}>
+                              <FileDown className="size-4" /> Download PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'excel')}>
+                              <FileSpreadsheet className="size-4" /> Download Excel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   </TableRow>

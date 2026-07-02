@@ -5,11 +5,16 @@ export const DEFAULT_WORK_STATUS = 'selesai';
 
 export const CASH_ADVANCE_STATUSES = ['pending', 'approved', 'rejected', 'paid'];
 
+export const DIVISIONS = ['Jahit', 'Sablon', 'Cutting', 'Finishing'];
+export const FINISHING_DIVISION = 'Finishing';
+
+export const PAY_SOURCES = ['worklog', 'attendance'];
+
 export const SHEET_SCHEMAS = {
   Users: ['id', 'username', 'password', 'role', 'employee_id'],
-  Employees: ['id', 'name', 'phone', 'status'],
+  Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate'],
   Customers: ['id', 'name'],
-  Articles: ['id', 'customer_id', 'article_name', 'price', 'status'],
+  Articles: ['id', 'customer_id', 'article_name', 'price', 'status', 'divisi'],
   WorkLogs: [
     'id',
     'employee_id',
@@ -34,6 +39,7 @@ export const SHEET_SCHEMAS = {
     'paid_by',
     'kasbon_deduction',
     'net_salary',
+    'pay_source',
   ],
   CashAdvances: [
     'id',
@@ -47,6 +53,7 @@ export const SHEET_SCHEMAS = {
     'paid_at',
     'payroll_id',
   ],
+  Attendance: ['id', 'employee_id', 'date', 'check_in', 'check_out', 'hours', 'payroll_id', 'notes'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -56,3 +63,4 @@ export const ArticlesRepo = new SheetRepository('Articles', SHEET_SCHEMAS.Articl
 export const WorkLogsRepo = new SheetRepository('WorkLogs', SHEET_SCHEMAS.WorkLogs);
 export const PayrollRepo = new SheetRepository('Payroll', SHEET_SCHEMAS.Payroll);
 export const CashAdvancesRepo = new SheetRepository('CashAdvances', SHEET_SCHEMAS.CashAdvances);
+export const AttendanceRepo = new SheetRepository('Attendance', SHEET_SCHEMAS.Attendance);

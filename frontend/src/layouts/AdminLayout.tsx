@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   KeyRound,
+  Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { to: '/admin/worklogs', label: 'Data Pekerjaan', icon: ClipboardList },
   { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
   { to: '/admin/kasbon', label: 'Kasbon', icon: HandCoins },
+  { to: '/admin/attendance', label: 'Absensi', icon: Clock },
   { to: '/admin/reports', label: 'Laporan', icon: FileBarChart },
 ]
 
@@ -113,9 +115,7 @@ export default function AdminLayout() {
     <div className="bg-background flex min-h-dvh">
       <aside className="border-sidebar-border bg-sidebar sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r lg:flex">
         <div className="flex h-16 items-center gap-2 px-5">
-          <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md text-sm font-bold">
-            22
-          </div>
+          <img src="/logo.svg" alt="22Studio" className="size-8 shrink-0 rounded-md object-cover" />
           <span className="font-heading text-sidebar-foreground text-base font-semibold">
             22Studio Payroll
           </span>
@@ -136,9 +136,7 @@ export default function AdminLayout() {
             <SheetContent side="left" className="w-64 p-0">
               <SheetTitle className="sr-only">Menu</SheetTitle>
               <div className="flex h-16 items-center gap-2 px-5">
-                <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md text-sm font-bold">
-                  22
-                </div>
+                <img src="/logo.svg" alt="22Studio" className="size-8 shrink-0 rounded-md object-cover" />
                 <span className="font-heading text-base font-semibold">22Studio Payroll</span>
               </div>
               <NavList />
