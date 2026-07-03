@@ -7,6 +7,8 @@ router.use(requireAuth);
 
 router.get('/mine', requireRole('employee'), payrollController.myHistory);
 router.get('/export', requireRole('admin'), payrollController.exportPaid);
+router.get('/range', requireRole('admin'), payrollController.listRange);
+router.patch('/range/pay', requireRole('admin'), payrollController.markRangePaid);
 router.get('/', requireRole('admin'), payrollController.list);
 router.get('/:id', requireRole('admin'), payrollController.detail);
 router.patch('/:id/pay', requireRole('admin'), payrollController.markPaid);

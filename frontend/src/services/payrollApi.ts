@@ -5,6 +5,15 @@ export interface PayrollExportFilters {
   id?: string
   month?: number
   year?: number
+  date_from?: string
+  date_to?: string
+  employee_id?: string
+  divisi?: Divisi
+}
+
+export interface PayrollRangeFilters {
+  date_from: string
+  date_to: string
   employee_id?: string
   divisi?: Divisi
 }
@@ -13,6 +22,18 @@ export async function listPayroll(month: number, year: number, employeeId?: stri
   const res = await api.get<ApiResponse<PayrollRow[]>>('/payroll', {
     params: { month, year, employee_id: employeeId, divisi },
   })
+  return res.data.data
+}
+
+// Attendance (Finishing division) pay is daily, not monthly — this powers
+// the Payroll page's date-range view, an alternative to listPayroll above.
+export async function listPayrollRange(filters: PayrollRangeFilters) {
+  const res = await api.get<ApiResponse<PayrollRow[]>>('/payroll/range', { params: filters })
+  return res.data.data
+}
+
+export async function markRangePaid(filters: PayrollRangeFilters) {
+  const res = await api.patch<ApiResponse<PayrollRow[]>>('/payroll/range/pay', filters)
   return res.data.data
 }
 

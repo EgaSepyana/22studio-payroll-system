@@ -15,15 +15,42 @@ const exportSchema = z.object({
   id: z.string().optional(),
   month: z.coerce.number().min(1).max(12).optional(),
   year: z.coerce.number().min(2000).optional(),
+  date_from: z.string().optional(),
+  date_to: z.string().optional(),
   employee_id: z.string().optional(),
   divisi: z.enum(DIVISIONS).optional(),
   format: z.enum(['pdf', 'excel']),
+});
+
+const rangeFilterSchema = z.object({
+  date_from: z.string().min(1),
+  date_to: z.string().min(1),
+  employee_id: z.string().optional(),
+  divisi: z.enum(DIVISIONS).optional(),
 });
 
 export async function list(req, res, next) {
   try {
     const { month, year, employee_id, divisi } = filterSchema.parse(req.query);
     ok(res, await payrollService.getOrGeneratePayroll(month, year, employee_id, divisi));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listRange(req, res, next) {
+  try {
+    const { date_from, date_to, employee_id, divisi } = rangeFilterSchema.parse(req.query);
+    ok(res, await payrollService.getOrGenerateAttendancePayrollForRange(date_from, date_to, employee_id, divisi));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function markRangePaid(req, res, next) {
+  try {
+    const { date_from, date_to, employee_id, divisi } = rangeFilterSchema.parse(req.body);
+    ok(res, await payrollService.markRangeAsPaid(date_from, date_to, employee_id, divisi, req.user.id));
   } catch (err) {
     next(err);
   }

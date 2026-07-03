@@ -82,6 +82,8 @@ export interface PayrollRow {
   kasbon_deduction: number
   net_salary: number
   pay_source: PaySource
+  /** Specific date this row pays for. Only meaningful when pay_source is 'attendance' (daily pay) — 0 for worklog (monthly) rows. */
+  pay_date: string | number
   employee_name: string
 }
 

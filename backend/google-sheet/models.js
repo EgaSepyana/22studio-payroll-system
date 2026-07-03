@@ -40,6 +40,7 @@ export const SHEET_SCHEMAS = {
     'kasbon_deduction',
     'net_salary',
     'pay_source',
+    'pay_date',
   ],
   CashAdvances: [
     'id',

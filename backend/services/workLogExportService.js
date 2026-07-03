@@ -36,6 +36,16 @@ function periodLabel(month, year) {
   return `${MONTH_NAMES[Number(month) - 1] || month} ${year}`;
 }
 
+// Attendance pay is daily, so a daily row's "Periode" is the specific date it
+// covers, not the whole calendar month — worklog rows (and old pre-daily
+// attendance rows with no pay_date) still show the month/year label.
+function rowPeriodLabel(row) {
+  if (row.pay_source === 'attendance' && row.pay_date && row.pay_date !== '0') {
+    return formatDate(row.pay_date);
+  }
+  return periodLabel(row.month, row.year);
+}
+
 // Draws one bordered table row (grid on all four sides of every cell, not
 // just a stray line under the header) and returns the y position the next
 // row should start at. Text is vertically centered and truncated with an
@@ -346,7 +356,7 @@ export async function payrollToExcel(rows) {
     sheet.getCell('B3').value = row.employee_name;
     sheet.getCell('B3').font = { bold: true, color: { argb: 'FF1155CC' } };
     sheet.getCell('A4').value = 'Periode';
-    sheet.getCell('B4').value = periodLabel(row.month, row.year);
+    sheet.getCell('B4').value = rowPeriodLabel(row);
 
     const headerRowNumber = 6;
     const headers = isAttendance
@@ -509,7 +519,7 @@ export function payrollToPdf(rows) {
       doc.font('Helvetica').fillColor('#1155cc').text(row.employee_name || '-');
       doc.fillColor('#000');
       doc.font('Helvetica-Bold').text('Periode: ', { continued: true });
-      doc.font('Helvetica').text(periodLabel(row.month, row.year));
+      doc.font('Helvetica').text(rowPeriodLabel(row));
       doc.moveDown(0.8);
 
       const startX = 40;
