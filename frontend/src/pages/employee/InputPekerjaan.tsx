@@ -30,6 +30,7 @@ import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
+import { useAuth } from '@/hooks/useAuth'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
@@ -45,6 +46,7 @@ type FormValues = z.output<typeof schema>
 export default function InputPekerjaan() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
   const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
@@ -66,8 +68,11 @@ export default function InputPekerjaan() {
   const quantity = form.watch('quantity')
 
   const availableArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_id === customerId && a.status === 'active') || [],
-    [articles, customerId]
+    () =>
+      articles?.filter(
+        (a) => a.customer_id === customerId && a.status === 'active' && (!user?.divisi || a.divisi === user.divisi)
+      ) || [],
+    [articles, customerId, user?.divisi]
   )
 
   const selectedArticle = articles?.find((a) => a.id === articleId)

@@ -30,6 +30,10 @@ export async function updateWorkLog(id: string, data: Partial<WorkLogInput>) {
   return res.data.data
 }
 
+export async function deleteWorkLog(id: string) {
+  await api.delete(`/worklogs/${id}`)
+}
+
 export async function listAllWorkLogs(filters: WorkLogFilters = {}) {
   const res = await api.get<ApiResponse<WorkLog[]>>('/worklogs', { params: filters })
   return res.data.data

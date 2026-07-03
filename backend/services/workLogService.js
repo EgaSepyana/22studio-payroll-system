@@ -133,3 +133,12 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
 
   return enrich(updated);
 }
+
+export async function deleteWorkLog(id) {
+  const existing = await WorkLogsRepo.getById(id);
+  if (!existing) throw new ApiError(404, 'Data pekerjaan tidak ditemukan');
+  if (existing.payroll_id) {
+    throw new ApiError(400, 'Tidak dapat menghapus pekerjaan yang sudah dibayar');
+  }
+  await WorkLogsRepo.deleteById(id);
+}

@@ -43,6 +43,15 @@ export async function update(req, res, next) {
   }
 }
 
+export async function remove(req, res, next) {
+  try {
+    await workLogService.deleteWorkLog(req.params.id);
+    ok(res, { message: 'Pekerjaan dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listAll(req, res, next) {
   try {
     const filters = filterSchema.parse(req.query);

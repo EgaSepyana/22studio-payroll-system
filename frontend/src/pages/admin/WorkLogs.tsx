@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { X, Plus, Loader2, FileSpreadsheet, FileDown } from 'lucide-react'
+import { X, Plus, Loader2, FileSpreadsheet, FileDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -36,6 +36,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -48,7 +64,7 @@ import * as employeeApi from '@/services/employeeApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { formatCurrency, formatDate } from '@/utils/format'
-import type { Divisi } from '@/types'
+import type { Divisi, WorkLog } from '@/types'
 
 const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
@@ -73,7 +89,9 @@ export default function WorkLogs() {
   const [customerId, setCustomerId] = React.useState(ALL)
   const [articleId, setArticleId] = React.useState(ALL)
   const [divisiFilter, setDivisiFilter] = React.useState(ALL)
-  const [isAddOpen, setIsAddOpen] = React.useState(false)
+  const [isFormOpen, setIsFormOpen] = React.useState(false)
+  const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
+  const [deletingLog, setDeletingLog] = React.useState<WorkLog | null>(null)
   const [exportingFormat, setExportingFormat] = React.useState<'excel' | 'pdf' | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
@@ -106,6 +124,8 @@ export default function WorkLogs() {
     setDivisiFilter(ALL)
   }
 
+  const isEdit = !!editingLog
+
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -119,22 +139,51 @@ export default function WorkLogs() {
     },
   })
 
+  React.useEffect(() => {
+    if (isFormOpen) {
+      form.reset({
+        employee_id: editingLog?.employee_id || '',
+        work_date: editingLog?.work_date || todayISO(),
+        customer_id: editingLog?.customer_id || '',
+        article_id: editingLog?.article_id || '',
+        quantity: editingLog?.quantity,
+        notes: editingLog?.notes || '',
+        status: editingLog?.status || 'selesai',
+      })
+    }
+  }, [isFormOpen, editingLog, form])
+
+  const formEmployeeId = form.watch('employee_id')
   const formCustomerId = form.watch('customer_id')
+  const selectedEmployeeDivisi = employees?.find((e) => e.id === formEmployeeId)?.divisi
+
   const availableArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_id === formCustomerId && a.status === 'active') || [],
-    [articles, formCustomerId]
+    () =>
+      articles?.filter(
+        (a) =>
+          a.customer_id === formCustomerId &&
+          a.status === 'active' &&
+          (!selectedEmployeeDivisi || a.divisi === selectedEmployeeDivisi)
+      ) || [],
+    [articles, formCustomerId, selectedEmployeeDivisi]
   )
 
-  React.useEffect(() => {
-    form.setValue('article_id', '')
-  }, [formCustomerId, form])
-
-  const createMutation = useMutation({
-    mutationFn: (values: FormValues) => workLogApi.createWorkLog(values),
+  const saveMutation = useMutation({
+    mutationFn: (values: FormValues) =>
+      isEdit ? workLogApi.updateWorkLog(editingLog.id, values) : workLogApi.createWorkLog(values),
     onSuccess: () => {
-      toast.success('Pekerjaan berhasil ditambahkan')
-      setIsAddOpen(false)
-      form.reset()
+      toast.success(isEdit ? 'Pekerjaan berhasil diperbarui' : 'Pekerjaan berhasil ditambahkan')
+      setIsFormOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['worklogs'] })
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => workLogApi.deleteWorkLog(id),
+    onSuccess: () => {
+      toast.success('Pekerjaan dihapus')
+      setDeletingLog(null)
       queryClient.invalidateQueries({ queryKey: ['worklogs'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -171,24 +220,36 @@ export default function WorkLogs() {
             {exportingFormat === 'pdf' ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
             PDF
           </Button>
-          <Button onClick={() => setIsAddOpen(true)}>
+          <Button
+            onClick={() => {
+              setEditingLog(undefined)
+              setIsFormOpen(true)
+            }}
+          >
             <Plus className="mr-2 size-4" />
             Tambah Pekerjaan
           </Button>
         </div>
       </div>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Tambah Pekerjaan</DialogTitle>
+            <DialogTitle>{isEdit ? 'Edit Pekerjaan' : 'Tambah Pekerjaan'}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
+            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
               <FormField control={form.control} name="employee_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Karyawan</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => {
+                      field.onChange(v)
+                      form.setValue('article_id', '')
+                    }}
+                    disabled={isEdit}
+                  >
                     <FormControl><SelectTrigger><SelectValue placeholder="Pilih karyawan" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {employees?.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
@@ -207,7 +268,13 @@ export default function WorkLogs() {
               <FormField control={form.control} name="customer_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Customer</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => {
+                      field.onChange(v)
+                      form.setValue('article_id', '')
+                    }}
+                  >
                     <FormControl><SelectTrigger><SelectValue placeholder="Pilih customer" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {customers?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -219,12 +286,29 @@ export default function WorkLogs() {
               <FormField control={form.control} name="article_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Artikel</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange} disabled={!formCustomerId}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Pilih artikel" /></SelectTrigger></FormControl>
+                  <Select value={field.value} onValueChange={field.onChange} disabled={!formCustomerId || !formEmployeeId}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            !formEmployeeId
+                              ? 'Pilih karyawan dahulu'
+                              : !formCustomerId
+                                ? 'Pilih customer dahulu'
+                                : 'Pilih artikel'
+                          }
+                        />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       {availableArticles.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {formEmployeeId && formCustomerId && availableArticles.length === 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      Tidak ada artikel customer ini untuk divisi {selectedEmployeeDivisi || 'karyawan tersebut'}.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )} />
@@ -257,8 +341,8 @@ export default function WorkLogs() {
                 </FormItem>
               )} />
               <div className="pt-2 flex justify-end">
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                <Button type="submit" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
                   Simpan
                 </Button>
               </div>
@@ -266,6 +350,27 @@ export default function WorkLogs() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingLog} onOpenChange={(open) => !open && setDeletingLog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Pekerjaan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Data pekerjaan {deletingLog?.employee_name} — {deletingLog?.article_name} akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingLog && deleteMutation.mutate(deletingLog.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -346,12 +451,13 @@ export default function WorkLogs() {
                   <TableHead>Total</TableHead>
                   <TableHead>Keterangan</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-muted-foreground text-center">
+                    <TableCell colSpan={10} className="text-muted-foreground text-center">
                       Tidak ada data pekerjaan.
                     </TableCell>
                   </TableRow>
@@ -371,6 +477,30 @@ export default function WorkLogs() {
                     <TableCell>
                       <WorkStatusBadge status={log.status} />
                     </TableCell>
+                    <TableCell className="text-right">
+                      {!log.payroll_id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingLog(log)
+                                setIsFormOpen(true)
+                              }}
+                            >
+                              <Pencil className="size-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onClick={() => setDeletingLog(log)}>
+                              <Trash2 className="size-4" /> Hapus
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {data && data.length > 0 && (
@@ -378,6 +508,7 @@ export default function WorkLogs() {
                     <TableCell colSpan={5}>Total</TableCell>
                     <TableCell>{totalQty}</TableCell>
                     <TableCell>{formatCurrency(totalAmount)}</TableCell>
+                    <TableCell />
                     <TableCell />
                     <TableCell />
                   </TableRow>
