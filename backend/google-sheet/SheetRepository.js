@@ -100,7 +100,17 @@ export class SheetRepository {
     const fetchPromise = (async () => {
       const sheets = await getSheetsClient();
       const range = `${this.sheetName}!A2:${this.lastCol}`;
-      const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range });
+      // UNFORMATTED_VALUE is required: without it Sheets returns numeric
+      // cells locale-formatted (e.g. "8,5" instead of 8.5 under an
+      // Indonesian-locale spreadsheet), and Number("8,5") parses to NaN —
+      // which then silently becomes 0 wherever the code falls back with
+      // `|| 0`. This corrupted attendance hours (and any other numeric
+      // field) and, downstream, payroll totals.
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
       const data = rowsToData(this, res.data.values || []);
       cache.set(this.sheetName, { data, ts: Date.now() });
       return data;
@@ -236,7 +246,13 @@ export class SheetRepository {
 export async function batchGetAll(repos) {
   const sheets = await getSheetsClient();
   const ranges = repos.map((repo) => `${repo.sheetName}!A2:${repo.lastCol}`);
-  const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId: SPREADSHEET_ID, ranges });
+  // See the matching comment in getAll() — must match its render option so
+  // both read paths parse numeric cells identically.
+  const res = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: SPREADSHEET_ID,
+    ranges,
+    valueRenderOption: 'UNFORMATTED_VALUE',
+  });
   const valueRanges = res.data.valueRanges || [];
 
   return repos.map((repo, i) => {
