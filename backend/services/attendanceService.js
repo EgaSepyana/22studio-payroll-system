@@ -19,9 +19,13 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Rounds to the nearest whole hour: under 30 minutes past the hour rounds
+// down, 30 minutes or more rounds up (e.g. 8h25m -> 8, 8h30m -> 9).
 function computeHours(checkIn, checkOut) {
-  const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime();
-  return Math.max(0, Math.round((ms / 3600000) * 100) / 100); // hours, 2 decimal places
+  const totalMinutes = Math.max(0, (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 60000);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const remainderMinutes = totalMinutes % 60;
+  return remainderMinutes < 30 ? wholeHours : wholeHours + 1;
 }
 
 export async function checkIn(employeeId) {
