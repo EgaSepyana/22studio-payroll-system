@@ -36,11 +36,11 @@ function periodLabel(month, year) {
   return `${MONTH_NAMES[Number(month) - 1] || month} ${year}`;
 }
 
-// Attendance pay is daily, so a daily row's "Periode" is the specific date it
-// covers, not the whole calendar month — worklog rows (and old pre-daily
-// attendance rows with no pay_date) still show the month/year label.
+// Every pay source is daily now, so a daily row's "Periode" is the specific
+// date it covers, not the whole calendar month — only rows that predate the
+// daily model (no pay_date) still show the month/year label.
 function rowPeriodLabel(row) {
-  if (row.pay_source === 'attendance' && row.pay_date && row.pay_date !== '0') {
+  if (row.pay_date && row.pay_date !== '0') {
     return formatDate(row.pay_date);
   }
   return periodLabel(row.month, row.year);

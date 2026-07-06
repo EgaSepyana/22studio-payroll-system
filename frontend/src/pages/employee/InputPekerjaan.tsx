@@ -70,7 +70,13 @@ export default function InputPekerjaan() {
   const availableArticles = React.useMemo(
     () =>
       articles?.filter(
-        (a) => a.customer_id === customerId && a.status === 'active' && (!user?.divisi || a.divisi === user.divisi)
+        (a) =>
+          a.customer_id === customerId &&
+          a.status === 'active' &&
+          // Only filter out articles explicitly assigned to a different
+          // division — articles predating the divisi feature (no divisi set)
+          // must stay visible to everyone, otherwise the list goes empty.
+          (!user?.divisi || !a.divisi || a.divisi === user.divisi)
       ) || [],
     [articles, customerId, user?.divisi]
   )

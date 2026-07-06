@@ -25,8 +25,9 @@ export async function listPayroll(month: number, year: number, employeeId?: stri
   return res.data.data
 }
 
-// Attendance (Finishing division) pay is daily, not monthly — this powers
-// the Payroll page's date-range view, an alternative to listPayroll above.
+// Every division's pay is daily now — this powers the Payroll page's
+// date-range view, an alternative to listPayroll above for browsing/paying
+// across an arbitrary span instead of one calendar month.
 export async function listPayrollRange(filters: PayrollRangeFilters) {
   const res = await api.get<ApiResponse<PayrollRow[]>>('/payroll/range', { params: filters })
   return res.data.data

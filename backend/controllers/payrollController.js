@@ -41,7 +41,7 @@ export async function list(req, res, next) {
 export async function listRange(req, res, next) {
   try {
     const { date_from, date_to, employee_id, divisi } = rangeFilterSchema.parse(req.query);
-    ok(res, await payrollService.getOrGenerateAttendancePayrollForRange(date_from, date_to, employee_id, divisi));
+    ok(res, await payrollService.getOrGeneratePayrollForRange(date_from, date_to, employee_id, divisi));
   } catch (err) {
     next(err);
   }

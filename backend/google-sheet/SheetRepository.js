@@ -64,7 +64,15 @@ export class SheetRepository {
   rowToObject(row) {
     const obj = {};
     this.columns.forEach((col, i) => {
-      obj[col] = row[i] ?? '';
+      const v = row[i];
+      // UNFORMATTED_VALUE returns numeric cells as real JS numbers (fixing
+      // the locale-comma bug), but every id/comparison/String(x)===String(y)
+      // check across the whole app — frontend included — assumes every
+      // sheet-sourced field is a string, same as it always was. Stringify
+      // immediately here so that contract holds: String(8.5) is always
+      // "8.5" (dot decimal, no locale involved), unlike what Sheets would
+      // have formatted it as.
+      obj[col] = v === undefined || v === null ? '' : String(v);
     });
     return obj;
   }

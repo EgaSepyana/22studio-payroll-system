@@ -163,7 +163,10 @@ export default function WorkLogs() {
         (a) =>
           a.customer_id === formCustomerId &&
           a.status === 'active' &&
-          (!selectedEmployeeDivisi || a.divisi === selectedEmployeeDivisi)
+          // Only filter out articles explicitly assigned to a different
+          // division — articles predating the divisi feature (no divisi set)
+          // must stay visible, otherwise the list goes empty.
+          (!selectedEmployeeDivisi || !a.divisi || a.divisi === selectedEmployeeDivisi)
       ) || [],
     [articles, formCustomerId, selectedEmployeeDivisi]
   )

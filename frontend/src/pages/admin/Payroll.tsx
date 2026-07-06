@@ -60,8 +60,8 @@ const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 const now = new Date()
 const YEARS = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)
 
-function isDailyRow(row: Pick<PayrollRow, 'pay_source' | 'pay_date'>) {
-  return row.pay_source === 'attendance' && !!row.pay_date && row.pay_date !== '0' && row.pay_date !== 0
+function isDailyRow(row: Pick<PayrollRow, 'pay_date'>) {
+  return !!row.pay_date && row.pay_date !== '0' && row.pay_date !== 0
 }
 
 function periodLabel(row: PayrollRow) {
@@ -188,10 +188,6 @@ export default function Payroll() {
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
-  const finishingEmployees = React.useMemo(
-    () => employees?.filter((e) => e.divisi === 'Finishing') || [],
-    [employees]
-  )
 
   const isRangeMode = viewMode === 'range'
 
@@ -328,7 +324,7 @@ export default function Payroll() {
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'month' | 'range')} className="mb-4">
         <TabsList>
           <TabsTrigger value="month">Bulan</TabsTrigger>
-          <TabsTrigger value="range">Range Tanggal (Absensi)</TabsTrigger>
+          <TabsTrigger value="range">Range Tanggal</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -375,24 +371,22 @@ export default function Payroll() {
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Karyawan</SelectItem>
-                {(isRangeMode ? finishingEmployees : employees)?.map((e) => (
+                {employees?.map((e) => (
                   <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {!isRangeMode && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-              <Select value={divisiFilter} onValueChange={setDivisiFilter}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>Semua Divisi</SelectItem>
-                  {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Divisi</label>
+            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Divisi</SelectItem>
+                {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -462,7 +456,7 @@ export default function Payroll() {
                   <TableRow>
                     <TableCell colSpan={isRangeMode ? 5 : 4} className="text-muted-foreground text-center">
                       {isRangeMode
-                        ? 'Tidak ada absensi pada rentang tanggal ini.'
+                        ? 'Tidak ada payroll pada rentang tanggal ini.'
                         : 'Belum ada pekerjaan pada periode ini.'}
                     </TableCell>
                   </TableRow>
