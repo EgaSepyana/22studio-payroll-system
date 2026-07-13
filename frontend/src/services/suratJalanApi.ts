@@ -16,7 +16,6 @@ export interface SuratJalanFilters {
 
 export interface SuratJalanItemInput {
   nama_item: string
-  harga: number
   qty: number
 }
 

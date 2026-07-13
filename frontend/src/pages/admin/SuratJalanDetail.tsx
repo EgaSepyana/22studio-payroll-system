@@ -28,16 +28,15 @@ import {
 } from '@/components/ui/alert-dialog'
 import * as suratJalanApi from '@/services/suratJalanApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
 import type { SuratJalanItem } from '@/types'
 
 interface ItemFormState {
   nama_item: string
-  harga: string
   qty: string
 }
 
-const emptyForm: ItemFormState = { nama_item: '', harga: '', qty: '' }
+const emptyForm: ItemFormState = { nama_item: '', qty: '' }
 
 function ItemInlineForm({
   initial,
@@ -47,7 +46,7 @@ function ItemInlineForm({
 }: {
   initial?: ItemFormState
   pending: boolean
-  onSubmit: (data: { nama_item: string; harga: number; qty: number }) => void
+  onSubmit: (data: { nama_item: string; qty: number }) => void
   onCancel?: () => void
 }) {
   const [form, setForm] = React.useState<ItemFormState>(initial || emptyForm)
@@ -56,13 +55,11 @@ function ItemInlineForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const nama_item = form.nama_item.trim()
-    const harga = Number(form.harga)
     const qty = Number(form.qty)
     if (!nama_item) return setError('Nama item wajib diisi')
-    if (!(harga >= 0)) return setError('Harga tidak valid')
     if (!(qty > 0)) return setError('Qty harus lebih dari 0')
     setError(null)
-    onSubmit({ nama_item, harga, qty })
+    onSubmit({ nama_item, qty })
   }
 
   return (
@@ -72,15 +69,6 @@ function ItemInlineForm({
           placeholder="Nama item"
           value={form.nama_item}
           onChange={(e) => setForm((f) => ({ ...f, nama_item: e.target.value }))}
-        />
-      </div>
-      <div className="w-full sm:w-32">
-        <Input
-          type="number"
-          min={0}
-          placeholder="Harga"
-          value={form.harga}
-          onChange={(e) => setForm((f) => ({ ...f, harga: e.target.value }))}
         />
       </div>
       <div className="w-full sm:w-24">
@@ -252,16 +240,14 @@ export default function SuratJalanDetailPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Item</TableHead>
-                  <TableHead className="w-32">Harga</TableHead>
-                  <TableHead className="w-20">Qty</TableHead>
-                  <TableHead className="w-32">Jumlah</TableHead>
+                  <TableHead className="w-24">Qty</TableHead>
                   <TableHead className="w-24 text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.length === 0 && !showAddForm && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground text-center">
+                    <TableCell colSpan={3} className="text-muted-foreground text-center">
                       Belum ada item.
                     </TableCell>
                   </TableRow>
@@ -269,9 +255,9 @@ export default function SuratJalanDetailPage() {
                 {data.items.map((item) =>
                   editingItem?.id === item.id ? (
                     <TableRow key={item.id}>
-                      <TableCell colSpan={5}>
+                      <TableCell colSpan={3}>
                         <ItemInlineForm
-                          initial={{ nama_item: item.nama_item, harga: String(item.harga), qty: String(item.qty) }}
+                          initial={{ nama_item: item.nama_item, qty: String(item.qty) }}
                           pending={updateMutation.isPending}
                           onSubmit={(input) => updateMutation.mutate({ itemId: item.id, input })}
                           onCancel={() => setEditingItem(null)}
@@ -281,9 +267,7 @@ export default function SuratJalanDetailPage() {
                   ) : (
                     <TableRow key={item.id}>
                       <TableCell>{item.nama_item}</TableCell>
-                      <TableCell>{formatCurrency(item.harga)}</TableCell>
                       <TableCell>{item.qty}</TableCell>
-                      <TableCell>{formatCurrency(item.jumlah)}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => setEditingItem(item)}>
                           <Pencil className="size-4" />
@@ -297,7 +281,7 @@ export default function SuratJalanDetailPage() {
                 )}
                 {showAddForm && (
                   <TableRow>
-                    <TableCell colSpan={5}>
+                    <TableCell colSpan={3}>
                       <ItemInlineForm
                         pending={addMutation.isPending}
                         onSubmit={(input) => addMutation.mutate(input)}
@@ -308,11 +292,6 @@ export default function SuratJalanDetailPage() {
                 )}
               </TableBody>
             </Table>
-          </div>
-
-          <div className="flex justify-end gap-2 text-sm font-semibold">
-            <span>Total</span>
-            <span>{formatCurrency(data.total)}</span>
           </div>
         </CardContent>
       </Card>

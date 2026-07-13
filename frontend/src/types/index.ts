@@ -213,9 +213,7 @@ export interface SuratJalanItem {
   id: string
   surat_jalan_id: string
   nama_item: string
-  harga: number
   qty: number
-  jumlah: number
 }
 
 export interface SuratJalan {
@@ -228,7 +226,6 @@ export interface SuratJalan {
   penerima_alamat: string
   created_at: string
   item_count: number
-  total: number
 }
 
 export interface SuratJalanDetail extends SuratJalan {

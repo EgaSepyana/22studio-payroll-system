@@ -53,6 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -69,64 +70,77 @@ import type { Divisi, Task } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
-const taskSchema = z.object({
+const createTaskSchema = z.object({
+  article_id: z.string().min(1, 'Artikel wajib dipilih'),
+  divisi: z.array(z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing'])).min(1, 'Pilih minimal satu divisi'),
+  description: z.string().optional(),
+  target_qty: z.coerce.number().positive('Target qty harus lebih dari 0'),
+})
+const editTaskSchema = z.object({
   article_id: z.string().min(1, 'Artikel wajib dipilih'),
   divisi: z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing']),
   description: z.string().optional(),
   target_qty: z.coerce.number().positive('Target qty harus lebih dari 0'),
 })
-type TaskFormInput = z.input<typeof taskSchema>
-type TaskFormValues = z.output<typeof taskSchema>
+type CreateTaskFormInput = z.input<typeof createTaskSchema>
+type CreateTaskFormValues = z.output<typeof createTaskSchema>
+type EditTaskFormInput = z.input<typeof editTaskSchema>
+type EditTaskFormValues = z.output<typeof editTaskSchema>
 
-function TaskFormDialog({
+function useOrderArticles(customerId?: string) {
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
+  return React.useMemo(() => articles?.filter((a) => a.customer_id === customerId) || [], [articles, customerId])
+}
+
+// Divisi is multi-select on create: submitting with N divisions selected
+// fans out into N separate tasks (same article/description/target_qty),
+// one per division — a quick way to spin up the same work item across
+// several production divisions at once.
+function CreateTaskDialog({
   orderId,
   customerId,
-  task,
   open,
   onOpenChange,
 }: {
   orderId: string | null
   customerId?: string
-  task?: Task
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const isEdit = !!task
   const queryClient = useQueryClient()
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
-  const availableArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_id === customerId) || [],
-    [articles, customerId]
-  )
+  const availableArticles = useOrderArticles(customerId)
 
-  const form = useForm<TaskFormInput, unknown, TaskFormValues>({
-    resolver: zodResolver(taskSchema),
+  const form = useForm<CreateTaskFormInput, unknown, CreateTaskFormValues>({
+    resolver: zodResolver(createTaskSchema),
     defaultValues: {
-      article_id: task?.article_id || '',
-      divisi: task?.divisi || 'Jahit',
-      description: task?.description || '',
-      target_qty: task?.target_qty,
+      article_id: '',
+      divisi: [],
+      description: '',
+      target_qty: undefined,
     },
   })
 
   React.useEffect(() => {
     if (open) {
-      form.reset({
-        article_id: task?.article_id || '',
-        divisi: task?.divisi || 'Jahit',
-        description: task?.description || '',
-        target_qty: task?.target_qty,
-      })
+      form.reset({ article_id: '', divisi: [], description: '', target_qty: undefined })
     }
-  }, [open, task, form])
+  }, [open, form])
 
   const mutation = useMutation({
-    mutationFn: (values: TaskFormValues) =>
-      isEdit
-        ? taskApi.updateTask(task.id, values)
-        : taskApi.createTask({ ...values, order_id: orderId! }),
-    onSuccess: () => {
-      toast.success(isEdit ? 'Task berhasil diperbarui' : 'Task berhasil ditambahkan')
+    mutationFn: (values: CreateTaskFormValues) =>
+      Promise.all(
+        values.divisi.map((divisi) =>
+          taskApi.createTask({
+            order_id: orderId!,
+            article_id: values.article_id,
+            divisi,
+            description: values.description,
+            target_qty: values.target_qty,
+          })
+        )
+      ),
+    onSuccess: (created) => {
+      toast.success(created.length > 1 ? `${created.length} task berhasil ditambahkan` : 'Task berhasil ditambahkan')
       queryClient.invalidateQueries({ queryKey: ['order-detail', orderId] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       onOpenChange(false)
@@ -138,7 +152,148 @@ function TaskFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Task' : 'Tambah Task'}</DialogTitle>
+          <DialogTitle>Tambah Task</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+            <FormField
+              control={form.control}
+              name="article_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Artikel</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Pilih artikel" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {availableArticles.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="divisi"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Divisi</FormLabel>
+                  <div className="flex flex-col gap-2">
+                    {DIVISIONS.map((d) => {
+                      const checked = field.value?.includes(d) ?? false
+                      return (
+                        <label key={d} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              const current = field.value || []
+                              field.onChange(v ? [...current, d] : current.filter((x) => x !== d))
+                            }}
+                          />
+                          {d}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <p className="text-muted-foreground text-xs">
+                    Pilih lebih dari satu divisi untuk membuat task yang sama di setiap divisi sekaligus.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deskripsi (opsional)</FormLabel>
+                  <FormControl><Textarea placeholder="Contoh: Jahit badan & lengan" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="target_qty"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Target Quantity</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} {...field} value={(field.value ?? '') as string | number} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Simpan
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function EditTaskDialog({
+  orderId,
+  customerId,
+  task,
+  open,
+  onOpenChange,
+}: {
+  orderId: string | null
+  customerId?: string
+  task: Task
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const availableArticles = useOrderArticles(customerId)
+
+  const form = useForm<EditTaskFormInput, unknown, EditTaskFormValues>({
+    resolver: zodResolver(editTaskSchema),
+    defaultValues: {
+      article_id: task.article_id || '',
+      divisi: task.divisi || 'Jahit',
+      description: task.description || '',
+      target_qty: task.target_qty,
+    },
+  })
+
+  React.useEffect(() => {
+    if (open) {
+      form.reset({
+        article_id: task.article_id || '',
+        divisi: task.divisi || 'Jahit',
+        description: task.description || '',
+        target_qty: task.target_qty,
+      })
+    }
+  }, [open, task, form])
+
+  const mutation = useMutation({
+    mutationFn: (values: EditTaskFormValues) => taskApi.updateTask(task.id, values),
+    onSuccess: () => {
+      toast.success('Task berhasil diperbarui')
+      queryClient.invalidateQueries({ queryKey: ['order-detail', orderId] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      onOpenChange(false)
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
@@ -217,8 +372,8 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [taskFormOpen, setTaskFormOpen] = React.useState(false)
-  const [editingTask, setEditingTask] = React.useState<Task | undefined>(undefined)
+  const [createFormOpen, setCreateFormOpen] = React.useState(false)
+  const [editingTask, setEditingTask] = React.useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = React.useState<Task | null>(null)
 
   const { data, isLoading } = useQuery({
@@ -286,10 +441,7 @@ export default function TaskDetailPage() {
             <Button
               size="sm"
               disabled={data.status === 'Done'}
-              onClick={() => {
-                setEditingTask(undefined)
-                setTaskFormOpen(true)
-              }}
+              onClick={() => setCreateFormOpen(true)}
             >
               <Plus className="size-4" /> Tambah Task
             </Button>
@@ -336,12 +488,7 @@ export default function TaskDetailPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingTask(task)
-                              setTaskFormOpen(true)
-                            }}
-                          >
+                          <DropdownMenuItem onClick={() => setEditingTask(task)}>
                             <Pencil className="size-4" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -362,13 +509,22 @@ export default function TaskDetailPage() {
         </CardContent>
       </Card>
 
-      <TaskFormDialog
+      <CreateTaskDialog
         orderId={id ?? null}
         customerId={data.customer_id}
-        task={editingTask}
-        open={taskFormOpen}
-        onOpenChange={setTaskFormOpen}
+        open={createFormOpen}
+        onOpenChange={setCreateFormOpen}
       />
+
+      {editingTask && (
+        <EditTaskDialog
+          orderId={id ?? null}
+          customerId={data.customer_id}
+          task={editingTask}
+          open={!!editingTask}
+          onOpenChange={(open) => !open && setEditingTask(null)}
+        />
+      )}
 
       <AlertDialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
         <AlertDialogContent>

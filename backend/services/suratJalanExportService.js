@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { formatCurrency, formatDate, measurePdfRowHeight, drawPdfRow, ensurePdfSpace, loadLogoImage } from './pdfHelpers.js';
+import { formatDate, measurePdfRowHeight, drawPdfRow, ensurePdfSpace, loadLogoImage } from './pdfHelpers.js';
 
 // Matches the shop's existing printed nota header — see duaduaStudio nota template.
 const SHOP_NAME = '22Studio';
@@ -91,24 +91,17 @@ export function suratJalanToPdf(data) {
 
     y += 10;
 
-    const colWidths = [30, 245, 80, 50, 110];
-    const headers = ['No', 'Nama Item', 'Harga', 'Qty', 'Jumlah'];
-    const align = ['center', 'left', 'right', 'center', 'right'];
+    const colWidths = [40, 375, 100];
+    const headers = ['No', 'Nama Item', 'Qty'];
+    const align = ['center', 'left', 'center'];
 
     y = drawPdfRow(doc, startX, colWidths, headers, y, { bold: true, fill: '#c9daf8', align });
 
     data.items.forEach((item, idx) => {
-      const values = [idx + 1, item.nama_item, formatCurrency(item.harga), item.qty, formatCurrency(item.jumlah)];
+      const values = [idx + 1, item.nama_item, item.qty];
       const rowHeight = measurePdfRowHeight(doc, colWidths, values, { align });
       y = ensurePdfSpace(doc, y, rowHeight, pageTop, pageBottom);
       y = drawPdfRow(doc, startX, colWidths, values, y, { align, height: rowHeight });
-    });
-
-    y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);
-    y = drawPdfRow(doc, startX, colWidths, ['', '', '', 'TOTAL', formatCurrency(data.total)], y, {
-      bold: true,
-      fill: '#ffd966',
-      align,
     });
 
     y = ensurePdfSpace(doc, y, 90, pageTop, pageBottom);

@@ -82,7 +82,7 @@ export const SHEET_SCHEMAS = {
     'penerima_alamat',
     'created_at',
   ],
-  SuratJalanItems: ['id', 'surat_jalan_id', 'nama_item', 'harga', 'qty', 'jumlah'],
+  SuratJalanItems: ['id', 'surat_jalan_id', 'nama_item', 'qty'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);

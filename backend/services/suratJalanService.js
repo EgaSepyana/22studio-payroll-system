@@ -22,9 +22,7 @@ async function generateNoDocument() {
 function enrichItem(item) {
   return {
     ...clean(item),
-    harga: Number(item.harga),
     qty: Number(item.qty),
-    jumlah: Number(item.jumlah),
   };
 }
 
@@ -35,7 +33,6 @@ function enrichHeader(row, { customers, items }) {
     ...clean(row),
     customer_name: customer?.name || null,
     item_count: ownItems.length,
-    total: ownItems.reduce((sum, i) => sum + i.jumlah, 0),
   };
 }
 
@@ -129,14 +126,12 @@ export async function deleteSuratJalan(id) {
   await SuratJalanRepo.deleteById(id);
 }
 
-function validateItemInput({ nama_item, harga, qty }) {
+function validateItemInput({ nama_item, qty }) {
   const name = String(nama_item || '').trim();
   if (!name) throw new ApiError(400, 'Nama item wajib diisi');
-  const hargaNum = Number(harga);
   const qtyNum = Number(qty);
-  if (!(hargaNum >= 0)) throw new ApiError(400, 'Harga item tidak valid');
   if (!(qtyNum > 0)) throw new ApiError(400, 'Qty item harus lebih dari 0');
-  return { nama_item: name, harga: hargaNum, qty: qtyNum, jumlah: hargaNum * qtyNum };
+  return { nama_item: name, qty: qtyNum };
 }
 
 export async function addSuratJalanItem(suratJalanId, input) {
@@ -153,7 +148,6 @@ export async function updateSuratJalanItem(suratJalanId, itemId, input) {
   }
   const normalized = validateItemInput({
     nama_item: input.nama_item ?? existing.nama_item,
-    harga: input.harga ?? existing.harga,
     qty: input.qty ?? existing.qty,
   });
   const updated = await SuratJalanItemsRepo.updateById(itemId, normalized);

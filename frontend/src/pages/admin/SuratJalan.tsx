@@ -55,7 +55,7 @@ import {
 import * as suratJalanApi from '@/services/suratJalanApi'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate } from '@/utils/format'
+import { formatDate } from '@/utils/format'
 import type { SuratJalan } from '@/types'
 
 const ALL = 'all'
@@ -295,14 +295,13 @@ export default function SuratJalanPage() {
                   <TableHead>Nama Penerima</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Item</TableHead>
-                  <TableHead>Total</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground text-center">
                       Belum ada surat jalan.
                     </TableCell>
                   </TableRow>
@@ -314,7 +313,6 @@ export default function SuratJalanPage() {
                     <TableCell>{row.penerima_nama || '-'}</TableCell>
                     <TableCell>{formatDate(row.created_at)}</TableCell>
                     <TableCell>{row.item_count}</TableCell>
-                    <TableCell>{formatCurrency(row.total)}</TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/surat-jalan/${row.id}`)} title="Lihat">
                         <Eye className="size-4" />

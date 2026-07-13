@@ -19,13 +19,11 @@ const headerUpdateSchema = z.object({
 
 const itemSchema = z.object({
   nama_item: z.string().min(1),
-  harga: z.coerce.number().min(0),
   qty: z.coerce.number().positive(),
 });
 
 const itemUpdateSchema = z.object({
   nama_item: z.string().min(1).optional(),
-  harga: z.coerce.number().min(0).optional(),
   qty: z.coerce.number().positive().optional(),
 });
 
