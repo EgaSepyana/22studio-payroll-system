@@ -292,6 +292,7 @@ export default function AttendancePage() {
       <PageHeader
         title="Absensi"
         description="Absensi harian karyawan divisi Finishing"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Absensi' }]}
         action={
           <Button
             onClick={() => {

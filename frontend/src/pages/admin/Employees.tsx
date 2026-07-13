@@ -304,6 +304,7 @@ export default function Employees() {
       <PageHeader
         title="Karyawan"
         description="Kelola data karyawan 22Studio"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Karyawan' }]}
         action={
           <Button
             onClick={() => {

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
+import { ProgressBar } from '@/components/ProgressBar'
 import {
   Select,
   SelectContent,
@@ -26,16 +27,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import * as workLogApi from '@/services/workLogApi'
-import * as customerApi from '@/services/customerApi'
-import * as articleApi from '@/services/articleApi'
+import * as taskApi from '@/services/taskApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
-import { useAuth } from '@/hooks/useAuth'
+import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
-  customer_id: z.string().min(1, 'Customer wajib dipilih'),
-  article_id: z.string().min(1, 'Artikel wajib dipilih'),
+  task_id: z.string().min(1, 'Task wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
@@ -46,55 +44,29 @@ type FormValues = z.output<typeof schema>
 export default function InputPekerjaan() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
 
-  const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
+  const { data: divisiTasks } = useQuery({ queryKey: ['tasks-available'], queryFn: taskApi.listAvailableTasks })
+  const activeTasks = React.useMemo(() => divisiTasks || [], [divisiTasks])
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       work_date: todayISO(),
-      customer_id: '',
-      article_id: '',
+      task_id: '',
       quantity: undefined,
       notes: '',
       status: 'selesai',
     },
   })
 
-  const customerId = form.watch('customer_id')
-  const articleId = form.watch('article_id')
-  const quantity = form.watch('quantity')
-
-  const availableArticles = React.useMemo(
-    () =>
-      articles?.filter(
-        (a) =>
-          a.customer_id === customerId &&
-          a.status === 'active' &&
-          // Only filter out articles explicitly assigned to a different
-          // division — articles predating the divisi feature (no divisi set)
-          // must stay visible to everyone, otherwise the list goes empty.
-          (!user?.divisi || !a.divisi || a.divisi === user.divisi)
-      ) || [],
-    [articles, customerId, user?.divisi]
-  )
-
-  const selectedArticle = articles?.find((a) => a.id === articleId)
-  const price = selectedArticle?.price || 0
-  const total = price * (Number(quantity) || 0)
-
-  React.useEffect(() => {
-    form.setValue('article_id', '')
-  }, [customerId, form])
+  const taskId = form.watch('task_id')
+  const selectedTask = activeTasks.find((t) => t.id === taskId)
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
       workLogApi.createWorkLog({
         work_date: values.work_date,
-        customer_id: values.customer_id,
-        article_id: values.article_id,
+        task_id: values.task_id,
         quantity: values.quantity,
         notes: values.notes,
         status: values.status,
@@ -102,11 +74,22 @@ export default function InputPekerjaan() {
     onSuccess: () => {
       toast.success('Pekerjaan berhasil disimpan!')
       queryClient.invalidateQueries({ queryKey: ['worklogs-mine'] })
+      queryClient.invalidateQueries({ queryKey: ['tasks-available'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'employee'] })
       navigate('/app')
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  function onSubmit(values: FormValues) {
+    if (selectedTask && values.quantity > selectedTask.remaining_qty) {
+      form.setError('quantity', {
+        message: `Quantity melebihi sisa target task (sisa ${selectedTask.remaining_qty})`,
+      })
+      return
+    }
+    mutation.mutate(values)
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -115,11 +98,16 @@ export default function InputPekerjaan() {
         <p className="text-muted-foreground text-sm">Catat hasil pekerjaan yang sudah selesai.</p>
       </div>
 
+      {activeTasks.length === 0 && (
+        <Card className="border-warning/30 bg-warning/5 shadow-none">
+          <CardContent className="text-muted-foreground py-4 text-sm">
+            Belum ada task untuk divisimu. Hubungi admin untuk menambahkan task.
+          </CardContent>
+        </Card>
+      )}
+
       <Form {...form}>
-        <form
-          className="flex flex-col gap-5"
-          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-        >
+        <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(onSubmit)}>
           <FormField
             control={form.control}
             name="work_date"
@@ -136,20 +124,20 @@ export default function InputPekerjaan() {
 
           <FormField
             control={form.control}
-            name="customer_id"
+            name="task_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-base">Customer</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <FormLabel className="text-base">Task</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange} disabled={activeTasks.length === 0}>
                   <FormControl>
                     <SelectTrigger className="h-12 w-full text-base">
-                      <SelectValue placeholder="Pilih customer" />
+                      <SelectValue placeholder="Pilih task" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {customers?.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-base">
-                        {c.name}
+                    {activeTasks.map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-base">
+                        {t.order_name} — {t.description || t.divisi}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -159,30 +147,25 @@ export default function InputPekerjaan() {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="article_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-base">Artikel</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange} disabled={!customerId}>
-                  <FormControl>
-                    <SelectTrigger className="h-12 w-full text-base">
-                      <SelectValue placeholder={customerId ? 'Pilih artikel' : 'Pilih customer dahulu'} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {availableArticles.map((a) => (
-                      <SelectItem key={a.id} value={a.id} className="text-base">
-                        {a.article_name} — {formatCurrency(a.price)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {selectedTask && (
+            <Card className="border-primary/20 bg-primary/5 shadow-none">
+              <CardContent className="flex flex-col gap-2 py-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer</span>
+                  <span className="font-medium">{selectedTask.customer_name || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Artikel</span>
+                  <span className="font-medium">{selectedTask.article_name || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sisa Target</span>
+                  <span className="font-medium">{selectedTask.remaining_qty} / {selectedTask.target_qty}</span>
+                </div>
+                <ProgressBar value={selectedTask.progress} status={selectedTask.status} className="mt-1" />
+              </CardContent>
+            </Card>
+          )}
 
           <FormField
             control={form.control}
@@ -195,6 +178,7 @@ export default function InputPekerjaan() {
                     type="number"
                     inputMode="numeric"
                     min={1}
+                    max={selectedTask?.remaining_qty}
                     placeholder="0"
                     className="h-16 text-center text-3xl font-semibold"
                     {...field}
@@ -205,21 +189,6 @@ export default function InputPekerjaan() {
               </FormItem>
             )}
           />
-
-          {selectedArticle && (
-            <Card className="border-primary/20 bg-primary/5 shadow-none">
-              <CardContent className="flex items-center justify-between py-4">
-                <div>
-                  <p className="text-muted-foreground text-xs">Harga per pcs</p>
-                  <p className="text-sm font-medium">{formatCurrency(price)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground text-xs">Total</p>
-                  <p className="text-primary text-2xl font-bold">{formatCurrency(total)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           <FormField
             control={form.control}
@@ -260,7 +229,12 @@ export default function InputPekerjaan() {
             )}
           />
 
-          <Button type="submit" size="lg" className="h-14 text-base" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-14 text-base"
+            disabled={mutation.isPending || activeTasks.length === 0}
+          >
             {mutation.isPending && <Loader2 className="size-5 animate-spin" />}
             Simpan Pekerjaan
           </Button>

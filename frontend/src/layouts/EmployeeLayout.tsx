@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock, ListTodo } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -17,6 +17,7 @@ import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
 
 const PIECE_RATE_NAV_ITEMS = [
   { to: '/app', label: 'Beranda', icon: LayoutDashboard, end: true },
+  { to: '/app/tasks', label: 'Tugas', icon: ListTodo },
   { to: '/app/input', label: 'Input', icon: PlusCircle },
   { to: '/app/riwayat-pekerjaan', label: 'Riwayat', icon: History },
   { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },

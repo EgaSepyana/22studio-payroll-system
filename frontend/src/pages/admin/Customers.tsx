@@ -142,6 +142,7 @@ export default function Customers() {
       <PageHeader
         title="Customer"
         description="Kelola daftar customer 22Studio"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Customer' }]}
         action={
           <Button
             onClick={() => {

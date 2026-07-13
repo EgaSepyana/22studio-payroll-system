@@ -6,8 +6,7 @@ import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
   employee_id: z.union([z.string(), z.number()]).optional(),
-  customer_id: z.union([z.string(), z.number()]),
-  article_id: z.union([z.string(), z.number()]),
+  task_id: z.union([z.string(), z.number()]),
   work_date: z.string().min(1),
   quantity: z.coerce.number().positive(),
   notes: z.string().optional(),

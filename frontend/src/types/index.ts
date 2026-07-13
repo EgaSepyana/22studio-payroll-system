@@ -5,6 +5,8 @@ export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
 export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
 export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
 export type PaySource = 'worklog' | 'attendance'
+export type OrderStatus = 'Desain Fix' | 'On Progress' | 'Done' | 'Di Ambil Costumer'
+export type TaskStatus = 'open' | 'in_progress' | 'completed'
 
 export interface AuthUser {
   id: string
@@ -53,9 +55,59 @@ export interface WorkLog {
   notes: string
   payroll_id?: string
   status: WorkStatus
+  task_id?: string
   employee_name: string | null
   customer_name: string | null
   article_name: string | null
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  nama_item: string
+  harga: number
+  qty: number
+  total: number
+}
+
+export interface Order {
+  id: string
+  customer_id: string
+  order_name: string
+  status: OrderStatus
+  created_at: string
+  notes: string
+  deadline: string
+  customer_name: string | null
+  task_count: number
+  completed_task_count: number
+  progress: number
+  item_count: number
+  items_total: number
+}
+
+export interface OrderDetail extends Order {
+  tasks: Task[]
+  items: OrderItem[]
+}
+
+export interface Task {
+  id: string
+  order_id: string
+  article_id: string
+  divisi: Divisi
+  description: string
+  target_qty: number
+  completed_qty: number
+  remaining_qty: number
+  progress: number
+  assigned_to: string
+  assigned_to_name: string | null
+  article_name: string | null
+  status: TaskStatus
+  created_at: string
+  order_name?: string | null
+  customer_name?: string | null
 }
 
 export interface Attendance {
@@ -155,6 +207,32 @@ export interface Report {
   rows: ReportRow[]
   grand_total: number
   grand_quantity: number
+}
+
+export interface SuratJalanItem {
+  id: string
+  surat_jalan_id: string
+  nama_item: string
+  harga: number
+  qty: number
+  jumlah: number
+}
+
+export interface SuratJalan {
+  id: string
+  no_document: string
+  customer_id: string
+  customer_name: string | null
+  penerima_nama: string
+  penerima_telepon: string
+  penerima_alamat: string
+  created_at: string
+  item_count: number
+  total: number
+}
+
+export interface SuratJalanDetail extends SuratJalan {
+  items: SuratJalanItem[]
 }
 
 export interface ApiResponse<T> {

@@ -65,7 +65,11 @@ export default function Reports() {
 
   return (
     <div>
-      <PageHeader title="Laporan" description="Laporan pekerjaan per periode, customer, artikel, dan karyawan" />
+      <PageHeader
+        title="Laporan"
+        description="Laporan pekerjaan per periode, customer, artikel, dan karyawan"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Laporan' }]}
+      />
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">

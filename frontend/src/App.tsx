@@ -14,6 +14,12 @@ import AdminPayroll from '@/pages/admin/Payroll'
 import AdminReports from '@/pages/admin/Reports'
 import AdminKasbon from '@/pages/admin/Kasbon'
 import AdminAttendance from '@/pages/admin/Attendance'
+import AdminOrders from '@/pages/admin/Orders'
+import AdminTaskDetail from '@/pages/admin/TaskDetail'
+import AdminOrder from '@/pages/admin/Order'
+import AdminOrderDetail from '@/pages/admin/OrderDetail'
+import AdminSuratJalan from '@/pages/admin/SuratJalan'
+import AdminSuratJalanDetail from '@/pages/admin/SuratJalanDetail'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -22,6 +28,7 @@ import EmployeeRiwayatGaji from '@/pages/employee/RiwayatGaji'
 import EmployeeKasbon from '@/pages/employee/Kasbon'
 import EmployeeProfile from '@/pages/employee/Profile'
 import EmployeeAbsensi from '@/pages/employee/Absensi'
+import EmployeeTasks from '@/pages/employee/Tasks'
 
 function HomeRedirect() {
   const { user } = useAuth()
@@ -47,6 +54,12 @@ export default function App() {
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/kasbon" element={<AdminKasbon />} />
             <Route path="/admin/attendance" element={<AdminAttendance />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/orders/:id" element={<AdminTaskDetail />} />
+            <Route path="/admin/order" element={<AdminOrder />} />
+            <Route path="/admin/order/:id" element={<AdminOrderDetail />} />
+            <Route path="/admin/surat-jalan" element={<AdminSuratJalan />} />
+            <Route path="/admin/surat-jalan/:id" element={<AdminSuratJalanDetail />} />
           </Route>
         </Route>
 
@@ -59,6 +72,7 @@ export default function App() {
             <Route path="/app/kasbon" element={<EmployeeKasbon />} />
             <Route path="/app/profile" element={<EmployeeProfile />} />
             <Route path="/app/absensi" element={<EmployeeAbsensi />} />
+            <Route path="/app/tasks" element={<EmployeeTasks />} />
           </Route>
         </Route>
 

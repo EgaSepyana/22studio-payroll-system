@@ -3,9 +3,12 @@ import {
   ArticlesRepo,
   CustomersRepo,
   EmployeesRepo,
+  TasksRepo,
+  OrdersRepo,
   DEFAULT_WORK_STATUS,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
+import * as taskService from './taskService.js';
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -29,31 +32,59 @@ async function enrich(log) {
   };
 }
 
-export async function createWorkLog(employeeId, { customer_id, article_id, work_date, quantity, notes, status }) {
+// Work logs are now always task-scoped: the customer/article/price are
+// derived from the task's parent order rather than picked independently, and
+// completing a work log advances the task's completed_qty.
+export async function createWorkLog(employeeId, { task_id, work_date, quantity, notes, status }) {
   const employee = await EmployeesRepo.getById(employeeId);
   if (!employee) throw new ApiError(400, 'Karyawan tidak valid');
 
-  const article = await ArticlesRepo.getById(article_id);
-  if (!article) throw new ApiError(400, 'Artikel tidak valid');
-  if (String(article.customer_id) !== String(customer_id)) {
-    throw new ApiError(400, 'Artikel tidak sesuai dengan customer');
+  if (!task_id) throw new ApiError(400, 'Task wajib dipilih');
+  const task = await TasksRepo.getById(task_id);
+  if (!task) throw new ApiError(400, 'Task tidak valid');
+  if (task.divisi && employee.divisi !== task.divisi) {
+    throw new ApiError(403, 'Task ini bukan untuk divisi Anda');
+  }
+  if (task.status === 'completed') {
+    throw new ApiError(400, 'Task ini sudah selesai');
+  }
+
+  const order = await OrdersRepo.getById(task.order_id);
+  if (!order) throw new ApiError(400, 'Order untuk task ini tidak ditemukan');
+
+  const article = await ArticlesRepo.getById(task.article_id);
+  if (!article) throw new ApiError(400, 'Artikel pada task tidak valid');
+
+  const qty = Number(quantity);
+  const remaining = Number(task.target_qty) - Number(task.completed_qty || 0);
+  if (qty > remaining) {
+    throw new ApiError(400, `Quantity melebihi sisa target task (sisa ${remaining})`);
   }
 
   const price = Number(article.price);
-  const qty = Number(quantity);
   const total = price * qty;
+
+  const finalStatus = status || DEFAULT_WORK_STATUS;
 
   const log = await WorkLogsRepo.insert({
     employee_id: employeeId,
-    customer_id,
-    article_id,
+    customer_id: order.customer_id,
+    article_id: task.article_id,
     work_date,
     quantity: qty,
     price,
     total,
     notes: notes || '',
-    status: status || DEFAULT_WORK_STATUS,
+    status: finalStatus,
+    task_id,
   });
+
+  // Task qty is advanced only after the work log itself is safely written —
+  // if this throws (e.g. a race blew past "remaining"), the work log still
+  // exists but the task wasn't over-credited. Task/order status is derived
+  // purely from qty (see taskService.applyWorkLog) — the work log's own
+  // status is just a label on that entry and never completes a task early.
+  await taskService.applyWorkLog(task_id, employeeId, qty);
 
   return enrich(log);
 }
@@ -102,33 +133,28 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     throw new ApiError(400, 'Tidak dapat mengubah pekerjaan yang sudah dibayar');
   }
 
-  const { article_id, customer_id, quantity, work_date, notes, status } = updates;
-  const targetArticleId = article_id || existing.article_id;
-  const targetCustomerId = customer_id || existing.customer_id;
-  const targetQty = quantity ? Number(quantity) : Number(existing.quantity);
+  const { quantity, work_date, notes, status } = updates;
+  const targetQty = quantity !== undefined ? Number(quantity) : Number(existing.quantity);
+  const price = Number(existing.price);
+  const finalStatus = status || existing.status || DEFAULT_WORK_STATUS;
 
-  let price = Number(existing.price);
-
-  if (article_id || customer_id) {
-    const article = await ArticlesRepo.getById(targetArticleId);
-    if (!article) throw new ApiError(400, 'Artikel tidak valid');
-    if (String(article.customer_id) !== String(targetCustomerId)) {
-      throw new ApiError(400, 'Artikel tidak sesuai dengan customer');
-    }
-    price = Number(article.price);
+  // Customer/article are fixed at creation time via the task, so they're
+  // never edited here. Task sync only runs when qty changes — the work
+  // log's status is just a label and never drives task/order completion.
+  const qtyChanged = targetQty !== Number(existing.quantity);
+  if (qtyChanged) {
+    if (!existing.task_id) throw new ApiError(400, 'Data pekerjaan ini tidak terkait task');
+    const qtyDelta = targetQty - Number(existing.quantity);
+    await taskService.reapplyWorkLog(existing.task_id, qtyDelta);
   }
 
-  const total = price * targetQty;
-
   const updated = await WorkLogsRepo.updateById(logId, {
-    customer_id: targetCustomerId,
-    article_id: targetArticleId,
     work_date: work_date || existing.work_date,
     quantity: targetQty,
     price,
-    total,
+    total: price * targetQty,
     notes: notes !== undefined ? notes : existing.notes,
-    status: status || existing.status || DEFAULT_WORK_STATUS,
+    status: finalStatus,
   });
 
   return enrich(updated);
@@ -140,5 +166,10 @@ export async function deleteWorkLog(id) {
   if (existing.payroll_id) {
     throw new ApiError(400, 'Tidak dapat menghapus pekerjaan yang sudah dibayar');
   }
+
   await WorkLogsRepo.deleteById(id);
+
+  if (existing.task_id) {
+    await taskService.removeWorkLog(existing.task_id, Number(existing.quantity));
+  }
 }

@@ -549,7 +549,7 @@ export async function listPaidPayrollForExport(filters = {}) {
     return Number(b.year) - Number(a.year) || Number(b.month) - Number(a.month);
   });
 
-  return rows.map((row) => {
+  const expanded = rows.map((row) => {
     const employee = employees.find((e) => String(e.id) === String(row.employee_id));
     const usesAttendance = row.pay_source === 'attendance';
 
@@ -587,6 +587,45 @@ export async function listPaidPayrollForExport(filters = {}) {
       items,
     };
   });
+
+  // A date-range export/print should read as one slip per employee covering
+  // the whole range, not one page per paid day — merge same-employee,
+  // same-pay-source daily rows into a single combined row with all items and
+  // summed totals, tagged with the range's start/end for the period label.
+  if (!filters.date_from && !filters.date_to) return expanded;
+
+  const merged = new Map();
+  for (const row of expanded) {
+    const key = `${row.employee_id}:${row.items_type}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        ...row,
+        items: [...row.items],
+        total_salary: Number(row.total_salary),
+        kasbon_deduction: Number(row.kasbon_deduction || 0),
+        net_salary: Number(row.net_salary),
+        pay_date_from: row.pay_date,
+        pay_date_to: row.pay_date,
+      });
+    } else {
+      existing.items.push(...row.items);
+      existing.total_salary += Number(row.total_salary);
+      existing.kasbon_deduction += Number(row.kasbon_deduction || 0);
+      existing.net_salary += Number(row.net_salary);
+      if (row.pay_date < existing.pay_date_from) existing.pay_date_from = row.pay_date;
+      if (row.pay_date > existing.pay_date_to) existing.pay_date_to = row.pay_date;
+    }
+  }
+
+  return [...merged.values()].map((row) => ({
+    ...row,
+    items: row.items.sort((a, b) => {
+      const da = a.work_date || a.date;
+      const db = b.work_date || b.date;
+      return da < db ? -1 : da > db ? 1 : 0;
+    }),
+  }));
 }
 
 export async function getEmployeePayrollHistory(employeeId) {

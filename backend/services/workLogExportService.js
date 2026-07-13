@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { formatCurrency, formatDate, formatTime, measurePdfRowHeight, drawPdfRow, ensurePdfSpace } from './pdfHelpers.js';
 
 const STATUS_LABELS = {
   on_progress: 'On Progress',
@@ -9,22 +10,6 @@ const STATUS_LABELS = {
 
 function statusLabel(status) {
   return STATUS_LABELS[status] || 'Selesai';
-}
-
-function formatCurrency(n) {
-  return `Rp${Number(n).toLocaleString('id-ID')}`;
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '-';
-  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(
-    new Date(dateStr)
-  );
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return '-';
-  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date(dateStr));
 }
 
 const MONTH_NAMES = [
@@ -38,59 +23,18 @@ function periodLabel(month, year) {
 
 // Every pay source is daily now, so a daily row's "Periode" is the specific
 // date it covers, not the whole calendar month — only rows that predate the
-// daily model (no pay_date) still show the month/year label.
+// daily model (no pay_date) still show the month/year label. A row merged
+// from multiple paid days (date-range export) instead shows the full span,
+// e.g. "1 Juli 2026 - 30 Juli 2026", or a single date if it collapses to one day.
 function rowPeriodLabel(row) {
+  if (row.pay_date_from && row.pay_date_to) {
+    if (row.pay_date_from === row.pay_date_to) return formatDate(row.pay_date_from);
+    return `${formatDate(row.pay_date_from)} - ${formatDate(row.pay_date_to)}`;
+  }
   if (row.pay_date && row.pay_date !== '0') {
     return formatDate(row.pay_date);
   }
   return periodLabel(row.month, row.year);
-}
-
-// Draws one bordered table row (grid on all four sides of every cell, not
-// just a stray line under the header) and returns the y position the next
-// row should start at. Text is vertically centered and truncated with an
-// ellipsis instead of wrapping, so long values can never bleed into the row
-// below — this was the root cause of the previous "unreadable" rendering.
-function drawPdfRow(doc, startX, colWidths, values, y, opts = {}) {
-  const rowHeight = opts.height || 20;
-  const fontSize = opts.fontSize || 9;
-  const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-
-  if (opts.fill) {
-    doc.rect(startX, y, tableWidth, rowHeight).fill(opts.fill);
-  }
-
-  doc.lineWidth(0.75).strokeColor('#b7b7b7');
-  doc.rect(startX, y, tableWidth, rowHeight).stroke();
-  let vx = startX;
-  for (let i = 0; i < colWidths.length - 1; i++) {
-    vx += colWidths[i];
-    doc.moveTo(vx, y).lineTo(vx, y + rowHeight).stroke();
-  }
-  doc.strokeColor('#000000');
-
-  doc.fillColor(opts.textColor || '#000').fontSize(fontSize).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
-  const textY = y + (rowHeight - fontSize) / 2;
-  values.forEach((v, i) => {
-    const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0);
-    doc.text(v === '' || v == null ? '' : String(v), x + 5, textY, {
-      width: colWidths[i] - 10,
-      lineBreak: false,
-      ellipsis: true,
-      align: (opts.align && opts.align[i]) || 'left',
-    });
-  });
-
-  doc.fillColor('#000');
-  return y + rowHeight;
-}
-
-function ensurePdfSpace(doc, y, rowHeight, pageTop, pageBottom) {
-  if (y + rowHeight > pageBottom) {
-    doc.addPage();
-    return pageTop;
-  }
-  return y;
 }
 
 // Groups a flat list of enriched work logs into one "Slip Gaji" per employee —
@@ -280,25 +224,20 @@ export function workLogsToPdf(logs) {
       let total = 0;
       group.items.forEach((item, idx) => {
         total += Number(item.total);
-        y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);
-        y = drawPdfRow(
-          doc,
-          startX,
-          colWidths,
-          [
-            idx + 1,
-            formatDate(item.work_date),
-            item.customer_name,
-            item.article_name,
-            formatCurrency(item.price),
-            item.quantity,
-            formatCurrency(item.total),
-            item.notes || '-',
-            statusLabel(item.status),
-          ],
-          y,
-          { align }
-        );
+        const rowValues = [
+          idx + 1,
+          formatDate(item.work_date),
+          item.customer_name,
+          item.article_name,
+          formatCurrency(item.price),
+          item.quantity,
+          formatCurrency(item.total),
+          item.notes || '-',
+          statusLabel(item.status),
+        ];
+        const rowHeight = measurePdfRowHeight(doc, colWidths, rowValues, { align });
+        y = ensurePdfSpace(doc, y, rowHeight, pageTop, pageBottom);
+        y = drawPdfRow(doc, startX, colWidths, rowValues, y, { align, height: rowHeight });
       });
 
       y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);
@@ -341,7 +280,8 @@ export async function payrollToExcel(rows) {
 
   rows.forEach((row, idx) => {
     const isAttendance = row.items_type === 'attendance';
-    const sheetName = `${row.employee_name || 'Karyawan'} ${row.month}-${row.year}`
+    const periodSuffix = row.pay_date_from ? `${row.pay_date_from}_${row.pay_date_to}` : `${row.month}-${row.year}`;
+    const sheetName = `${row.employee_name || 'Karyawan'} ${periodSuffix}`
       .slice(0, 31)
       .replace(/[[\]*/\\?:]/g, ' ');
     const sheet = workbook.addWorksheet(sheetName || `Slip ${idx + 1}`);
@@ -539,7 +479,6 @@ export function payrollToPdf(rows) {
       y = drawPdfRow(doc, startX, colWidths, headers, y, { bold: true, fill: '#c9daf8', align });
 
       row.items.forEach((item, itemIdx) => {
-        y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);
         const values = isAttendance
           ? [
               itemIdx + 1,
@@ -560,7 +499,9 @@ export function payrollToPdf(rows) {
               item.notes || '-',
               statusLabel(item.status),
             ];
-        y = drawPdfRow(doc, startX, colWidths, values, y, { align });
+        const rowHeight = measurePdfRowHeight(doc, colWidths, values, { align });
+        y = ensurePdfSpace(doc, y, rowHeight, pageTop, pageBottom);
+        y = drawPdfRow(doc, startX, colWidths, values, y, { align, height: rowHeight });
       });
 
       y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);

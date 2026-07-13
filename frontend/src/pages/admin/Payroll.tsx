@@ -300,7 +300,11 @@ export default function Payroll() {
   return (
     <div>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <PageHeader title="Payroll" description="Perhitungan gaji karyawan berdasarkan hasil kerja" />
+        <PageHeader
+          title="Payroll"
+          description="Perhitungan gaji karyawan berdasarkan hasil kerja"
+          breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Payroll' }]}
+        />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!!bulkExporting} onClick={() => handleBulkExport('print')}>
             {bulkExporting === 'print' ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}

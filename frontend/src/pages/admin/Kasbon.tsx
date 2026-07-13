@@ -154,7 +154,11 @@ export default function Kasbon() {
 
   return (
     <div>
-      <PageHeader title="Cash Advance Management" description="Kelola pengajuan kasbon karyawan" />
+      <PageHeader
+        title="Cash Advance Management"
+        description="Kelola pengajuan kasbon karyawan"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Kasbon' }]}
+      />
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">

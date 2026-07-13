@@ -13,6 +13,9 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import cashAdvanceRoutes from './routes/cashAdvanceRoutes.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
+import suratJalanRoutes from './routes/suratJalanRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -34,6 +37,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/cashadvances', cashAdvanceRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/surat-jalan', suratJalanRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

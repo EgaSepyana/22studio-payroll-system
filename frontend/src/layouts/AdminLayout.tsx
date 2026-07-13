@@ -13,6 +13,10 @@ import {
   Menu,
   KeyRound,
   Clock,
+  ListTodo,
+  Truck,
+  ShoppingCart,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -29,39 +33,77 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
 
-const NAV_ITEMS = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/admin/employees', label: 'Karyawan', icon: Users },
-  { to: '/admin/customers', label: 'Customer', icon: Building2 },
-  { to: '/admin/articles', label: 'Artikel', icon: Package },
-  { to: '/admin/worklogs', label: 'Data Pekerjaan', icon: ClipboardList },
-  { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
-  { to: '/admin/kasbon', label: 'Kasbon', icon: HandCoins },
-  { to: '/admin/attendance', label: 'Absensi', icon: Clock },
-  { to: '/admin/reports', label: 'Laporan', icon: FileBarChart },
+interface NavItem {
+  to: string
+  label: string
+  icon: LucideIcon
+  end?: boolean
+}
+
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Utama',
+    items: [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }],
+  },
+  {
+    label: 'Master Data',
+    items: [
+      { to: '/admin/employees', label: 'Karyawan', icon: Users },
+      { to: '/admin/customers', label: 'Customer', icon: Building2 },
+      { to: '/admin/articles', label: 'Artikel', icon: Package },
+    ],
+  },
+  {
+    label: 'Produksi',
+    items: [
+      { to: '/admin/order', label: 'Order', icon: ShoppingCart },
+      { to: '/admin/orders', label: 'Task', icon: ListTodo },
+      { to: '/admin/surat-jalan', label: 'Surat Jalan', icon: Truck },
+    ],
+  },
+  {
+    label: 'Penggajian',
+    items: [
+      { to: '/admin/worklogs', label: 'Data Pekerjaan', icon: ClipboardList },
+      { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
+      { to: '/admin/kasbon', label: 'Kasbon', icon: HandCoins },
+      { to: '/admin/attendance', label: 'Absensi', icon: Clock },
+    ],
+  },
+  {
+    label: 'Report',
+    items: [{ to: '/admin/reports', label: 'Laporan', icon: FileBarChart }],
+  },
 ]
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-            )
-          }
-        >
-          <item.icon className="size-4.5 shrink-0" />
-          {item.label}
-        </NavLink>
+    <nav className="flex flex-col gap-4 px-3">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label} className="flex flex-col gap-1">
+          <p className="text-sidebar-foreground/50 px-3 text-xs font-semibold tracking-wide uppercase">
+            {group.label}
+          </p>
+          {group.items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                )
+              }
+            >
+              <item.icon className="size-4.5 shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
       ))}
     </nav>
   )

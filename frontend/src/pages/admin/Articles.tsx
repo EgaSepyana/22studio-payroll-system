@@ -274,6 +274,7 @@ export default function Articles() {
       <PageHeader
         title="Artikel"
         description="Kelola artikel dan harga per customer"
+        breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Artikel' }]}
         action={
           <Button
             onClick={() => {

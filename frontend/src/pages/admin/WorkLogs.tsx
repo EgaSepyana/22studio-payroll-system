@@ -63,23 +63,24 @@ import * as workLogApi from '@/services/workLogApi'
 import * as employeeApi from '@/services/employeeApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
+import * as taskApi from '@/services/taskApi'
 import { formatCurrency, formatDate } from '@/utils/format'
 import type { Divisi, WorkLog } from '@/types'
 
 const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
-const formSchema = z.object({
+const createSchema = z.object({
   employee_id: z.string().min(1, 'Karyawan wajib dipilih'),
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
-  customer_id: z.string().min(1, 'Customer wajib dipilih'),
-  article_id: z.string().min(1, 'Artikel wajib dipilih'),
+  task_id: z.string().min(1, 'Task wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
 })
-type FormInput = z.input<typeof formSchema>
-type FormValues = z.output<typeof formSchema>
+const editSchema = createSchema.extend({ task_id: z.string() })
+type FormInput = z.input<typeof createSchema>
+type FormValues = z.output<typeof createSchema>
 
 export default function WorkLogs() {
   const queryClient = useQueryClient()
@@ -127,12 +128,11 @@ export default function WorkLogs() {
   const isEdit = !!editingLog
 
   const form = useForm<FormInput, unknown, FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(isEdit ? editSchema : createSchema),
     defaultValues: {
       employee_id: '',
       work_date: todayISO(),
-      customer_id: '',
-      article_id: '',
+      task_id: '',
       quantity: undefined,
       notes: '',
       status: 'selesai',
@@ -144,8 +144,7 @@ export default function WorkLogs() {
       form.reset({
         employee_id: editingLog?.employee_id || '',
         work_date: editingLog?.work_date || todayISO(),
-        customer_id: editingLog?.customer_id || '',
-        article_id: editingLog?.article_id || '',
+        task_id: editingLog?.task_id || '',
         quantity: editingLog?.quantity,
         notes: editingLog?.notes || '',
         status: editingLog?.status || 'selesai',
@@ -154,21 +153,18 @@ export default function WorkLogs() {
   }, [isFormOpen, editingLog, form])
 
   const formEmployeeId = form.watch('employee_id')
-  const formCustomerId = form.watch('customer_id')
-  const selectedEmployeeDivisi = employees?.find((e) => e.id === formEmployeeId)?.divisi
+  const formEmployeeDivisi = employees?.find((e) => e.id === formEmployeeId)?.divisi
 
-  const availableArticles = React.useMemo(
-    () =>
-      articles?.filter(
-        (a) =>
-          a.customer_id === formCustomerId &&
-          a.status === 'active' &&
-          // Only filter out articles explicitly assigned to a different
-          // division — articles predating the divisi feature (no divisi set)
-          // must stay visible, otherwise the list goes empty.
-          (!selectedEmployeeDivisi || !a.divisi || a.divisi === selectedEmployeeDivisi)
-      ) || [],
-    [articles, formCustomerId, selectedEmployeeDivisi]
+  // Work logs are task-scoped now — any employee can log against any
+  // not-yet-completed task in their own division (no exclusive assignment).
+  const { data: divisiTasks } = useQuery({
+    queryKey: ['tasks', { divisi: formEmployeeDivisi }],
+    queryFn: () => taskApi.listTasks({ divisi: formEmployeeDivisi as Divisi }),
+    enabled: !isEdit && !!formEmployeeDivisi,
+  })
+  const employeeTasks = React.useMemo(
+    () => divisiTasks?.filter((t) => t.status !== 'completed') || [],
+    [divisiTasks]
   )
 
   const saveMutation = useMutation({
@@ -209,7 +205,11 @@ export default function WorkLogs() {
   return (
     <div>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <PageHeader title="Data Pekerjaan" description="Seluruh pekerjaan yang diinput karyawan" />
+        <PageHeader
+          title="Data Pekerjaan"
+          description="Seluruh pekerjaan yang diinput karyawan"
+          breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Data Pekerjaan' }]}
+        />
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!!exportingFormat} onClick={() => handleExport('excel')}>
             {exportingFormat === 'excel' ? (
@@ -249,7 +249,7 @@ export default function WorkLogs() {
                     value={field.value}
                     onValueChange={(v) => {
                       field.onChange(v)
-                      form.setValue('article_id', '')
+                      form.setValue('task_id', '')
                     }}
                     disabled={isEdit}
                   >
@@ -268,53 +268,33 @@ export default function WorkLogs() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="customer_id" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Customer</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={(v) => {
-                      field.onChange(v)
-                      form.setValue('article_id', '')
-                    }}
-                  >
-                    <FormControl><SelectTrigger><SelectValue placeholder="Pilih customer" /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {customers?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="article_id" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Artikel</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange} disabled={!formCustomerId || !formEmployeeId}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            !formEmployeeId
-                              ? 'Pilih karyawan dahulu'
-                              : !formCustomerId
-                                ? 'Pilih customer dahulu'
-                                : 'Pilih artikel'
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableArticles.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {formEmployeeId && formCustomerId && availableArticles.length === 0 && (
-                    <p className="text-muted-foreground text-xs">
-                      Tidak ada artikel customer ini untuk divisi {selectedEmployeeDivisi || 'karyawan tersebut'}.
-                    </p>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )} />
+              {!isEdit && (
+                <FormField control={form.control} name="task_id" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Task</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={!formEmployeeId}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={!formEmployeeId ? 'Pilih karyawan dahulu' : 'Pilih task'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {employeeTasks?.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.order_name} — {t.description || t.divisi}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formEmployeeId && employeeTasks.length === 0 && (
+                      <p className="text-muted-foreground text-xs">
+                        Belum ada task untuk divisi karyawan ini.
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
               <FormField control={form.control} name="quantity" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Quantity</FormLabel>
