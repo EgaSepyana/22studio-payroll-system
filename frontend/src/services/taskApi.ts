@@ -3,7 +3,6 @@ import type { ApiResponse, Divisi, Task, TaskStatus } from '@/types'
 
 export interface TaskInput {
   order_id: string
-  article_id: string
   divisi: Divisi
   description?: string
   target_qty: number

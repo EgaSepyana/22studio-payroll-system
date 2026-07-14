@@ -3,6 +3,7 @@ import type { ApiResponse, Divisi, WorkLog, WorkStatus } from '@/types'
 
 export interface WorkLogInput {
   task_id: string
+  article_id: string
   work_date: string
   quantity: number
   notes?: string

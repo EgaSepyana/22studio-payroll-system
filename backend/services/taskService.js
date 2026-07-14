@@ -1,4 +1,4 @@
-import { TasksRepo, OrdersRepo, EmployeesRepo, CustomersRepo, ArticlesRepo } from '../google-sheet/models.js';
+import { TasksRepo, OrdersRepo, EmployeesRepo, CustomersRepo } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { recalculateOrderStatus } from './orderService.js';
 
@@ -7,12 +7,11 @@ function clean(record) {
   return rest;
 }
 
-// Sync enrichment over pre-fetched employees/articles arrays — shared with
+// Sync enrichment over a pre-fetched employees array — shared with
 // orderService.getOrderDetail so it can enrich a whole order's tasks without
 // re-fetching per task.
-export function enrichTask(task, employees, articles) {
+export function enrichTask(task, employees) {
   const employee = task.assigned_to ? employees.find((e) => String(e.id) === String(task.assigned_to)) : null;
-  const article = articles ? articles.find((a) => String(a.id) === String(task.article_id)) : null;
   const targetQty = Number(task.target_qty);
   const completedQty = Number(task.completed_qty || 0);
 
@@ -23,51 +22,46 @@ export function enrichTask(task, employees, articles) {
     remaining_qty: Math.max(0, targetQty - completedQty),
     progress: targetQty > 0 ? completedQty / targetQty : 0,
     assigned_to_name: employee?.name || null,
-    article_name: article?.article_name || null,
   };
 }
 
 // Adds order/customer context on top of enrichTask — the employee
 // task-picker needs customer_name/order_name to show what a task is
-// actually for (auto-filled read-only on the work log form) without a
-// second round-trip to /orders.
-function enrichTaskWithOrder(task, { orders, customers, articles, employees }) {
+// actually for without a second round-trip to /orders, and customer_id so
+// the work log form can scope its Article select to the right customer.
+// Articles are no longer tied to the task itself — they're chosen per work
+// log entry (see workLogService), since a task now just tracks divisi/qty
+// progress.
+function enrichTaskWithOrder(task, { orders, customers, employees }) {
   const order = orders.find((o) => String(o.id) === String(task.order_id));
   const customer = order ? customers.find((c) => String(c.id) === String(order.customer_id)) : null;
 
   return {
-    ...enrichTask(task, employees, articles),
+    ...enrichTask(task, employees),
     order_name: order?.order_name || null,
+    customer_id: order?.customer_id || null,
     customer_name: customer?.name || null,
   };
 }
 
 async function fetchEnrichmentContext() {
-  const [orders, customers, articles, employees] = await Promise.all([
+  const [orders, customers, employees] = await Promise.all([
     OrdersRepo.getAll(),
     CustomersRepo.getAll(),
-    ArticlesRepo.getAll(),
     EmployeesRepo.getAll(),
   ]);
-  return { orders, customers, articles, employees };
+  return { orders, customers, employees };
 }
 
-export async function createTask({ order_id, article_id, divisi, description, target_qty }) {
+export async function createTask({ order_id, divisi, description, target_qty }) {
   const order = await OrdersRepo.getById(order_id);
   if (!order) throw new ApiError(400, 'Order tidak valid');
   if (order.status === 'completed') {
     throw new ApiError(400, 'Tidak dapat menambah task pada order yang sudah selesai');
   }
 
-  const article = await ArticlesRepo.getById(article_id);
-  if (!article) throw new ApiError(400, 'Artikel tidak valid');
-  if (String(article.customer_id) !== String(order.customer_id)) {
-    throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
-  }
-
   const task = await TasksRepo.insert({
     order_id,
-    article_id,
     divisi,
     description: description || '',
     target_qty: Number(target_qty),
@@ -124,20 +118,11 @@ export async function getTaskDetail(taskId) {
   return enrichTaskWithOrder(task, ctx);
 }
 
-export async function updateTask(taskId, { article_id, divisi, description, target_qty }) {
+export async function updateTask(taskId, { divisi, description, target_qty }) {
   const existing = await TasksRepo.getById(taskId);
   if (!existing) throw new ApiError(404, 'Task tidak ditemukan');
 
   const patch = {};
-  if (article_id !== undefined) {
-    const order = await OrdersRepo.getById(existing.order_id);
-    const article = await ArticlesRepo.getById(article_id);
-    if (!article) throw new ApiError(400, 'Artikel tidak valid');
-    if (order && String(article.customer_id) !== String(order.customer_id)) {
-      throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
-    }
-    patch.article_id = article_id;
-  }
   if (divisi !== undefined) patch.divisi = divisi;
   if (description !== undefined) patch.description = description;
   if (target_qty !== undefined) {

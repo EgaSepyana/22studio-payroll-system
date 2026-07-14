@@ -5,14 +5,12 @@ import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
   order_id: z.union([z.string(), z.number()]),
-  article_id: z.union([z.string(), z.number()]),
   divisi: z.enum(DIVISIONS),
   description: z.string().optional(),
   target_qty: z.coerce.number().positive(),
 });
 
 const updateSchema = z.object({
-  article_id: z.union([z.string(), z.number()]).optional(),
   divisi: z.enum(DIVISIONS).optional(),
   description: z.string().optional(),
   target_qty: z.coerce.number().positive().optional(),

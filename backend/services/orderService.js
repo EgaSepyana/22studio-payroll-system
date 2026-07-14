@@ -1,4 +1,4 @@
-import { OrdersRepo, OrderItemsRepo, TasksRepo, CustomersRepo, ArticlesRepo, EmployeesRepo } from '../google-sheet/models.js';
+import { OrdersRepo, OrderItemsRepo, TasksRepo, CustomersRepo, EmployeesRepo } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { enrichTask } from './taskService.js';
 
@@ -89,9 +89,8 @@ async function getHeaderOrThrow(orderId) {
 export async function getOrderDetail(orderId) {
   const order = await getHeaderOrThrow(orderId);
 
-  const [customers, articles, tasks, employees, items] = await Promise.all([
+  const [customers, tasks, employees, items] = await Promise.all([
     CustomersRepo.getAll(),
-    ArticlesRepo.getAll(),
     TasksRepo.getAll(),
     EmployeesRepo.getAll(),
     OrderItemsRepo.getAll(),
@@ -100,7 +99,7 @@ export async function getOrderDetail(orderId) {
   const enriched = enrichOrder(order, { tasks, customers, items });
   const orderTasks = tasks
     .filter((t) => String(t.order_id) === String(orderId))
-    .map((t) => enrichTask(t, employees, articles))
+    .map((t) => enrichTask(t, employees))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   const orderItems = items
     .filter((i) => String(i.order_id) === String(orderId))

@@ -64,20 +64,17 @@ import {
 } from '@/components/ui/form'
 import * as orderApi from '@/services/orderApi'
 import * as taskApi from '@/services/taskApi'
-import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
 import type { Divisi, Task } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 const createTaskSchema = z.object({
-  article_id: z.string().min(1, 'Artikel wajib dipilih'),
   divisi: z.array(z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing'])).min(1, 'Pilih minimal satu divisi'),
   description: z.string().optional(),
   target_qty: z.coerce.number().positive('Target qty harus lebih dari 0'),
 })
 const editTaskSchema = z.object({
-  article_id: z.string().min(1, 'Artikel wajib dipilih'),
   divisi: z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing']),
   description: z.string().optional(),
   target_qty: z.coerce.number().positive('Target qty harus lebih dari 0'),
@@ -87,33 +84,27 @@ type CreateTaskFormValues = z.output<typeof createTaskSchema>
 type EditTaskFormInput = z.input<typeof editTaskSchema>
 type EditTaskFormValues = z.output<typeof editTaskSchema>
 
-function useOrderArticles(customerId?: string) {
-  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
-  return React.useMemo(() => articles?.filter((a) => a.customer_id === customerId) || [], [articles, customerId])
-}
-
 // Divisi is multi-select on create: submitting with N divisions selected
-// fans out into N separate tasks (same article/description/target_qty),
-// one per division — a quick way to spin up the same work item across
-// several production divisions at once.
+// fans out into N separate tasks (same description/target_qty), one per
+// division — a quick way to spin up the same work item across several
+// production divisions at once. Submitted sequentially (not Promise.all) so
+// each task's id is assigned only after the previous insert has actually
+// landed — firing them all in parallel risked two near-simultaneous inserts
+// computing the same "next id" before either write was visible.
 function CreateTaskDialog({
   orderId,
-  customerId,
   open,
   onOpenChange,
 }: {
   orderId: string | null
-  customerId?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const availableArticles = useOrderArticles(customerId)
 
   const form = useForm<CreateTaskFormInput, unknown, CreateTaskFormValues>({
     resolver: zodResolver(createTaskSchema),
     defaultValues: {
-      article_id: '',
       divisi: [],
       description: '',
       target_qty: undefined,
@@ -122,23 +113,25 @@ function CreateTaskDialog({
 
   React.useEffect(() => {
     if (open) {
-      form.reset({ article_id: '', divisi: [], description: '', target_qty: undefined })
+      form.reset({ divisi: [], description: '', target_qty: undefined })
     }
   }, [open, form])
 
   const mutation = useMutation({
-    mutationFn: (values: CreateTaskFormValues) =>
-      Promise.all(
-        values.divisi.map((divisi) =>
-          taskApi.createTask({
+    mutationFn: async (values: CreateTaskFormValues) => {
+      const created = []
+      for (const divisi of values.divisi) {
+        created.push(
+          await taskApi.createTask({
             order_id: orderId!,
-            article_id: values.article_id,
             divisi,
             description: values.description,
             target_qty: values.target_qty,
           })
         )
-      ),
+      }
+      return created
+    },
     onSuccess: (created) => {
       toast.success(created.length > 1 ? `${created.length} task berhasil ditambahkan` : 'Task berhasil ditambahkan')
       queryClient.invalidateQueries({ queryKey: ['order-detail', orderId] })
@@ -156,24 +149,6 @@ function CreateTaskDialog({
         </DialogHeader>
         <Form {...form}>
           <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-            <FormField
-              control={form.control}
-              name="article_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Artikel</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Pilih artikel" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableArticles.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="divisi"
@@ -243,24 +218,20 @@ function CreateTaskDialog({
 
 function EditTaskDialog({
   orderId,
-  customerId,
   task,
   open,
   onOpenChange,
 }: {
   orderId: string | null
-  customerId?: string
   task: Task
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const availableArticles = useOrderArticles(customerId)
 
   const form = useForm<EditTaskFormInput, unknown, EditTaskFormValues>({
     resolver: zodResolver(editTaskSchema),
     defaultValues: {
-      article_id: task.article_id || '',
       divisi: task.divisi || 'Jahit',
       description: task.description || '',
       target_qty: task.target_qty,
@@ -270,7 +241,6 @@ function EditTaskDialog({
   React.useEffect(() => {
     if (open) {
       form.reset({
-        article_id: task.article_id || '',
         divisi: task.divisi || 'Jahit',
         description: task.description || '',
         target_qty: task.target_qty,
@@ -297,24 +267,6 @@ function EditTaskDialog({
         </DialogHeader>
         <Form {...form}>
           <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-            <FormField
-              control={form.control}
-              name="article_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Artikel</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Pilih artikel" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableArticles.map((a) => <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="divisi"
@@ -451,7 +403,6 @@ export default function TaskDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Artikel</TableHead>
                   <TableHead>Divisi</TableHead>
                   <TableHead>Deskripsi</TableHead>
                   <TableHead>Qty</TableHead>
@@ -464,14 +415,13 @@ export default function TaskDetailPage() {
               <TableBody>
                 {data.tasks.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground text-center">
+                    <TableCell colSpan={7} className="text-muted-foreground text-center">
                       Belum ada task.
                     </TableCell>
                   </TableRow>
                 )}
                 {data.tasks.map((task) => (
                   <TableRow key={task.id}>
-                    <TableCell className="max-w-32 truncate">{task.article_name || '-'}</TableCell>
                     <TableCell><Badge variant="outline">{task.divisi}</Badge></TableCell>
                     <TableCell className="max-w-40 truncate">{task.description || '-'}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs">
@@ -511,7 +461,6 @@ export default function TaskDetailPage() {
 
       <CreateTaskDialog
         orderId={id ?? null}
-        customerId={data.customer_id}
         open={createFormOpen}
         onOpenChange={setCreateFormOpen}
       />
@@ -519,7 +468,6 @@ export default function TaskDetailPage() {
       {editingTask && (
         <EditTaskDialog
           orderId={id ?? null}
-          customerId={data.customer_id}
           task={editingTask}
           open={!!editingTask}
           onOpenChange={(open) => !open && setEditingTask(null)}

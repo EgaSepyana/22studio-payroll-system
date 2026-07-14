@@ -94,7 +94,6 @@ export interface OrderDetail extends Order {
 export interface Task {
   id: string
   order_id: string
-  article_id: string
   divisi: Divisi
   description: string
   target_qty: number
@@ -103,10 +102,10 @@ export interface Task {
   progress: number
   assigned_to: string
   assigned_to_name: string | null
-  article_name: string | null
   status: TaskStatus
   created_at: string
   order_name?: string | null
+  customer_id?: string | null
   customer_name?: string | null
 }
 

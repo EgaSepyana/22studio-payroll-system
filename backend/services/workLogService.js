@@ -32,10 +32,11 @@ async function enrich(log) {
   };
 }
 
-// Work logs are now always task-scoped: the customer/article/price are
-// derived from the task's parent order rather than picked independently, and
-// completing a work log advances the task's completed_qty.
-export async function createWorkLog(employeeId, { task_id, work_date, quantity, notes, status }) {
+// Work logs are task-scoped for progress tracking (task_id, qty against the
+// task's target) but the article/price are picked independently per entry —
+// a task no longer carries a fixed article_id, so the employee (or admin)
+// chooses which of the order's customer's articles this specific log is for.
+export async function createWorkLog(employeeId, { task_id, article_id, work_date, quantity, notes, status }) {
   const employee = await EmployeesRepo.getById(employeeId);
   if (!employee) throw new ApiError(400, 'Karyawan tidak valid');
 
@@ -52,8 +53,12 @@ export async function createWorkLog(employeeId, { task_id, work_date, quantity, 
   const order = await OrdersRepo.getById(task.order_id);
   if (!order) throw new ApiError(400, 'Order untuk task ini tidak ditemukan');
 
-  const article = await ArticlesRepo.getById(task.article_id);
-  if (!article) throw new ApiError(400, 'Artikel pada task tidak valid');
+  if (!article_id) throw new ApiError(400, 'Artikel wajib dipilih');
+  const article = await ArticlesRepo.getById(article_id);
+  if (!article) throw new ApiError(400, 'Artikel tidak valid');
+  if (String(article.customer_id) !== String(order.customer_id)) {
+    throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
+  }
 
   const qty = Number(quantity);
   const remaining = Number(task.target_qty) - Number(task.completed_qty || 0);
@@ -69,7 +74,7 @@ export async function createWorkLog(employeeId, { task_id, work_date, quantity, 
   const log = await WorkLogsRepo.insert({
     employee_id: employeeId,
     customer_id: order.customer_id,
-    article_id: task.article_id,
+    article_id,
     work_date,
     quantity: qty,
     price,

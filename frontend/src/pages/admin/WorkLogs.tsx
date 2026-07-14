@@ -74,11 +74,12 @@ const createSchema = z.object({
   employee_id: z.string().min(1, 'Karyawan wajib dipilih'),
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
   task_id: z.string().min(1, 'Task wajib dipilih'),
+  article_id: z.string().min(1, 'Artikel wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
 })
-const editSchema = createSchema.extend({ task_id: z.string() })
+const editSchema = createSchema.extend({ task_id: z.string(), article_id: z.string() })
 type FormInput = z.input<typeof createSchema>
 type FormValues = z.output<typeof createSchema>
 
@@ -133,6 +134,7 @@ export default function WorkLogs() {
       employee_id: '',
       work_date: todayISO(),
       task_id: '',
+      article_id: '',
       quantity: undefined,
       notes: '',
       status: 'selesai',
@@ -145,6 +147,7 @@ export default function WorkLogs() {
         employee_id: editingLog?.employee_id || '',
         work_date: editingLog?.work_date || todayISO(),
         task_id: editingLog?.task_id || '',
+        article_id: editingLog?.article_id || '',
         quantity: editingLog?.quantity,
         notes: editingLog?.notes || '',
         status: editingLog?.status || 'selesai',
@@ -154,6 +157,7 @@ export default function WorkLogs() {
 
   const formEmployeeId = form.watch('employee_id')
   const formEmployeeDivisi = employees?.find((e) => e.id === formEmployeeId)?.divisi
+  const formTaskId = form.watch('task_id')
 
   // Work logs are task-scoped now — any employee can log against any
   // not-yet-completed task in their own division (no exclusive assignment).
@@ -165,6 +169,11 @@ export default function WorkLogs() {
   const employeeTasks = React.useMemo(
     () => divisiTasks?.filter((t) => t.status !== 'completed') || [],
     [divisiTasks]
+  )
+  const selectedFormTask = employeeTasks.find((t) => t.id === formTaskId)
+  const availableFormArticles = React.useMemo(
+    () => articles?.filter((a) => a.customer_id === selectedFormTask?.customer_id) || [],
+    [articles, selectedFormTask]
   )
 
   const saveMutation = useMutation({
@@ -272,7 +281,14 @@ export default function WorkLogs() {
                 <FormField control={form.control} name="task_id" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Task</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={!formEmployeeId}>
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => {
+                        field.onChange(v)
+                        form.setValue('article_id', '')
+                      }}
+                      disabled={!formEmployeeId}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={!formEmployeeId ? 'Pilih karyawan dahulu' : 'Pilih task'} />
@@ -289,6 +305,31 @@ export default function WorkLogs() {
                     {formEmployeeId && employeeTasks.length === 0 && (
                       <p className="text-muted-foreground text-xs">
                         Belum ada task untuk divisi karyawan ini.
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+              {!isEdit && (
+                <FormField control={form.control} name="article_id" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Artikel</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={!selectedFormTask}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={!selectedFormTask ? 'Pilih task dahulu' : 'Pilih artikel'} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableFormArticles.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedFormTask && availableFormArticles.length === 0 && (
+                      <p className="text-muted-foreground text-xs">
+                        Belum ada artikel untuk customer pada task ini.
                       </p>
                     )}
                     <FormMessage />

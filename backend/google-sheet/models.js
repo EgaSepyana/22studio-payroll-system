@@ -64,7 +64,6 @@ export const SHEET_SCHEMAS = {
   Tasks: [
     'id',
     'order_id',
-    'article_id',
     'divisi',
     'description',
     'target_qty',

@@ -28,12 +28,14 @@ import {
 } from '@/components/ui/form'
 import * as workLogApi from '@/services/workLogApi'
 import * as taskApi from '@/services/taskApi'
+import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
 import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
   task_id: z.string().min(1, 'Task wajib dipilih'),
+  article_id: z.string().min(1, 'Artikel wajib dipilih'),
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
@@ -47,12 +49,14 @@ export default function InputPekerjaan() {
 
   const { data: divisiTasks } = useQuery({ queryKey: ['tasks-available'], queryFn: taskApi.listAvailableTasks })
   const activeTasks = React.useMemo(() => divisiTasks || [], [divisiTasks])
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       work_date: todayISO(),
       task_id: '',
+      article_id: '',
       quantity: undefined,
       notes: '',
       status: 'selesai',
@@ -61,12 +65,22 @@ export default function InputPekerjaan() {
 
   const taskId = form.watch('task_id')
   const selectedTask = activeTasks.find((t) => t.id === taskId)
+  const availableArticles = React.useMemo(
+    () =>
+      articles?.filter(
+        (a) =>
+          a.customer_id === selectedTask?.customer_id &&
+          (!a.divisi || a.divisi === selectedTask?.divisi)
+      ) || [],
+    [articles, selectedTask]
+  )
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
       workLogApi.createWorkLog({
         work_date: values.work_date,
         task_id: values.task_id,
+        article_id: values.article_id,
         quantity: values.quantity,
         notes: values.notes,
         status: values.status,
@@ -128,7 +142,14 @@ export default function InputPekerjaan() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-base">Task</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange} disabled={activeTasks.length === 0}>
+                <Select
+                  value={field.value}
+                  onValueChange={(v) => {
+                    field.onChange(v)
+                    form.setValue('article_id', '')
+                  }}
+                  disabled={activeTasks.length === 0}
+                >
                   <FormControl>
                     <SelectTrigger className="h-12 w-full text-base">
                       <SelectValue placeholder="Pilih task" />
@@ -155,10 +176,6 @@ export default function InputPekerjaan() {
                   <span className="font-medium">{selectedTask.customer_name || '-'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Artikel</span>
-                  <span className="font-medium">{selectedTask.article_name || '-'}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-muted-foreground">Sisa Target</span>
                   <span className="font-medium">{selectedTask.remaining_qty} / {selectedTask.target_qty}</span>
                 </div>
@@ -166,6 +183,34 @@ export default function InputPekerjaan() {
               </CardContent>
             </Card>
           )}
+
+          <FormField
+            control={form.control}
+            name="article_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-base">Artikel</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange} disabled={!selectedTask}>
+                  <FormControl>
+                    <SelectTrigger className="h-12 w-full text-base">
+                      <SelectValue placeholder={!selectedTask ? 'Pilih task dahulu' : 'Pilih artikel'} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableArticles.map((a) => (
+                      <SelectItem key={a.id} value={a.id} className="text-base">
+                        {a.article_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTask && availableArticles.length === 0 && (
+                  <p className="text-muted-foreground text-xs">Belum ada artikel untuk customer pada task ini.</p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}
