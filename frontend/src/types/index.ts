@@ -157,6 +157,7 @@ export interface Task {
   order_name?: string | null
   customer_id?: string | null
   customer_name?: string | null
+  deadline?: string | null
 }
 
 export interface Attendance {

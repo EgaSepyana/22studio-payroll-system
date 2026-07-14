@@ -41,6 +41,7 @@ function enrichTaskWithOrder(task, { orders, customers, employees }) {
     order_name: order?.order_name || null,
     customer_id: order?.customer_id || null,
     customer_name: customer?.name || null,
+    deadline: order?.deadline || null,
   };
 }
 

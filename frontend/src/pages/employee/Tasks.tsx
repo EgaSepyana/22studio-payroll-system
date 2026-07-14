@@ -1,10 +1,32 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import * as taskApi from '@/services/taskApi'
+import { formatDate } from '@/utils/format'
 import type { Task } from '@/types'
+
+const URGENT_THRESHOLD_DAYS = 3
+
+function daysUntil(dateStr: string): number {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const deadline = new Date(dateStr)
+  deadline.setHours(0, 0, 0, 0)
+  return Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function DeadlineBadge({ deadline }: { deadline: string }) {
+  const days = daysUntil(deadline)
+  const urgent = days < URGENT_THRESHOLD_DAYS
+  return (
+    <Badge variant="secondary" className={urgent ? 'bg-destructive text-white' : 'bg-muted text-muted-foreground'}>
+      Deadline: {formatDate(deadline)}
+    </Badge>
+  )
+}
 
 function TaskCard({ task }: { task: Task }) {
   return (
@@ -18,6 +40,11 @@ function TaskCard({ task }: { task: Task }) {
           </div>
           <OrderTaskStatusBadge status={task.status} />
         </div>
+        {task.deadline && (
+          <div>
+            <DeadlineBadge deadline={task.deadline} />
+          </div>
+        )}
         <div>
           <div className="text-muted-foreground mb-1 flex justify-between text-xs">
             <span>Progress</span>
