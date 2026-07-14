@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@dayflow/core": "^3.6.5",
+    "@dayflow/react": "^3.6.5",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/lexend": "^5.2.11",
     "@fontsource-variable/source-sans-3": "^5.2.9",

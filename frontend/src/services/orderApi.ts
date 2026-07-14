@@ -1,11 +1,15 @@
 import { api } from './api'
-import type { ApiResponse, Order, OrderDetail, OrderItem, OrderStatus } from '@/types'
+import type { ApiResponse, Order, OrderDetail, OrderFrom, OrderItem, OrderJenisCategory, OrderStatus } from '@/types'
 
 export interface OrderInput {
   customer_id: string
   order_name: string
   notes?: string
   deadline?: string
+  jenis_category?: OrderJenisCategory
+  order_from?: OrderFrom
+  broker?: string
+  desain_fix_url?: string
 }
 
 export interface OrderUpdateInput extends Partial<OrderInput> {
@@ -19,8 +23,19 @@ export interface OrderFilters {
 
 export interface OrderItemInput {
   nama_item: string
+  warna?: string
+}
+
+export interface OrderItemSizeInput {
+  size: string
   harga: number
   qty: number
+}
+
+export interface OrderItemTemplateInput {
+  nama_item: string
+  warna?: string
+  sizes: { size: string; qty: number }[]
 }
 
 export async function createOrder(data: OrderInput) {
@@ -59,6 +74,30 @@ export async function updateOrderItem(orderId: string, itemId: string, data: Par
 
 export async function deleteOrderItem(orderId: string, itemId: string) {
   await api.delete(`/orders/${orderId}/items/${itemId}`)
+}
+
+export async function addOrderItemFromTemplate(orderId: string, data: OrderItemTemplateInput) {
+  const res = await api.post<ApiResponse<OrderItem>>(`/orders/${orderId}/items/template`, data)
+  return res.data.data
+}
+
+export async function addOrderItemSize(orderId: string, itemId: string, data: OrderItemSizeInput) {
+  const res = await api.post<ApiResponse<OrderItem>>(`/orders/${orderId}/items/${itemId}/sizes`, data)
+  return res.data.data
+}
+
+export async function updateOrderItemSize(
+  orderId: string,
+  itemId: string,
+  sizeId: string,
+  data: Partial<OrderItemSizeInput>
+) {
+  const res = await api.put<ApiResponse<OrderItem>>(`/orders/${orderId}/items/${itemId}/sizes/${sizeId}`, data)
+  return res.data.data
+}
+
+export async function deleteOrderItemSize(orderId: string, itemId: string, sizeId: string) {
+  await api.delete(`/orders/${orderId}/items/${itemId}/sizes/${sizeId}`)
 }
 
 export async function printOrderInvoice(id: string) {

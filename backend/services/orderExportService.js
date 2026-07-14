@@ -99,13 +99,16 @@ export function orderInvoiceToPdf(order) {
     y += 10;
 
     order.items.forEach((item) => {
-      const values = [item.nama_item, String(item.qty), formatCurrency(item.harga), formatCurrency(item.total)];
-      doc.fontSize(9).font('Helvetica');
-      const rowHeight = Math.max(14, doc.heightOfString(values[0], { width: colWidths[0] }));
-      y = ensurePdfSpace(doc, y, rowHeight + 8, pageTop, pageBottom);
-      doc.fillColor('#000');
-      values.forEach((v, i) => doc.text(v, colX[i], y, { width: colWidths[i], align: align[i] }));
-      y += rowHeight + 8;
+      item.sizes.forEach((size) => {
+        const desc = `${item.nama_item} (${size.size})`;
+        const values = [desc, String(size.qty), formatCurrency(size.harga), formatCurrency(size.total)];
+        doc.fontSize(9).font('Helvetica');
+        const rowHeight = Math.max(14, doc.heightOfString(values[0], { width: colWidths[0] }));
+        y = ensurePdfSpace(doc, y, rowHeight + 8, pageTop, pageBottom);
+        doc.fillColor('#000');
+        values.forEach((v, i) => doc.text(v, colX[i], y, { width: colWidths[i], align: align[i] }));
+        y += rowHeight + 8;
+      });
     });
 
     doc.moveTo(startX, y).lineTo(startX + pageWidth, y).lineWidth(0.75).strokeColor(BORDER_COLOR).stroke();

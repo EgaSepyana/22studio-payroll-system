@@ -93,13 +93,14 @@ export function drawPdfRow(doc, startX, colWidths, values, y, opts = {}) {
   }
   doc.strokeColor('#000000');
 
-  doc.fillColor(opts.textColor || '#000').fontSize(fontSize).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
+  doc.fontSize(fontSize).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
   values.forEach((v, i) => {
     const text = v === '' || v == null ? '' : String(v);
     const x = startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0);
     const textHeight = doc.heightOfString(text, { width: colWidths[i] - 10 });
     const textY = y + Math.max(PDF_ROW_PADDING / 2, (rowHeight - textHeight) / 2);
-    doc.text(text, x + 5, textY, {
+    const cellColor = Array.isArray(opts.textColor) ? opts.textColor[i] : opts.textColor || '#000';
+    doc.fillColor(cellColor).text(text, x + 5, textY, {
       width: colWidths[i] - 10,
       lineBreak: true,
       align: (opts.align && opts.align[i]) || 'left',

@@ -1,8 +1,23 @@
 import { z } from 'zod';
 import * as customerService from '../services/customerService.js';
+import { CUSTOMER_CATEGORIES } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
-const schema = z.object({ name: z.string().min(1) });
+const createSchema = z.object({
+  name: z.string().min(1),
+  pic: z.string().optional(),
+  alamat: z.string().optional(),
+  no_hp: z.string().optional(),
+  category: z.enum(CUSTOMER_CATEGORIES).optional(),
+});
+
+const updateSchema = z.object({
+  name: z.string().min(1).optional(),
+  pic: z.string().optional(),
+  alamat: z.string().optional(),
+  no_hp: z.string().optional(),
+  category: z.enum(CUSTOMER_CATEGORIES).optional(),
+});
 
 export async function list(req, res, next) {
   try {
@@ -14,7 +29,7 @@ export async function list(req, res, next) {
 
 export async function create(req, res, next) {
   try {
-    created(res, await customerService.createCustomer(schema.parse(req.body)));
+    created(res, await customerService.createCustomer(createSchema.parse(req.body)));
   } catch (err) {
     next(err);
   }
@@ -22,7 +37,7 @@ export async function create(req, res, next) {
 
 export async function update(req, res, next) {
   try {
-    ok(res, await customerService.updateCustomer(req.params.id, schema.parse(req.body)));
+    ok(res, await customerService.updateCustomer(req.params.id, updateSchema.parse(req.body)));
   } catch (err) {
     next(err);
   }

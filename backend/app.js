@@ -16,6 +16,8 @@ import attendanceRoutes from './routes/attendanceRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import suratJalanRoutes from './routes/suratJalanRoutes.js';
+import lembarPORoutes from './routes/lembarPORoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -40,6 +42,8 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/surat-jalan', suratJalanRoutes);
+app.use('/api/lembar-po', lembarPORoutes);
+app.use('/api/uploads', uploadRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -8,6 +8,34 @@ export type PaySource = 'worklog' | 'attendance'
 export type OrderStatus = 'Desain Fix' | 'On Progress' | 'Done' | 'Di Ambil Costumer'
 export type TaskStatus = 'open' | 'in_progress' | 'completed'
 
+export type OrderJenisCategory =
+  | 'ATRIBUT SEKOLAH'
+  | 'CMT (cutting-finishing)'
+  | 'JAKET'
+  | 'JAS ALMAMATER'
+  | 'JERSEY'
+  | 'KAOS'
+  | 'KAOS POLOS'
+  | 'KAOS SATUAN'
+  | 'KAOS WISATA'
+  | 'KEMEJA'
+  | 'MAKLON BORDIR'
+  | 'MAKLON JAHIT'
+  | 'MAKLON SABLON'
+  | 'PENDAPATAN LAINNYA'
+  | 'SERAGAM SEKOLAH'
+
+export type OrderFrom = 'SHOPEE' | 'TIKTOK' | 'WHATSAPP' | 'WORKSHOP'
+
+export type CustomerCategory =
+  | 'BRAND OWNER'
+  | 'KAOS ANAK'
+  | 'KAOS EVENT'
+  | 'KAOS WISATA'
+  | 'SERAGAM KOMUNITAS'
+  | 'SERAGAM PERUSAHAAN'
+  | 'SERAGAM SEKOLAH'
+
 export interface AuthUser {
   id: string
   username: string
@@ -31,6 +59,13 @@ export interface Employee {
 export interface Customer {
   id: string
   name: string
+  pic: string
+  alamat: string
+  no_hp: string
+  category: CustomerCategory | ''
+  /** Derived from the customer's most recent Order — never stored, always fresh. */
+  terakhir_order: string | null
+  order_terakhir: string | null
 }
 
 export interface Article {
@@ -61,11 +96,22 @@ export interface WorkLog {
   article_name: string | null
 }
 
+export interface OrderItemSize {
+  id: string
+  order_item_id: string
+  size: string
+  harga: number
+  qty: number
+  total: number
+}
+
 export interface OrderItem {
   id: string
   order_id: string
   nama_item: string
-  harga: number
+  warna: string
+  /** Never stored — always the sum/breakdown of this item's sizes. */
+  sizes: OrderItemSize[]
   qty: number
   total: number
 }
@@ -78,6 +124,10 @@ export interface Order {
   created_at: string
   notes: string
   deadline: string
+  jenis_category: OrderJenisCategory | ''
+  order_from: OrderFrom | ''
+  broker: string
+  desain_fix_url: string
   customer_name: string | null
   task_count: number
   completed_task_count: number
@@ -229,6 +279,20 @@ export interface SuratJalan {
 
 export interface SuratJalanDetail extends SuratJalan {
   items: SuratJalanItem[]
+}
+
+export interface LembarPO {
+  id: string
+  order_id: string
+  order_name: string | null
+  customer_name: string | null
+  sablon_bordir: string
+  catatan: string
+  label: boolean
+  bahan_tipe: string
+  pola_potong: string
+  hangtag: boolean
+  created_at: string
 }
 
 export interface ApiResponse<T> {

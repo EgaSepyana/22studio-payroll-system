@@ -297,6 +297,7 @@ export default function WorkLogs() {
                       <SelectContent>
                         {employeeTasks?.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
+                            {t.customer_name ? `${t.customer_name} - ` : ''}
                             {t.order_name} — {t.description || t.divisi}
                           </SelectItem>
                         ))}

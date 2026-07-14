@@ -8,6 +8,7 @@ import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -38,6 +39,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Form,
   FormControl,
   FormField,
@@ -47,10 +55,30 @@ import {
 } from '@/components/ui/form'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
-import type { Customer } from '@/types'
+import { formatDate } from '@/utils/format'
+import type { Customer, CustomerCategory } from '@/types'
 
-const schema = z.object({ name: z.string().min(1, 'Nama customer wajib diisi') })
-type FormValues = z.infer<typeof schema>
+const NONE = '__none__'
+
+const CUSTOMER_CATEGORIES: CustomerCategory[] = [
+  'BRAND OWNER',
+  'KAOS ANAK',
+  'KAOS EVENT',
+  'KAOS WISATA',
+  'SERAGAM KOMUNITAS',
+  'SERAGAM PERUSAHAAN',
+  'SERAGAM SEKOLAH',
+]
+
+const schema = z.object({
+  name: z.string().min(1, 'Nama customer wajib diisi'),
+  pic: z.string().optional(),
+  alamat: z.string().optional(),
+  no_hp: z.string().optional(),
+  category: z.string().optional(),
+})
+type FormInput = z.input<typeof schema>
+type FormValues = z.output<typeof schema>
 
 function CustomerFormDialog({
   customer,
@@ -63,18 +91,37 @@ function CustomerFormDialog({
 }) {
   const isEdit = !!customer
   const queryClient = useQueryClient()
-  const form = useForm<FormValues>({
+  const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: customer?.name || '' },
+    defaultValues: {
+      name: customer?.name || '',
+      pic: customer?.pic || '',
+      alamat: customer?.alamat || '',
+      no_hp: customer?.no_hp || '',
+      category: customer?.category || '',
+    },
   })
 
   React.useEffect(() => {
-    if (open) form.reset({ name: customer?.name || '' })
+    if (open) {
+      form.reset({
+        name: customer?.name || '',
+        pic: customer?.pic || '',
+        alamat: customer?.alamat || '',
+        no_hp: customer?.no_hp || '',
+        category: customer?.category || '',
+      })
+    }
   }, [open, customer, form])
 
   const mutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      isEdit ? customerApi.updateCustomer(customer.id, values.name) : customerApi.createCustomer(values.name),
+    mutationFn: (values: FormValues) => {
+      const payload = {
+        ...values,
+        category: values.category || undefined,
+      } as customerApi.CustomerInput
+      return isEdit ? customerApi.updateCustomer(customer.id, payload) : customerApi.createCustomer(payload)
+    },
     onSuccess: () => {
       toast.success(isEdit ? 'Customer diperbarui' : 'Customer ditambahkan')
       queryClient.invalidateQueries({ queryKey: ['customers'] })
@@ -85,7 +132,7 @@ function CustomerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Customer' : 'Tambah Customer'}</DialogTitle>
           <DialogDescription>Contoh: Sugarship, Erigo, Compass.</DialogDescription>
@@ -103,6 +150,64 @@ function CustomerFormDialog({
                   <FormLabel>Nama Customer</FormLabel>
                   <FormControl>
                     <Input placeholder="Nama customer" autoFocus {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="pic"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>PIC (opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nama contact person" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="no_hp"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>No HP (opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="08xx-xxxx-xxxx" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category (opsional)</FormLabel>
+                  <Select value={field.value || NONE} onValueChange={(v) => field.onChange(v === NONE ? '' : v)}>
+                    <FormControl>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Pilih category" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Tidak ada</SelectItem>
+                      {CUSTOMER_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="alamat"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alamat (opsional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Alamat lengkap" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -168,13 +273,18 @@ export default function Customers() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Customer</TableHead>
+                  <TableHead>PIC</TableHead>
+                  <TableHead>No HP</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Terakhir Order</TableHead>
+                  <TableHead>Order Terakhir</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={2} className="text-muted-foreground text-center">
+                    <TableCell colSpan={7} className="text-muted-foreground text-center">
                       Belum ada data customer.
                     </TableCell>
                   </TableRow>
@@ -182,6 +292,11 @@ export default function Customers() {
                 {data?.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell>{customer.pic || '-'}</TableCell>
+                    <TableCell>{customer.no_hp || '-'}</TableCell>
+                    <TableCell>{customer.category || '-'}</TableCell>
+                    <TableCell>{customer.terakhir_order ? formatDate(customer.terakhir_order) : '-'}</TableCell>
+                    <TableCell className="max-w-40 truncate">{customer.order_terakhir || '-'}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"

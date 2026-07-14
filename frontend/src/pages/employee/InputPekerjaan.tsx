@@ -158,6 +158,7 @@ export default function InputPekerjaan() {
                   <SelectContent>
                     {activeTasks.map((t) => (
                       <SelectItem key={t.id} value={t.id} className="text-base">
+                        {t.customer_name ? `${t.customer_name} - ` : ''}
                         {t.order_name} — {t.description || t.divisi}
                       </SelectItem>
                     ))}

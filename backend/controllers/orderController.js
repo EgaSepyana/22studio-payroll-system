@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import * as orderService from '../services/orderService.js';
 import * as orderExportService from '../services/orderExportService.js';
-import { ORDER_STATUSES } from '../google-sheet/models.js';
+import { ORDER_STATUSES, ORDER_JENIS_CATEGORIES, ORDER_FROM_OPTIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -9,6 +9,10 @@ const createSchema = z.object({
   order_name: z.string().min(1),
   notes: z.string().optional(),
   deadline: z.string().optional(),
+  jenis_category: z.enum(ORDER_JENIS_CATEGORIES).optional(),
+  order_from: z.enum(ORDER_FROM_OPTIONS).optional(),
+  broker: z.string().optional(),
+  desain_fix_url: z.union([z.literal(''), z.string().url()]).optional(),
 });
 
 const updateSchema = z.object({
@@ -16,6 +20,10 @@ const updateSchema = z.object({
   notes: z.string().optional(),
   deadline: z.string().optional(),
   status: z.enum(ORDER_STATUSES).optional(),
+  jenis_category: z.enum(ORDER_JENIS_CATEGORIES).optional(),
+  order_from: z.enum(ORDER_FROM_OPTIONS).optional(),
+  broker: z.string().optional(),
+  desain_fix_url: z.union([z.literal(''), z.string().url()]).optional(),
 });
 
 const filterSchema = z.object({
@@ -25,12 +33,35 @@ const filterSchema = z.object({
 
 const itemSchema = z.object({
   nama_item: z.string().min(1),
+  warna: z.string().optional(),
+});
+
+const itemUpdateSchema = z.object({
+  nama_item: z.string().min(1),
+  warna: z.string().optional(),
+});
+
+const itemTemplateSchema = z.object({
+  nama_item: z.string().min(1),
+  warna: z.string().optional(),
+  sizes: z
+    .array(
+      z.object({
+        size: z.string().min(1),
+        qty: z.coerce.number().positive(),
+      })
+    )
+    .min(1),
+});
+
+const sizeSchema = z.object({
+  size: z.string().min(1),
   harga: z.coerce.number().min(0),
   qty: z.coerce.number().positive(),
 });
 
-const itemUpdateSchema = z.object({
-  nama_item: z.string().min(1).optional(),
+const sizeUpdateSchema = z.object({
+  size: z.string().min(1).optional(),
   harga: z.coerce.number().min(0).optional(),
   qty: z.coerce.number().positive().optional(),
 });
@@ -108,6 +139,53 @@ export async function removeItem(req, res, next) {
   try {
     await orderService.deleteOrderItem(req.params.id, req.params.itemId);
     ok(res, { message: 'Item dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addItemTemplate(req, res, next) {
+  try {
+    created(
+      res,
+      await orderService.addOrderItemFromTemplate(req.params.id, itemTemplateSchema.parse(req.body))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addSize(req, res, next) {
+  try {
+    created(
+      res,
+      await orderService.addOrderItemSize(req.params.id, req.params.itemId, sizeSchema.parse(req.body))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateSize(req, res, next) {
+  try {
+    ok(
+      res,
+      await orderService.updateOrderItemSize(
+        req.params.id,
+        req.params.itemId,
+        req.params.sizeId,
+        sizeUpdateSchema.parse(req.body)
+      )
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removeSize(req, res, next) {
+  try {
+    await orderService.deleteOrderItemSize(req.params.id, req.params.itemId, req.params.sizeId);
+    ok(res, { message: 'Size dihapus' });
   } catch (err) {
     next(err);
   }

@@ -25,4 +25,11 @@ export const env = {
     '..',
     process.env.GOOGLE_SERVICE_ACCOUNT_PATH || './service-account.json'
   ),
+  // Cloudinary — used for design image uploads. Google Drive was tried first
+  // but service accounts have no storage quota of their own on regular
+  // Drive (only Shared Drives / domain-wide delegation work, both Workspace
+  // (paid) only), so this project uses Cloudinary's free tier instead.
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || null,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || null,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || null,
 };

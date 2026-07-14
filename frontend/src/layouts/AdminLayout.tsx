@@ -16,6 +16,8 @@ import {
   ListTodo,
   Truck,
   ShoppingCart,
+  CalendarDays,
+  FileText,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -59,6 +61,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/admin/order', label: 'Order', icon: ShoppingCart },
       { to: '/admin/orders', label: 'Task', icon: ListTodo },
       { to: '/admin/surat-jalan', label: 'Surat Jalan', icon: Truck },
+      { to: '/admin/kalender-produksi', label: 'Kalender Produksi', icon: CalendarDays },
+      { to: '/admin/lembar-po', label: 'Lembar PO', icon: FileText },
     ],
   },
   {

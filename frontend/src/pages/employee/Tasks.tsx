@@ -13,6 +13,7 @@ function TaskCard({ task }: { task: Task }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">{task.order_name}</p>
+            {task.customer_name && <p className="text-muted-foreground text-xs">{task.customer_name}</p>}
             <p className="text-muted-foreground text-xs">{task.description || 'Tanpa deskripsi'}</p>
           </div>
           <OrderTaskStatusBadge status={task.status} />
