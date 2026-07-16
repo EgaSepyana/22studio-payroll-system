@@ -12,5 +12,6 @@ router.get('/', requireRole('admin', 'employee'), taskController.list);
 router.get('/:id', requireRole('admin', 'employee'), taskController.detail);
 router.put('/:id', requireRole('admin'), taskController.update);
 router.delete('/:id', requireRole('admin'), taskController.remove);
+router.post('/:id/progress', requireRole('admin', 'employee'), taskController.addProgress);
 
 export default router;

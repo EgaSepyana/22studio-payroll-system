@@ -1,4 +1,4 @@
-import { TasksRepo, OrdersRepo, EmployeesRepo, CustomersRepo } from '../google-sheet/models.js';
+import { TasksRepo, OrdersRepo, EmployeesRepo, CustomersRepo, FINISHING_DIVISION } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { recalculateOrderStatus } from './orderService.js';
 
@@ -120,22 +120,29 @@ export async function getTaskDetail(taskId) {
 }
 
 export async function updateTask(taskId, { divisi, description, target_qty }) {
-  const existing = await TasksRepo.getById(taskId);
-  if (!existing) throw new ApiError(404, 'Task tidak ditemukan');
-
-  const patch = {};
-  if (divisi !== undefined) patch.divisi = divisi;
-  if (description !== undefined) patch.description = description;
-  if (target_qty !== undefined) {
-    const nextTarget = Number(target_qty);
-    if (nextTarget < Number(existing.completed_qty || 0)) {
-      throw new ApiError(400, 'Target quantity tidak boleh kurang dari quantity yang sudah selesai');
+  let orderId;
+  const updated = await TasksRepo.updateById(taskId, (task) => {
+    orderId = task.order_id;
+    const patch = {};
+    if (divisi !== undefined) patch.divisi = divisi;
+    if (description !== undefined) patch.description = description;
+    if (target_qty !== undefined) {
+      const nextTarget = Number(target_qty);
+      const completedQty = Number(task.completed_qty || 0);
+      if (nextTarget < completedQty) {
+        throw new ApiError(400, 'Target quantity tidak boleh kurang dari quantity yang sudah selesai');
+      }
+      patch.target_qty = nextTarget;
+      // Editing the target can move a task in or out of "completed" (e.g.
+      // raising the target on an already-completed task un-completes it),
+      // so status is always re-derived alongside target_qty, not left stale.
+      patch.status = taskStatusFromQty(completedQty, nextTarget);
     }
-    patch.target_qty = nextTarget;
-  }
+    return patch;
+  });
+  if (!updated) throw new ApiError(404, 'Task tidak ditemukan');
 
-  await TasksRepo.updateById(taskId, patch);
-  await recalculateOrderStatus(existing.order_id);
+  await recalculateOrderStatus(orderId);
 
   const [ctx, fresh] = await Promise.all([fetchEnrichmentContext(), TasksRepo.getById(taskId)]);
   return enrichTaskWithOrder(fresh, ctx);
@@ -166,63 +173,101 @@ function taskStatusFromQty(completedQty, targetQty) {
 // assigned_to is informational only: it's set to the first employee to log
 // work against the task, but never blocks other employees in the same
 // division from also logging work against it.
+//
+// The read (current completed_qty/status) and the write both happen inside
+// updateById's function-form patch — i.e. atomically, under that sheet's
+// lock — instead of reading the task first and passing a precomputed patch.
+// Two work logs landing on the same task around the same time would
+// otherwise both compute their new completed_qty from the same stale
+// snapshot, and whichever write lands second silently overwrites the first
+// (lost update) — which is how a task could reach its target qty across
+// several work logs without ever flipping to "completed".
 export async function applyWorkLog(taskId, employeeId, qty) {
+  let orderId;
+  const updated = await TasksRepo.updateById(taskId, (task) => {
+    if (task.status === 'completed') throw new ApiError(400, 'Task ini sudah selesai');
+
+    const target = Number(task.target_qty);
+    const currentCompleted = Number(task.completed_qty || 0);
+    const nextCompleted = currentCompleted + Number(qty);
+
+    if (nextCompleted > target) {
+      throw new ApiError(400, `Quantity melebihi sisa target task (sisa ${target - currentCompleted})`);
+    }
+
+    orderId = task.order_id;
+    const patch = {
+      completed_qty: nextCompleted,
+      status: taskStatusFromQty(nextCompleted, target),
+    };
+    if (!task.assigned_to) patch.assigned_to = employeeId;
+    return patch;
+  });
+  if (!updated) throw new ApiError(400, 'Task tidak valid');
+
+  await recalculateOrderStatus(orderId);
+}
+
+// Finishing employees are paid hourly via Attendance, not per piece — so
+// unlike every other division, updating a Finishing task's progress must
+// NOT create a WorkLog (there's no article/price to attach, and it must
+// never feed into payroll, which for Finishing is entirely attendance-hours
+// based). This just advances completed_qty/status directly, reusing the
+// exact same atomic qty math as applyWorkLog. Restricted to Finishing tasks
+// specifically — every other division's progress must keep going through
+// workLogService.createWorkLog so its pay is correctly recorded.
+export async function addTaskProgress(taskId, employeeId, qty) {
+  const employee = await EmployeesRepo.getById(employeeId);
+  if (!employee) throw new ApiError(400, 'Karyawan tidak valid');
+
   const task = await TasksRepo.getById(taskId);
   if (!task) throw new ApiError(400, 'Task tidak valid');
-  if (task.status === 'completed') throw new ApiError(400, 'Task ini sudah selesai');
-
-  const target = Number(task.target_qty);
-  const currentCompleted = Number(task.completed_qty || 0);
-  const nextCompleted = currentCompleted + Number(qty);
-
-  if (nextCompleted > target) {
-    throw new ApiError(400, `Quantity melebihi sisa target task (sisa ${target - currentCompleted})`);
+  if (task.divisi !== FINISHING_DIVISION) {
+    throw new ApiError(400, 'Update progress tanpa data pekerjaan hanya berlaku untuk divisi Finishing');
+  }
+  if (employee.divisi !== task.divisi) {
+    throw new ApiError(403, 'Task ini bukan untuk divisi Anda');
   }
 
-  const patch = {
-    completed_qty: nextCompleted,
-    status: taskStatusFromQty(nextCompleted, target),
-  };
-  if (!task.assigned_to) patch.assigned_to = employeeId;
-
-  await TasksRepo.updateById(taskId, patch);
-  await recalculateOrderStatus(task.order_id);
+  await applyWorkLog(taskId, employeeId, qty);
+  return getTaskDetail(taskId);
 }
 
 // Called by workLogService.updateWorkLog when an existing work log's
 // quantity changes. qtyDelta is the change in quantity (positive = more
-// completed, negative = less).
+// completed, negative = less). Same atomic-updater reasoning as applyWorkLog.
 export async function reapplyWorkLog(taskId, qtyDelta) {
-  const task = await TasksRepo.getById(taskId);
-  if (!task) throw new ApiError(400, 'Task tidak valid');
+  let orderId;
+  const updated = await TasksRepo.updateById(taskId, (task) => {
+    const target = Number(task.target_qty);
+    const currentCompleted = Number(task.completed_qty || 0);
+    const nextCompleted = Math.max(0, currentCompleted + Number(qtyDelta));
 
-  const target = Number(task.target_qty);
-  const currentCompleted = Number(task.completed_qty || 0);
-  const nextCompleted = Math.max(0, currentCompleted + Number(qtyDelta));
+    if (qtyDelta > 0 && nextCompleted > target) {
+      throw new ApiError(400, `Quantity melebihi sisa target task (sisa ${target - currentCompleted})`);
+    }
 
-  if (qtyDelta > 0 && nextCompleted > target) {
-    throw new ApiError(400, `Quantity melebihi sisa target task (sisa ${target - currentCompleted})`);
-  }
-
-  await TasksRepo.updateById(taskId, {
-    completed_qty: nextCompleted,
-    status: taskStatusFromQty(nextCompleted, target),
+    orderId = task.order_id;
+    return { completed_qty: nextCompleted, status: taskStatusFromQty(nextCompleted, target) };
   });
-  await recalculateOrderStatus(task.order_id);
+  if (!updated) throw new ApiError(400, 'Task tidak valid');
+
+  await recalculateOrderStatus(orderId);
 }
 
-// Called by workLogService.deleteWorkLog.
+// Called by workLogService.deleteWorkLog. Same atomic-updater reasoning as
+// applyWorkLog.
 export async function removeWorkLog(taskId, qty) {
-  const task = await TasksRepo.getById(taskId);
-  if (!task) return; // task may have been deleted independently; nothing to reverse
+  let orderId;
+  const updated = await TasksRepo.updateById(taskId, (task) => {
+    const target = Number(task.target_qty);
+    const currentCompleted = Number(task.completed_qty || 0);
+    const nextCompleted = Math.max(0, currentCompleted - Number(qty));
 
-  const target = Number(task.target_qty);
-  const currentCompleted = Number(task.completed_qty || 0);
-  const nextCompleted = Math.max(0, currentCompleted - Number(qty));
-
-  await TasksRepo.updateById(taskId, {
-    completed_qty: nextCompleted,
-    status: taskStatusFromQty(nextCompleted, target),
+    orderId = task.order_id;
+    return { completed_qty: nextCompleted, status: taskStatusFromQty(nextCompleted, target) };
   });
-  await recalculateOrderStatus(task.order_id);
+  if (!updated) return; // task may have been deleted independently; nothing to reverse
+
+  await recalculateOrderStatus(orderId);
 }

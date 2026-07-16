@@ -186,11 +186,21 @@ export class SheetRepository {
     });
   }
 
-  async updateById(id, patch) {
+  // `patchOrFn` can be a plain object (merged as before) or a function
+  // `(current) => patch`, invoked with the freshest row *inside* the lock.
+  // Any caller doing a read-then-decide-then-write (e.g. "add qty to
+  // completed_qty, recompute status") must use the function form — reading
+  // the row *before* calling updateById and passing a precomputed patch
+  // races against a concurrent updateById on the same id: both reads see the
+  // same stale value, and whichever write lands second silently clobbers the
+  // first (lost update), which is exactly what let a task's completed_qty
+  // fall out of sync with its status.
+  async updateById(id, patchOrFn) {
     return withLock(this.sheetName, async () => {
       const existing = await this.findFreshIfMissing(id);
       if (!existing) return null;
       const { _rowNumber, ...current } = existing;
+      const patch = typeof patchOrFn === 'function' ? patchOrFn(current) : patchOrFn;
       const updated = { ...current, ...patch, id: current.id };
       const sheets = await getSheetsClient();
       const row = this.objectToRow(updated);

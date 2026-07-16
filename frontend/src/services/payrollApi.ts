@@ -69,8 +69,11 @@ export async function getPayrollDetail(id: string) {
   return res.data.data
 }
 
-export async function markPayrollPaid(id: string) {
-  const res = await api.patch<ApiResponse<PayrollRow>>(`/payroll/${id}/pay`)
+export async function markPayrollPaid(id: string, kasbonDeduction?: number) {
+  const res = await api.patch<ApiResponse<PayrollRow>>(
+    `/payroll/${id}/pay`,
+    kasbonDeduction !== undefined ? { kasbon_deduction: kasbonDeduction } : undefined
+  )
   return res.data.data
 }
 

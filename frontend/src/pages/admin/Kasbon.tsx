@@ -240,7 +240,14 @@ export default function Kasbon() {
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.employee_name}</TableCell>
                     <TableCell>{formatDate(row.requested_at)}</TableCell>
-                    <TableCell>{formatCurrency(row.amount)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(row.amount)}
+                      {row.status === 'approved' && row.paid_amount > 0 && (
+                        <span className="text-muted-foreground block text-xs">
+                          Sisa {formatCurrency(row.outstanding)}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground max-w-48 truncate">{row.reason || '-'}</TableCell>
                     <TableCell>
                       <CashAdvanceStatusBadge status={row.status} />

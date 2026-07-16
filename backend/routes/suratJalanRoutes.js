@@ -1,20 +1,25 @@
 import { Router } from 'express';
 import * as suratJalanController from '../controllers/suratJalanController.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireDivisi } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
-router.use(requireRole('admin'));
 
-router.post('/', suratJalanController.create);
-router.get('/', suratJalanController.list);
-router.get('/:id', suratJalanController.detail);
-router.get('/:id/pdf', suratJalanController.pdf);
-router.put('/:id', suratJalanController.update);
-router.delete('/:id', suratJalanController.remove);
+// Finishing employees can create/view Surat Jalan and manage their items —
+// admin keeps full access plus the only ones who can edit/delete the header
+// itself (reassigning the customer or removing a document altogether stays
+// an admin-only correction).
+const employeeAllowed = [requireRole('admin', 'employee'), requireDivisi('Finishing')];
 
-router.post('/:id/items', suratJalanController.addItem);
-router.put('/:id/items/:itemId', suratJalanController.updateItem);
-router.delete('/:id/items/:itemId', suratJalanController.removeItem);
+router.post('/', ...employeeAllowed, suratJalanController.create);
+router.get('/', ...employeeAllowed, suratJalanController.list);
+router.get('/:id', ...employeeAllowed, suratJalanController.detail);
+router.get('/:id/pdf', ...employeeAllowed, suratJalanController.pdf);
+router.put('/:id', requireRole('admin'), suratJalanController.update);
+router.delete('/:id', requireRole('admin'), suratJalanController.remove);
+
+router.post('/:id/items', ...employeeAllowed, suratJalanController.addItem);
+router.put('/:id/items/:itemId', ...employeeAllowed, suratJalanController.updateItem);
+router.delete('/:id/items/:itemId', ...employeeAllowed, suratJalanController.removeItem);
 
 export default router;

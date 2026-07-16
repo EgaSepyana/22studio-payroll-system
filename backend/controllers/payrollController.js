@@ -29,6 +29,10 @@ const rangeFilterSchema = z.object({
   divisi: z.enum(DIVISIONS).optional(),
 });
 
+const markPaidSchema = z.object({
+  kasbon_deduction: z.coerce.number().min(0).optional(),
+});
+
 export async function list(req, res, next) {
   try {
     const { month, year, employee_id, divisi } = filterSchema.parse(req.query);
@@ -87,7 +91,8 @@ export async function detail(req, res, next) {
 
 export async function markPaid(req, res, next) {
   try {
-    ok(res, await payrollService.markAsPaid(req.params.id, req.user.id));
+    const { kasbon_deduction } = markPaidSchema.parse(req.body || {});
+    ok(res, await payrollService.markAsPaid(req.params.id, req.user.id, kasbon_deduction));
   } catch (err) {
     next(err);
   }

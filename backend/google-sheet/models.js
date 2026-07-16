@@ -36,7 +36,7 @@ export const ORDER_FROM_OPTIONS = ['SHOPEE', 'TIKTOK', 'WHATSAPP', 'WORKSHOP'];
 // OrderDetail.tsx) — used by Lembar PO's "Ukuran per Tipe" print table to
 // bucket each item's sizes into fixed columns, with anything else (custom
 // size names) summed into a single CUSTOM column.
-export const ORDER_ITEM_FIXED_SIZES = ['XS', 'S', 'M', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL'];
+export const ORDER_ITEM_FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL'];
 
 export const CUSTOMER_CATEGORIES = [
   'BRAND OWNER',
@@ -92,6 +92,7 @@ export const SHEET_SCHEMAS = {
     'approved_by',
     'paid_at',
     'payroll_id',
+    'paid_amount',
   ],
   Attendance: ['id', 'employee_id', 'date', 'check_in', 'check_out', 'hours', 'payroll_id', 'notes'],
   Orders: [

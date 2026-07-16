@@ -157,6 +157,9 @@ export default function Kasbon() {
                   <CardContent className="flex items-start justify-between gap-3 py-4">
                     <div className="min-w-0">
                       <p className="text-lg font-semibold">{formatCurrency(row.amount)}</p>
+                      {row.status === 'approved' && row.paid_amount > 0 && (
+                        <p className="text-muted-foreground text-xs">Sisa {formatCurrency(row.outstanding)}</p>
+                      )}
                       <p className="text-muted-foreground text-xs">{formatDate(row.requested_at)}</p>
                       {row.reason && <p className="text-muted-foreground mt-1 text-xs">{row.reason}</p>}
                     </div>

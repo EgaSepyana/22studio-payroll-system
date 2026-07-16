@@ -30,7 +30,7 @@ import * as workLogApi from '@/services/workLogApi'
 import * as taskApi from '@/services/taskApi'
 import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
-import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
+import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
@@ -74,6 +74,8 @@ export default function InputPekerjaan() {
       ) || [],
     [articles, selectedTask]
   )
+  const articleId = form.watch('article_id')
+  const selectedArticle = availableArticles.find((a) => a.id === articleId)
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
@@ -200,13 +202,18 @@ export default function InputPekerjaan() {
                   <SelectContent>
                     {availableArticles.map((a) => (
                       <SelectItem key={a.id} value={a.id} className="text-base">
-                        {a.article_name}
+                        {a.article_name} — {formatCurrency(a.price)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {selectedTask && availableArticles.length === 0 && (
                   <p className="text-muted-foreground text-xs">Belum ada artikel untuk customer pada task ini.</p>
+                )}
+                {selectedArticle && (
+                  <p className="text-muted-foreground text-xs">
+                    Harga: <span className="font-medium">{formatCurrency(selectedArticle.price)}</span> / pcs
+                  </p>
                 )}
                 <FormMessage />
               </FormItem>

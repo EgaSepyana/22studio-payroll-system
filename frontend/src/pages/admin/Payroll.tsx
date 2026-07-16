@@ -186,6 +186,13 @@ export default function Payroll() {
   const [detailId, setDetailId] = React.useState<string | null>(null)
   const [rowAction, setRowAction] = React.useState<{ id: string; type: 'print' | 'excel' | 'pdf' } | null>(null)
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
+  const [payingRow, setPayingRow] = React.useState<PayrollRow | null>(null)
+  const [kasbonInput, setKasbonInput] = React.useState('')
+
+  function openPayDialog(row: PayrollRow) {
+    setPayingRow(row)
+    setKasbonInput(row.kasbon_deduction > 0 ? String(row.kasbon_deduction) : '')
+  }
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
 
@@ -232,9 +239,11 @@ export default function Payroll() {
   }, [isRangeMode, rangeData])
 
   const payMutation = useMutation({
-    mutationFn: payrollApi.markPayrollPaid,
+    mutationFn: (vars: { id: string; kasbonDeduction?: number }) =>
+      payrollApi.markPayrollPaid(vars.id, vars.kasbonDeduction),
     onSuccess: () => {
       toast.success('Payroll ditandai sudah dibayar')
+      setPayingRow(null)
       queryClient.invalidateQueries({ queryKey: ['payroll'] })
       queryClient.invalidateQueries({ queryKey: ['payroll-range'] })
     },
@@ -489,30 +498,9 @@ export default function Payroll() {
                         <Eye className="size-4" />
                       </Button>
                       {row.payment_status === 'unpaid' && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <CheckCircle2 className="text-success size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Tandai Sudah Dibayar?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Gaji {row.employee_name} sebesar {formatCurrency(row.total_salary)} untuk{' '}
-                                {periodLabel(row)} akan ditandai sudah dibayar. Tindakan ini
-                                tidak memerlukan approval dan tidak dapat dibatalkan.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Batal</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => payMutation.mutate(row.id)}>
-                                {payMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                                Tandai Sudah Dibayar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button variant="ghost" size="icon" onClick={() => openPayDialog(row)}>
+                          <CheckCircle2 className="text-success size-4" />
+                        </Button>
                       )}
                       {row.payment_status === 'paid' && (
                         <DropdownMenu>
@@ -548,6 +536,49 @@ export default function Payroll() {
       </Card>
 
       <PayrollDetailDialog payrollId={detailId} onOpenChange={(open) => !open && setDetailId(null)} />
+
+      <AlertDialog open={!!payingRow} onOpenChange={(open) => !open && setPayingRow(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tandai Sudah Dibayar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gaji {payingRow?.employee_name} sebesar {payingRow && formatCurrency(payingRow.total_salary)} untuk{' '}
+              {payingRow && periodLabel(payingRow)} akan ditandai sudah dibayar. Tindakan ini tidak memerlukan
+              approval dan tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {payingRow && payingRow.kasbon_deduction > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Potongan Kasbon</label>
+              <Input
+                type="number"
+                min={0}
+                max={payingRow.kasbon_deduction}
+                value={kasbonInput}
+                onChange={(e) => setKasbonInput(e.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Kasbon tersisa {formatCurrency(payingRow.kasbon_deduction)}. Kosongkan atau isi 0 untuk tidak
+                memotong kasbon sekarang — sisanya akan masuk ke payroll berikutnya.
+              </p>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!payingRow) return
+                const hasKasbon = payingRow.kasbon_deduction > 0
+                const kasbonDeduction = hasKasbon ? Number(kasbonInput || 0) : undefined
+                payMutation.mutate({ id: payingRow.id, kasbonDeduction })
+              }}
+            >
+              {payMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Tandai Sudah Dibayar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

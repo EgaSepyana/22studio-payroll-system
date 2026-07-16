@@ -20,15 +20,53 @@ function isFinishingEmployee(employee) {
   return employee?.divisi === FINISHING_DIVISION;
 }
 
-// "Approved" is the only gate that matters here: once a cash advance is
-// deducted from a payroll its status flips to "paid" and it naturally drops
-// out of this query — same exclusion pattern as payroll_id on WorkLogs, just
+// A kasbon can now be paid off across several partial payroll payments —
+// paid_amount tracks how much of it has already been deducted, so
+// "outstanding" (not the original amount) is what's left to collect.
+// Status only flips to "paid" once outstanding reaches 0 (see
+// allocateKasbonDeduction/markAsPaid), so "approved" alone no longer implies
+// the full amount is still owed.
+function outstandingAmount(kasbon) {
+  return Number(kasbon.amount) - Number(kasbon.paid_amount || 0);
+}
+
+// "Approved" is the only status gate that matters here: once a cash advance
+// is fully deducted its status flips to "paid" and it naturally drops out of
+// this query — same exclusion pattern as payroll_id on WorkLogs, just
 // expressed through the status field instead of a separate id check.
 function computeApprovedUnpaidKasbon(cashAdvances, employeeId) {
   return cashAdvances
     .filter((c) => String(c.employee_id) === String(employeeId))
     .filter((c) => c.status === 'approved')
-    .reduce((sum, c) => sum + Number(c.amount), 0);
+    .reduce((sum, c) => sum + outstandingAmount(c), 0);
+}
+
+// Allocates a chosen deduction amount (defaults to the full outstanding
+// total, but an admin may choose to deduct less at payment time) across an
+// employee's approved kasbon rows oldest-first. A row that's fully covered
+// gets tagged paid (with this payroll_id); a row only partially covered
+// keeps accruing paid_amount and stays "approved" for the remainder, to be
+// picked up by a future payroll.
+function allocateKasbonDeduction(approvedUnpaidKasbon, deductionAmount) {
+  const sorted = [...approvedUnpaidKasbon].sort((a, b) => (a.requested_at < b.requested_at ? -1 : 1));
+  let remaining = deductionAmount;
+  const allocations = [];
+  for (const kasbon of sorted) {
+    if (remaining <= 0) break;
+    const applied = Math.min(outstandingAmount(kasbon), remaining);
+    if (applied <= 0) continue;
+    allocations.push({ kasbon, applied });
+    remaining -= applied;
+  }
+  return allocations;
+}
+
+function kasbonAllocationPatch(kasbon, applied, payrollId, paidAt) {
+  const newPaidAmount = Number(kasbon.paid_amount || 0) + applied;
+  const fullyPaid = newPaidAmount >= Number(kasbon.amount);
+  return fullyPaid
+    ? { paid_amount: newPaidAmount, status: 'paid', paid_at: paidAt, payroll_id: payrollId }
+    : { paid_amount: newPaidAmount };
 }
 
 function isDailyRow(row) {
@@ -254,7 +292,12 @@ export async function getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId,
   return results;
 }
 
-export async function markAsPaid(payrollId, adminId) {
+// kasbonDeductionInput (optional): how much of the employee's outstanding
+// kasbon to deduct THIS payment — defaults to the full outstanding amount if
+// omitted, but an admin may specify less, leaving the remainder "approved"
+// and outstanding for a future payroll to pick up (see
+// allocateKasbonDeduction). Must be between 0 and the total outstanding.
+export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
   const row = await PayrollRepo.getById(payrollId);
   if (!row) throw new ApiError(404, 'Data payroll tidak ditemukan');
   if (row.payment_status === 'paid') throw new ApiError(400, 'Payroll sudah dibayar');
@@ -313,9 +356,16 @@ export async function markAsPaid(payrollId, adminId) {
   const approvedUnpaidKasbon = cashAdvances.filter(
     (c) => String(c.employee_id) === String(row.employee_id) && c.status === 'approved'
   );
-  const kasbonDeduction = approvedUnpaidKasbon.reduce((sum, c) => sum + Number(c.amount), 0);
+  const totalOutstanding = approvedUnpaidKasbon.reduce((sum, c) => sum + outstandingAmount(c), 0);
+
+  const kasbonDeduction = kasbonDeductionInput === undefined ? totalOutstanding : Number(kasbonDeductionInput);
+  if (!(kasbonDeduction >= 0) || kasbonDeduction > totalOutstanding) {
+    throw new ApiError(400, `Nominal potongan kasbon tidak valid (maksimal ${totalOutstanding})`);
+  }
+
   const netSalary = finalTotal - kasbonDeduction;
   const paidAt = new Date().toISOString();
+  const kasbonAllocations = allocateKasbonDeduction(approvedUnpaidKasbon, kasbonDeduction);
 
   // Every row this action touches — the work logs, the kasbon, and the
   // payroll row itself — gets written in a single Sheets API call instead of
@@ -332,10 +382,10 @@ export async function markAsPaid(payrollId, adminId) {
       existingRow: a,
       patch: { payroll_id: payrollId },
     })),
-    ...approvedUnpaidKasbon.map((kasbon) => ({
+    ...kasbonAllocations.map(({ kasbon, applied }) => ({
       repo: CashAdvancesRepo,
       existingRow: kasbon,
-      patch: { status: 'paid', paid_at: paidAt, payroll_id: payrollId },
+      patch: kasbonAllocationPatch(kasbon, applied, payrollId, paidAt),
     })),
     {
       repo: PayrollRepo,
@@ -413,7 +463,9 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
 
     // The fresh reconcile above already decided which single day (per
     // employee) carries the kasbon deduction — trust it rather than
-    // re-deciding "earliest open day" again here.
+    // re-deciding "earliest open day" again here. Bulk range payment always
+    // pays off the full outstanding balance (no per-row partial override
+    // like markAsPaid) — every allocation below will fully cover its kasbon.
     let kasbonDeduction = 0;
     if (Number(row.kasbon_deduction) > 0) {
       const approvedUnpaidKasbon = cashAdvances.filter(
@@ -422,13 +474,14 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
           c.status === 'approved' &&
           !kasbonAlreadyQueued.has(String(c.id))
       );
-      kasbonDeduction = approvedUnpaidKasbon.reduce((sum, c) => sum + Number(c.amount), 0);
-      for (const kasbon of approvedUnpaidKasbon) {
+      const totalOutstanding = approvedUnpaidKasbon.reduce((sum, c) => sum + outstandingAmount(c), 0);
+      kasbonDeduction = totalOutstanding;
+      for (const { kasbon, applied } of allocateKasbonDeduction(approvedUnpaidKasbon, totalOutstanding)) {
         kasbonAlreadyQueued.add(String(kasbon.id));
         entries.push({
           repo: CashAdvancesRepo,
           existingRow: kasbon,
-          patch: { status: 'paid', paid_at: paidAt, payroll_id: row.id },
+          patch: kasbonAllocationPatch(kasbon, applied, row.id, paidAt),
         });
       }
     }

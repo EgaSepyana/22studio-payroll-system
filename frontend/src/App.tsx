@@ -31,6 +31,8 @@ import EmployeeKasbon from '@/pages/employee/Kasbon'
 import EmployeeProfile from '@/pages/employee/Profile'
 import EmployeeAbsensi from '@/pages/employee/Absensi'
 import EmployeeTasks from '@/pages/employee/Tasks'
+import EmployeeSuratJalan from '@/pages/employee/SuratJalan'
+import EmployeeSuratJalanDetail from '@/pages/employee/SuratJalanDetail'
 
 function HomeRedirect() {
   const { user } = useAuth()
@@ -77,6 +79,8 @@ export default function App() {
             <Route path="/app/profile" element={<EmployeeProfile />} />
             <Route path="/app/absensi" element={<EmployeeAbsensi />} />
             <Route path="/app/tasks" element={<EmployeeTasks />} />
+            <Route path="/app/surat-jalan" element={<EmployeeSuratJalan />} />
+            <Route path="/app/surat-jalan/:id" element={<EmployeeSuratJalanDetail />} />
           </Route>
         </Route>
 

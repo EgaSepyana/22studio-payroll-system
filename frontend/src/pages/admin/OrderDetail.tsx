@@ -65,7 +65,7 @@ const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'Di Ambil Costumer', label: 'Di Ambil Costumer' },
 ]
 
-const FIXED_SIZES = ['XS', 'S', 'M', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
+const FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const SIZE_SELECT_OPTIONS = [...FIXED_SIZES, 'Custom']
 
 function ItemEditForm({

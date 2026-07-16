@@ -48,3 +48,11 @@ export async function updateTask(id: string, data: Partial<Omit<TaskInput, 'orde
 export async function deleteTask(id: string) {
   await api.delete(`/tasks/${id}`)
 }
+
+// Finishing-only: advances a task's completed_qty directly, without
+// creating a WorkLog — Finishing employees are paid hourly via Attendance,
+// so there's no article/price to attach and this must never feed payroll.
+export async function addTaskProgress(id: string, quantity: number) {
+  const res = await api.post<ApiResponse<Task>>(`/tasks/${id}/progress`, { quantity })
+  return res.data.data
+}

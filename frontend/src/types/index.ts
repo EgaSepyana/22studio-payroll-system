@@ -205,6 +205,10 @@ export interface CashAdvance {
   approved_by: string
   paid_at: string
   payroll_id?: string
+  /** Cumulative amount already deducted across possibly several partial payroll payments. */
+  paid_amount: number
+  /** amount - paid_amount — what's left to collect; status stays 'approved' until this reaches 0. */
+  outstanding: number
   employee_name: string | null
 }
 

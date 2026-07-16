@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock, ListTodo } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock, ListTodo, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -28,6 +28,8 @@ const PIECE_RATE_NAV_ITEMS = [
 const FINISHING_NAV_ITEMS = [
   { to: '/app', label: 'Beranda', icon: LayoutDashboard, end: true },
   { to: '/app/absensi', label: 'Absensi', icon: Clock },
+  { to: '/app/tasks', label: 'Tugas', icon: ListTodo },
+  { to: '/app/surat-jalan', label: 'Surat Jalan', icon: Truck },
   { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },
   { to: '/app/kasbon', label: 'Kasbon', icon: HandCoins },
   { to: '/app/profile', label: 'Profil', icon: User },

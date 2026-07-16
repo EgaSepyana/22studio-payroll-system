@@ -8,9 +8,16 @@ function clean(record) {
 
 async function enrich(record) {
   const employee = await EmployeesRepo.getById(record.employee_id);
+  const amount = Number(record.amount);
+  const paidAmount = Number(record.paid_amount || 0);
   return {
     ...clean(record),
-    amount: Number(record.amount),
+    amount,
+    // paid_amount tracks cumulative deduction across possibly several
+    // partial payroll payments — status only flips to 'paid' once
+    // outstanding reaches 0 (see payrollService.markAsPaid).
+    paid_amount: paidAmount,
+    outstanding: amount - paidAmount,
     employee_name: employee?.name || null,
   };
 }
@@ -32,6 +39,7 @@ export async function createCashAdvance(employeeId, { amount, reason }) {
     approved_by: '',
     paid_at: '',
     payroll_id: '',
+    paid_amount: 0,
   });
 
   return enrich(record);

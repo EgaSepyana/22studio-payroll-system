@@ -24,3 +24,16 @@ export function requireRole(...roles) {
     next();
   };
 }
+
+// Gates a route to specific employee divisions (e.g. only Finishing may
+// create Surat Jalan). Admin always bypasses — this only ever narrows what
+// an *employee* token can do, never what admin can do.
+export function requireDivisi(...divisions) {
+  return (req, res, next) => {
+    if (req.user?.role === 'admin') return next();
+    if (!req.user || !divisions.includes(req.user.divisi)) {
+      return next(new ApiError(403, 'Forbidden'));
+    }
+    next();
+  };
+}
