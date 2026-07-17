@@ -1,12 +1,19 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { PlusCircle, Loader2 } from 'lucide-react'
+import { PlusCircle, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -20,9 +27,37 @@ import { useAuth } from '@/hooks/useAuth'
 import * as taskApi from '@/services/taskApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
-import type { Task } from '@/types'
+import type { Task, TaskStatus } from '@/types'
 
 const URGENT_THRESHOLD_DAYS = 3
+
+type SortField = 'deadline' | 'status' | 'progress' | 'order_name'
+type SortDirection = 'asc' | 'desc'
+
+const SORT_FIELD_OPTIONS: { value: SortField; label: string }[] = [
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'status', label: 'Status' },
+  { value: 'progress', label: 'Progress' },
+  { value: 'order_name', label: 'Nama Order' },
+]
+
+const STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, completed: 2 }
+
+function compareTasks(a: Task, b: Task, field: SortField): number {
+  switch (field) {
+    case 'deadline':
+      if (!a.deadline && !b.deadline) return 0
+      if (!a.deadline) return 1
+      if (!b.deadline) return -1
+      return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0
+    case 'status':
+      return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    case 'progress':
+      return a.progress - b.progress
+    case 'order_name':
+      return (a.order_name || '').localeCompare(b.order_name || '')
+  }
+}
 
 function daysUntil(dateStr: string): number {
   const today = new Date()
@@ -148,11 +183,19 @@ export default function Tasks() {
   const { user } = useAuth()
   const isFinishing = user?.divisi === 'Finishing'
   const [progressTask, setProgressTask] = React.useState<Task | null>(null)
+  const [sortField, setSortField] = React.useState<SortField>('deadline')
+  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks-available'],
     queryFn: taskApi.listAvailableTasks,
   })
+
+  const sortedTasks = React.useMemo(() => {
+    if (!tasks) return []
+    const sorted = [...tasks].sort((a, b) => compareTasks(a, b, sortField))
+    return sortDir === 'asc' ? sorted : sorted.reverse()
+  }, [tasks, sortField, sortDir])
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,13 +208,35 @@ export default function Tasks() {
         </p>
       </div>
 
+      {tasks && tasks.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+            <SelectTrigger className="h-10 flex-1 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {SORT_FIELD_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>Urutkan: {opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 shrink-0"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
         ) : tasks?.length === 0 ? (
           <p className="text-muted-foreground py-10 text-center text-sm">Belum ada tugas untuk divisimu.</p>
         ) : (
-          tasks?.map((task) => (
+          sortedTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}

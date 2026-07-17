@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Pencil, Trash2, Loader2, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Loader2, MoreHorizontal, ArrowUp, ArrowDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,9 +65,37 @@ import {
 import * as orderApi from '@/services/orderApi'
 import * as taskApi from '@/services/taskApi'
 import { getErrorMessage } from '@/services/api'
-import type { Divisi, Task } from '@/types'
+import type { Divisi, Task, TaskStatus } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
+
+type TaskSortField = 'divisi' | 'description' | 'progress' | 'assigned_to_name' | 'status'
+type SortDirection = 'asc' | 'desc'
+
+const TASK_SORT_FIELD_OPTIONS: { value: TaskSortField; label: string }[] = [
+  { value: 'divisi', label: 'Divisi' },
+  { value: 'description', label: 'Deskripsi' },
+  { value: 'progress', label: 'Progress' },
+  { value: 'assigned_to_name', label: 'Karyawan' },
+  { value: 'status', label: 'Status' },
+]
+
+const TASK_STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, completed: 2 }
+
+function compareTaskRows(a: Task, b: Task, field: TaskSortField): number {
+  switch (field) {
+    case 'divisi':
+      return (a.divisi || '').localeCompare(b.divisi || '')
+    case 'description':
+      return (a.description || '').localeCompare(b.description || '')
+    case 'progress':
+      return a.progress - b.progress
+    case 'assigned_to_name':
+      return (a.assigned_to_name || '').localeCompare(b.assigned_to_name || '')
+    case 'status':
+      return TASK_STATUS_ORDER[a.status] - TASK_STATUS_ORDER[b.status]
+  }
+}
 
 const createTaskSchema = z.object({
   divisi: z.array(z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing'])).min(1, 'Pilih minimal satu divisi'),
@@ -327,12 +355,20 @@ export default function TaskDetailPage() {
   const [createFormOpen, setCreateFormOpen] = React.useState(false)
   const [editingTask, setEditingTask] = React.useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = React.useState<Task | null>(null)
+  const [sortField, setSortField] = React.useState<TaskSortField>('status')
+  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
 
   const { data, isLoading } = useQuery({
     queryKey: ['order-detail', id],
     queryFn: () => orderApi.getOrderDetail(id!),
     enabled: !!id,
   })
+
+  const sortedTasks = React.useMemo(() => {
+    if (!data) return []
+    const sorted = [...data.tasks].sort((a, b) => compareTaskRows(a, b, sortField))
+    return sortDir === 'asc' ? sorted : sorted.reverse()
+  }, [data, sortField, sortDir])
 
   const deleteTaskMutation = useMutation({
     mutationFn: (taskId: string) => taskApi.deleteTask(taskId),
@@ -399,6 +435,28 @@ export default function TaskDetailPage() {
             </Button>
           </div>
 
+          {data.tasks.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Select value={sortField} onValueChange={(v) => setSortField(v as TaskSortField)}>
+                <SelectTrigger className="h-9 w-48 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TASK_SORT_FIELD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>Urutkan: {opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+              </Button>
+            </div>
+          )}
+
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -420,7 +478,7 @@ export default function TaskDetailPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data.tasks.map((task) => (
+                {sortedTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell><Badge variant="outline">{task.divisi}</Badge></TableCell>
                     <TableCell className="max-w-40 truncate">{task.description || '-'}</TableCell>
