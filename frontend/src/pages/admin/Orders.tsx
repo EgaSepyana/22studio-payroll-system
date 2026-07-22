@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +48,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Form,
   FormControl,
   FormField,
@@ -67,6 +73,8 @@ const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'Done', label: 'Done' },
   { value: 'Di Ambil Costumer', label: 'Di Ambil Costumer' },
 ]
+const ALL_ORDER_STATUSES = ORDER_STATUS_OPTIONS.map((opt) => opt.value)
+const DEFAULT_STATUS_FILTER = ALL_ORDER_STATUSES.filter((s) => s !== 'Done')
 
 type OrderSortField = 'order_name' | 'customer_name' | 'deadline'
 type SortDirection = 'asc' | 'desc'
@@ -208,7 +216,7 @@ export default function Orders() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [customerFilter, setCustomerFilter] = React.useState(ALL)
-  const [statusFilter, setStatusFilter] = React.useState(ALL)
+  const [statusFilter, setStatusFilter] = React.useState<OrderStatus[]>(DEFAULT_STATUS_FILTER)
   const [sortField, setSortField] = React.useState<OrderSortField>('deadline')
   const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
   const [formOpen, setFormOpen] = React.useState(false)
@@ -219,7 +227,6 @@ export default function Orders() {
 
   const filters = {
     customer_id: customerFilter === ALL ? undefined : customerFilter,
-    status: statusFilter === ALL ? undefined : (statusFilter as OrderStatus),
   }
 
   const { data, isLoading } = useQuery({
@@ -227,11 +234,18 @@ export default function Orders() {
     queryFn: () => orderApi.listOrders(filters),
   })
 
+  function toggleStatus(status: OrderStatus, checked: boolean) {
+    setStatusFilter((current) =>
+      checked ? [...current, status] : current.filter((s) => s !== status)
+    )
+  }
+
   const sortedData = React.useMemo(() => {
     if (!data) return []
-    const sorted = [...data].sort((a, b) => compareOrders(a, b, sortField))
+    const filtered = data.filter((o) => statusFilter.includes(o.status))
+    const sorted = [...filtered].sort((a, b) => compareOrders(a, b, sortField))
     return sortDir === 'asc' ? sorted : sorted.reverse()
-  }, [data, sortField, sortDir])
+  }, [data, statusFilter, sortField, sortDir])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
@@ -243,7 +257,10 @@ export default function Orders() {
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
-  const hasFilters = customerFilter !== ALL || statusFilter !== ALL
+  const hasFilters =
+    customerFilter !== ALL ||
+    statusFilter.length !== DEFAULT_STATUS_FILTER.length ||
+    !DEFAULT_STATUS_FILTER.every((s) => statusFilter.includes(s))
 
   return (
     <div>
@@ -277,15 +294,30 @@ export default function Orders() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Status</label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Semua Status</SelectItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-48 justify-between font-normal">
+                  {statusFilter.length === 0
+                    ? 'Tidak ada status'
+                    : statusFilter.length === ALL_ORDER_STATUSES.length
+                      ? 'Semua Status'
+                      : `${statusFilter.length} status dipilih`}
+                  <ChevronDown className="size-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
                 {ORDER_STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <DropdownMenuCheckboxItem
+                    key={opt.value}
+                    checked={statusFilter.includes(opt.value)}
+                    onCheckedChange={(checked) => toggleStatus(opt.value, checked)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {opt.label}
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Urutkan</label>
@@ -309,7 +341,7 @@ export default function Orders() {
             </div>
           </div>
           {hasFilters && (
-            <Button variant="ghost" onClick={() => { setCustomerFilter(ALL); setStatusFilter(ALL) }}>
+            <Button variant="ghost" onClick={() => { setCustomerFilter(ALL); setStatusFilter(DEFAULT_STATUS_FILTER) }}>
               <X className="size-4" /> Reset
             </Button>
           )}

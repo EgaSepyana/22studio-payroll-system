@@ -95,20 +95,30 @@ export async function listTasks(filters = {}) {
 // Tasks any employee in a division can currently work on: not completed,
 // matching division, and belonging to an order that isn't already completed.
 // Assignment is no longer exclusionary — any number of employees may log
-// work against the same task.
+// work against the same task. Sorted by the parent order's deadline
+// (soonest first) so the picker surfaces the most urgent work; tasks
+// without a deadline sort last.
 export async function listAvailableTasks(divisi) {
   const [tasks, ctx] = await Promise.all([TasksRepo.getAll(), fetchEnrichmentContext()]);
   const orderMap = new Map(ctx.orders.map((o) => [String(o.id), o]));
 
-  const available = tasks.filter((t) => {
-    if (t.status === 'completed') return false;
-    if (divisi && t.divisi !== divisi) return false;
-    const order = orderMap.get(String(t.order_id));
-    return order && order.status !== 'completed';
+  const available = tasks
+    .filter((t) => {
+      if (t.status === 'completed') return false;
+      if (divisi && t.divisi !== divisi) return false;
+      const order = orderMap.get(String(t.order_id));
+      return order && order.status !== 'completed';
+    })
+    .map((t) => enrichTaskWithOrder(t, ctx));
+
+  available.sort((a, b) => {
+    if (!a.deadline && !b.deadline) return 0;
+    if (!a.deadline) return 1;
+    if (!b.deadline) return -1;
+    return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0;
   });
 
-  available.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  return available.map((t) => enrichTaskWithOrder(t, ctx));
+  return available;
 }
 
 export async function getTaskDetail(taskId) {
