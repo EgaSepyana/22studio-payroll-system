@@ -168,7 +168,7 @@ export default function AdminLayout() {
         <div className="flex h-16 items-center gap-2 px-5">
           <img src="/logo.svg" alt="22Studio" className="size-8 shrink-0 rounded-md object-cover" />
           <span className="font-heading text-sidebar-foreground text-base font-semibold">
-            22Studio Payroll
+            22Studio Sablon & Konveksi Apps
           </span>
         </div>
         <div className="flex-1 overflow-y-auto py-2">
