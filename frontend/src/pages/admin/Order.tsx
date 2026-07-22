@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, Upload, ArrowUp, ArrowDown, MessageCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,12 +56,44 @@ import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import * as orderApi from '@/services/orderApi'
 import * as customerApi from '@/services/customerApi'
 import * as uploadApi from '@/services/uploadApi'
+import * as settingsApi from '@/services/settingsApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate } from '@/utils/format'
-import type { Order, OrderFrom, OrderJenisCategory, OrderStatus } from '@/types'
+import type { Order, OrderFrom, OrderJenisCategory, OrderStatus, WATemplateKey } from '@/types'
+
+// Ad-hoc placeholders each template needs filled in fresh at send-time,
+// rather than derived from stored order/customer data — mirrors
+// ADHOC_FIELD_KEYS in the backend's waFollowUpService.js.
+const TEMPLATE_ADHOC_FIELDS: Partial<Record<WATemplateKey, { key: string; label: string }[]>> = {
+  invoice: [{ key: 'CATATAN', label: 'Catatan' }],
+  picked_up: [
+    { key: 'DISTRIBUSI', label: 'Distribusi (mis. "diambil langsung" / "dikirim via JNE")' },
+    { key: 'DITERIMA', label: 'Diterima oleh' },
+  ],
+}
 
 const ALL = 'all'
 const NONE = '__none__'
+
+type OrderSortField = 'order_name' | 'customer_name' | 'deadline'
+type SortDirection = 'asc' | 'desc'
+
+const ORDER_SORT_FIELD_OPTIONS: { value: OrderSortField; label: string }[] = [
+  { value: 'order_name', label: 'Nama Order' },
+  { value: 'customer_name', label: 'Customer' },
+  { value: 'deadline', label: 'Deadline' },
+]
+
+function compareOrders(a: Order, b: Order, field: OrderSortField): number {
+  if (field === 'deadline') {
+    if (!a.deadline && !b.deadline) return 0
+    if (!a.deadline) return 1
+    if (!b.deadline) return -1
+    return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0
+  }
+  return (a[field] || '').localeCompare(b[field] || '')
+}
+
 const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'Desain Fix', label: 'Desain Fix' },
   { value: 'On Progress', label: 'On Progress' },
@@ -350,14 +382,114 @@ function OrderFormDialog({
   )
 }
 
+function FollowUpWADialog({ order, onOpenChange }: { order: Order | null; onOpenChange: (open: boolean) => void }) {
+  const [templateKey, setTemplateKey] = React.useState<string>('')
+  const [fields, setFields] = React.useState<Record<string, string>>({})
+  const [message, setMessage] = React.useState('')
+
+  const { data: templates } = useQuery({ queryKey: ['wa-templates'], queryFn: settingsApi.listWATemplates })
+
+  React.useEffect(() => {
+    if (order) {
+      setTemplateKey('')
+      setFields({})
+      setMessage('')
+    }
+  }, [order])
+
+  const adhocFields = templateKey ? TEMPLATE_ADHOC_FIELDS[templateKey as WATemplateKey] || [] : []
+
+  const resolveQuery = useQuery({
+    queryKey: ['follow-up-message', order?.id, templateKey, fields],
+    queryFn: () => orderApi.resolveFollowUpMessage(order!.id, templateKey, fields),
+    enabled: !!order && !!templateKey,
+  })
+
+  React.useEffect(() => {
+    if (resolveQuery.data) setMessage(resolveQuery.data.message)
+  }, [resolveQuery.data])
+
+  const phone = resolveQuery.data?.phone || ''
+
+  function handleOpenWhatsApp() {
+    if (!phone) return
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank')
+  }
+
+  return (
+    <Dialog open={!!order} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Follow Up WhatsApp — {order?.order_name}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Template</label>
+            <Select value={templateKey} onValueChange={setTemplateKey}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih template" /></SelectTrigger>
+              <SelectContent>
+                {templates?.map((t) => (
+                  <SelectItem key={t.template_key} value={t.template_key}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {adhocFields.map((f) => (
+            <div key={f.key} className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">{f.label}</label>
+              <Input
+                value={fields[f.key] || ''}
+                onChange={(e) => setFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+
+          {templateKey && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Pratinjau Pesan</label>
+              {resolveQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : (
+                <Textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={12}
+                  className="text-xs"
+                />
+              )}
+              {!phone && !resolveQuery.isLoading && (
+                <p className="text-destructive text-xs">
+                  Customer belum punya nomor HP — tidak bisa membuka WhatsApp.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Batal
+          </Button>
+          <Button onClick={handleOpenWhatsApp} disabled={!templateKey || !phone || resolveQuery.isLoading}>
+            <MessageCircle className="size-4" /> Buka WhatsApp
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function OrderPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [customerFilter, setCustomerFilter] = React.useState(ALL)
   const [statusFilter, setStatusFilter] = React.useState(ALL)
+  const [sortField, setSortField] = React.useState<OrderSortField>('deadline')
+  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingItem, setEditingItem] = React.useState<Order | undefined>(undefined)
   const [deletingItem, setDeletingItem] = React.useState<Order | null>(null)
+  const [followUpOrder, setFollowUpOrder] = React.useState<Order | null>(null)
 
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
 
@@ -370,6 +502,12 @@ export default function OrderPage() {
     queryKey: ['order-list', filters],
     queryFn: () => orderApi.listOrders(filters),
   })
+
+  const sortedData = React.useMemo(() => {
+    if (!data) return []
+    const sorted = [...data].sort((a, b) => compareOrders(a, b, sortField))
+    return sortDir === 'asc' ? sorted : sorted.reverse()
+  }, [data, sortField, sortDir])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
@@ -425,6 +563,27 @@ export default function OrderPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Urutkan</label>
+            <div className="flex items-center gap-2">
+              <Select value={sortField} onValueChange={(v) => setSortField(v as OrderSortField)}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ORDER_SORT_FIELD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+              </Button>
+            </div>
+          </div>
           {hasFilters && (
             <Button variant="ghost" onClick={() => { setCustomerFilter(ALL); setStatusFilter(ALL) }}>
               <X className="size-4" /> Reset
@@ -462,17 +621,27 @@ export default function OrderPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data?.map((order) => (
+                {sortedData.map((order) => (
                   <TableRow key={order.id} className="cursor-pointer" onClick={() => navigate(`/admin/order/${order.id}`)}>
                     <TableCell className="font-medium">{order.order_name}</TableCell>
                     <TableCell>{order.customer_name}</TableCell>
                     <TableCell className="max-w-40 truncate">{order.jenis_category || '-'}</TableCell>
                     <TableCell>{order.deadline ? formatDate(order.deadline) : '-'}</TableCell>
-                    <TableCell>{formatCurrency(order.items_total)}</TableCell>
+                    <TableCell>
+                      {formatCurrency(order.sisa_pembayaran)}
+                      {order.total_dp > 0 && (
+                        <span className="text-muted-foreground block text-xs">
+                          -{formatCurrency(order.total_dp)} DP
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/order/${order.id}`)} title="Lihat">
                         <Eye className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setFollowUpOrder(order)} title="Follow Up WA">
+                        <MessageCircle className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -504,6 +673,8 @@ export default function OrderPage() {
       </Card>
 
       <OrderFormDialog order={editingItem} open={formOpen} onOpenChange={setFormOpen} />
+
+      <FollowUpWADialog order={followUpOrder} onOpenChange={(open) => !open && setFollowUpOrder(null)} />
 
       <AlertDialog open={!!deletingItem} onOpenChange={(open) => !open && setDeletingItem(null)}>
         <AlertDialogContent>

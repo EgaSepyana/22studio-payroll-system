@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { getSheetsClient, SPREADSHEET_ID } from './sheetClient.js';
-import { SHEET_SCHEMAS, UsersRepo, EmployeesRepo } from './models.js';
+import { SHEET_SCHEMAS, UsersRepo, EmployeesRepo, WATemplatesRepo, WA_TEMPLATE_DEFAULTS } from './models.js';
 
 async function ensureSheets() {
   const sheets = await getSheetsClient();
@@ -62,9 +62,24 @@ async function seedAdmin() {
   console.log('Seeded admin user -> username: admin / password: admin123');
 }
 
+async function seedWATemplates() {
+  const existing = await WATemplatesRepo.getAll({ fresh: true });
+  const existingKeys = new Set(existing.map((t) => t.template_key));
+  const missing = WA_TEMPLATE_DEFAULTS.filter((t) => !existingKeys.has(t.template_key));
+  if (missing.length === 0) {
+    console.log('WA templates already seeded, skipping.');
+    return;
+  }
+  for (const tpl of missing) {
+    await WATemplatesRepo.insert(tpl);
+  }
+  console.log(`Seeded ${missing.length} WA template(s).`);
+}
+
 async function main() {
   await ensureSheets();
   await seedAdmin();
+  await seedWATemplates();
   console.log('Google Sheets setup complete.');
 }
 

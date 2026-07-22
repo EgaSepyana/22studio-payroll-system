@@ -134,11 +134,23 @@ export interface Order {
   progress: number
   item_count: number
   items_total: number
+  /** Never stored — always the sum of this order's DP entries. */
+  total_dp: number
+  /** items_total - total_dp — what's still owed after any down payments. */
+  sisa_pembayaran: number
+}
+
+export interface OrderDP {
+  id: string
+  order_id: string
+  dp_at: string
+  total_dp: number
 }
 
 export interface OrderDetail extends Order {
   tasks: Task[]
   items: OrderItem[]
+  dp: OrderDP[]
 }
 
 export interface Task {
@@ -298,6 +310,22 @@ export interface LembarPO {
   pola_potong: string
   hangtag: boolean
   created_at: string
+}
+
+export type WATemplateKey =
+  | 'invoice'
+  | 'payment_confirmation'
+  | 'production_started'
+  | 'order_completed'
+  | 'payment_reminder'
+  | 'picked_up'
+  | 'qc_report'
+
+export interface WATemplate {
+  id: string
+  template_key: WATemplateKey
+  label: string
+  content: string
 }
 
 export interface ApiResponse<T> {

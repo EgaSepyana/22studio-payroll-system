@@ -21,4 +21,10 @@ router.post('/:id/items/:itemId/sizes', requireRole('admin'), orderController.ad
 router.put('/:id/items/:itemId/sizes/:sizeId', requireRole('admin'), orderController.updateSize);
 router.delete('/:id/items/:itemId/sizes/:sizeId', requireRole('admin'), orderController.removeSize);
 
+router.post('/:id/dp', requireRole('admin'), orderController.addDP);
+router.put('/:id/dp/:dpId', requireRole('admin'), orderController.updateDP);
+router.delete('/:id/dp/:dpId', requireRole('admin'), orderController.removeDP);
+
+router.post('/:id/follow-up', requireRole('admin'), orderController.followUp);
+
 export default router;

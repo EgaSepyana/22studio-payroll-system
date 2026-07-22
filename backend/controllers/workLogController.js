@@ -15,6 +15,7 @@ const createSchema = z.object({
 });
 
 const filterSchema = z.object({
+  task_id: z.string().optional(),
   employee_id: z.string().optional(),
   customer_id: z.string().optional(),
   article_id: z.string().optional(),

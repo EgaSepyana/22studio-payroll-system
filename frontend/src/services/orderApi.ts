@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, Order, OrderDetail, OrderFrom, OrderItem, OrderJenisCategory, OrderStatus } from '@/types'
+import type { ApiResponse, Order, OrderDetail, OrderDP, OrderFrom, OrderItem, OrderJenisCategory, OrderStatus } from '@/types'
 
 export interface OrderInput {
   customer_id: string
@@ -36,6 +36,11 @@ export interface OrderItemTemplateInput {
   nama_item: string
   warna?: string
   sizes: { size: string; qty: number }[]
+}
+
+export interface OrderDPInput {
+  dp_at: string
+  total_dp: number
 }
 
 export async function createOrder(data: OrderInput) {
@@ -98,6 +103,32 @@ export async function updateOrderItemSize(
 
 export async function deleteOrderItemSize(orderId: string, itemId: string, sizeId: string) {
   await api.delete(`/orders/${orderId}/items/${itemId}/sizes/${sizeId}`)
+}
+
+export async function addOrderDP(orderId: string, data: OrderDPInput) {
+  const res = await api.post<ApiResponse<OrderDP>>(`/orders/${orderId}/dp`, data)
+  return res.data.data
+}
+
+export async function updateOrderDP(orderId: string, dpId: string, data: Partial<OrderDPInput>) {
+  const res = await api.put<ApiResponse<OrderDP>>(`/orders/${orderId}/dp/${dpId}`, data)
+  return res.data.data
+}
+
+export async function deleteOrderDP(orderId: string, dpId: string) {
+  await api.delete(`/orders/${orderId}/dp/${dpId}`)
+}
+
+export async function resolveFollowUpMessage(
+  orderId: string,
+  templateKey: string,
+  fields: Record<string, string> = {}
+) {
+  const res = await api.post<ApiResponse<{ phone: string; message: string }>>(`/orders/${orderId}/follow-up`, {
+    template_key: templateKey,
+    fields,
+  })
+  return res.data.data
 }
 
 export async function printOrderInvoice(id: string) {

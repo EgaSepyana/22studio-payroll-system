@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import * as orderService from '../services/orderService.js';
 import * as orderExportService from '../services/orderExportService.js';
+import * as waFollowUpService from '../services/waFollowUpService.js';
 import { ORDER_STATUSES, ORDER_JENIS_CATEGORIES, ORDER_FROM_OPTIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
@@ -64,6 +65,21 @@ const sizeUpdateSchema = z.object({
   size: z.string().min(1).optional(),
   harga: z.coerce.number().min(0).optional(),
   qty: z.coerce.number().positive().optional(),
+});
+
+const dpSchema = z.object({
+  dp_at: z.string().min(1),
+  total_dp: z.coerce.number().positive(),
+});
+
+const followUpSchema = z.object({
+  template_key: z.string().min(1),
+  fields: z.record(z.string(), z.string()).optional(),
+});
+
+const dpUpdateSchema = z.object({
+  dp_at: z.string().min(1).optional(),
+  total_dp: z.coerce.number().positive().optional(),
 });
 
 export async function create(req, res, next) {
@@ -186,6 +202,40 @@ export async function removeSize(req, res, next) {
   try {
     await orderService.deleteOrderItemSize(req.params.id, req.params.itemId, req.params.sizeId);
     ok(res, { message: 'Size dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addDP(req, res, next) {
+  try {
+    created(res, await orderService.addOrderDP(req.params.id, dpSchema.parse(req.body)));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateDP(req, res, next) {
+  try {
+    ok(res, await orderService.updateOrderDP(req.params.id, req.params.dpId, dpUpdateSchema.parse(req.body)));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removeDP(req, res, next) {
+  try {
+    await orderService.deleteOrderDP(req.params.id, req.params.dpId);
+    ok(res, { message: 'DP dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function followUp(req, res, next) {
+  try {
+    const { template_key, fields } = followUpSchema.parse(req.body);
+    ok(res, await waFollowUpService.resolveFollowUpMessage(req.params.id, template_key, fields || {}));
   } catch (err) {
     next(err);
   }

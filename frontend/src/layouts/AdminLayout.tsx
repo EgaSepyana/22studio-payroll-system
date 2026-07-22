@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   CalendarDays,
   FileText,
+  Settings,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -77,6 +78,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Report',
     items: [{ to: '/admin/reports', label: 'Laporan', icon: FileBarChart }],
+  },
+  {
+    label: 'Pengaturan',
+    items: [{ to: '/admin/pengaturan-aplikasi', label: 'Pengaturan Aplikasi', icon: Settings }],
   },
 ]
 

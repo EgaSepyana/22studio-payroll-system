@@ -2,6 +2,7 @@ import {
   OrdersRepo,
   OrderItemsRepo,
   OrderItemSizesRepo,
+  OrderDPRepo,
   TasksRepo,
   CustomersRepo,
   EmployeesRepo,
@@ -51,13 +52,21 @@ function enrichItem(item, sizes) {
 // the separate "Rincian Order" breakdown (nama item/size/harga/qty),
 // unrelated to task progress — a record-keeping line-item total, not
 // production tracking.
-function enrichOrder(order, { tasks, customers, items, sizes }) {
+//
+// total_dp/sisa_pembayaran are derived the same "compute, don't store" way —
+// summed fresh from OrderDP each time rather than cached on the Orders row,
+// so they can never drift out of sync with the actual DP entries.
+function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
   const customer = customers.find((c) => String(c.id) === String(order.customer_id));
   const orderTasks = tasks.filter((t) => String(t.order_id) === String(order.id));
   const completedTaskCount = orderTasks.filter((t) => t.status === 'completed').length;
   const orderItems = items ? items.filter((i) => String(i.order_id) === String(order.id)) : [];
   const orderItemIds = new Set(orderItems.map((i) => String(i.id)));
   const orderSizes = sizes ? sizes.filter((s) => orderItemIds.has(String(s.order_item_id))) : [];
+  const orderDP = dp ? dp.filter((d) => String(d.order_id) === String(order.id)) : [];
+
+  const itemsTotal = orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0);
+  const totalDP = orderDP.reduce((sum, d) => sum + Number(d.total_dp), 0);
 
   return {
     ...clean(order),
@@ -66,8 +75,14 @@ function enrichOrder(order, { tasks, customers, items, sizes }) {
     completed_task_count: completedTaskCount,
     progress: orderTasks.length > 0 ? completedTaskCount / orderTasks.length : 0,
     item_count: orderItems.length,
-    items_total: orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0),
+    items_total: itemsTotal,
+    total_dp: totalDP,
+    sisa_pembayaran: itemsTotal - totalDP,
   };
+}
+
+function enrichDP(dp) {
+  return { ...clean(dp), total_dp: Number(dp.total_dp) };
 }
 
 export async function createOrder({
@@ -96,16 +111,17 @@ export async function createOrder({
     desain_fix_url: desain_fix_url || '',
   });
 
-  return enrichOrder(order, { tasks: [], customers: [customer], items: [], sizes: [] });
+  return enrichOrder(order, { tasks: [], customers: [customer], items: [], sizes: [], dp: [] });
 }
 
 export async function listOrders(filters = {}) {
-  const [orders, tasks, customers, items, sizes] = await Promise.all([
+  const [orders, tasks, customers, items, sizes, dp] = await Promise.all([
     OrdersRepo.getAll(),
     TasksRepo.getAll(),
     CustomersRepo.getAll(),
     OrderItemsRepo.getAll(),
     OrderItemSizesRepo.getAll(),
+    OrderDPRepo.getAll(),
   ]);
 
   let filtered = orders;
@@ -118,7 +134,7 @@ export async function listOrders(filters = {}) {
 
   filtered = [...filtered].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
-  return filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes }));
+  return filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes, dp }));
 }
 
 async function getHeaderOrThrow(orderId) {
@@ -130,15 +146,16 @@ async function getHeaderOrThrow(orderId) {
 export async function getOrderDetail(orderId) {
   const order = await getHeaderOrThrow(orderId);
 
-  const [customers, tasks, employees, items, sizes] = await Promise.all([
+  const [customers, tasks, employees, items, sizes, dp] = await Promise.all([
     CustomersRepo.getAll(),
     TasksRepo.getAll(),
     EmployeesRepo.getAll(),
     OrderItemsRepo.getAll(),
     OrderItemSizesRepo.getAll(),
+    OrderDPRepo.getAll(),
   ]);
 
-  const enriched = enrichOrder(order, { tasks, customers, items, sizes });
+  const enriched = enrichOrder(order, { tasks, customers, items, sizes, dp });
   const orderTasks = tasks
     .filter((t) => String(t.order_id) === String(orderId))
     .map((t) => enrichTask(t, employees))
@@ -147,8 +164,12 @@ export async function getOrderDetail(orderId) {
     .filter((i) => String(i.order_id) === String(orderId))
     .map((i) => enrichItem(i, sizes))
     .sort((a, b) => Number(a.id) - Number(b.id));
+  const orderDP = dp
+    .filter((d) => String(d.order_id) === String(orderId))
+    .map(enrichDP)
+    .sort((a, b) => (a.dp_at < b.dp_at ? 1 : -1));
 
-  return { ...enriched, tasks: orderTasks, items: orderItems };
+  return { ...enriched, tasks: orderTasks, items: orderItems, dp: orderDP };
 }
 
 export async function updateOrder(
@@ -172,13 +193,14 @@ export async function updateOrder(
 
   const updated = await OrdersRepo.updateById(orderId, patch);
 
-  const [tasks, customers, items, sizes] = await Promise.all([
+  const [tasks, customers, items, sizes, dp] = await Promise.all([
     TasksRepo.getAll(),
     CustomersRepo.getAll(),
     OrderItemsRepo.getAll(),
     OrderItemSizesRepo.getAll(),
+    OrderDPRepo.getAll(),
   ]);
-  return enrichOrder(updated, { tasks, customers, items, sizes });
+  return enrichOrder(updated, { tasks, customers, items, sizes, dp });
 }
 
 export async function deleteOrder(orderId) {
@@ -188,7 +210,11 @@ export async function deleteOrder(orderId) {
   const hasTasks = tasks.some((t) => String(t.order_id) === String(orderId));
   if (hasTasks) throw new ApiError(400, 'Tidak dapat menghapus order yang sudah memiliki task');
 
-  const [items, sizes] = await Promise.all([OrderItemsRepo.getAll(), OrderItemSizesRepo.getAll()]);
+  const [items, sizes, dp] = await Promise.all([
+    OrderItemsRepo.getAll(),
+    OrderItemSizesRepo.getAll(),
+    OrderDPRepo.getAll(),
+  ]);
   const ownItems = items.filter((i) => String(i.order_id) === String(orderId));
   for (const item of ownItems) {
     const ownSizes = sizes.filter((s) => String(s.order_item_id) === String(item.id));
@@ -196,6 +222,10 @@ export async function deleteOrder(orderId) {
       await OrderItemSizesRepo.deleteById(size.id);
     }
     await OrderItemsRepo.deleteById(item.id);
+  }
+  const ownDP = dp.filter((d) => String(d.order_id) === String(orderId));
+  for (const d of ownDP) {
+    await OrderDPRepo.deleteById(d.id);
   }
 
   await OrdersRepo.deleteById(orderId);
@@ -326,6 +356,72 @@ export async function deleteOrderItemSize(orderId, itemId, sizeId) {
   await OrderItemSizesRepo.deleteById(sizeId);
 }
 
+function validateDPInput({ dp_at, total_dp }) {
+  const dpAt = String(dp_at || '').trim();
+  if (!dpAt) throw new ApiError(400, 'Tanggal DP wajib diisi');
+  const totalDPNum = Number(total_dp);
+  if (!(totalDPNum > 0)) throw new ApiError(400, 'Nominal DP harus lebih dari 0');
+  return { dp_at: dpAt, total_dp: totalDPNum };
+}
+
+// Cumulative DP can never exceed the order's own item total — otherwise
+// "sisa pembayaran" (items_total - total_dp) would go negative, which makes
+// no sense on an invoice. Checked against the freshest items/sizes/DP state
+// every time, same "re-derive right before writing" pattern used elsewhere
+// for money-sensitive checks.
+async function assertDPWithinItemsTotal(orderId, additionalAmount, excludingDpId) {
+  const [items, sizes, dp] = await Promise.all([
+    OrderItemsRepo.getAll(),
+    OrderItemSizesRepo.getAll(),
+    OrderDPRepo.getAll(),
+  ]);
+  const orderItems = items.filter((i) => String(i.order_id) === String(orderId));
+  const orderItemIds = new Set(orderItems.map((i) => String(i.id)));
+  const orderSizes = sizes.filter((s) => orderItemIds.has(String(s.order_item_id)));
+  const itemsTotal = orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0);
+
+  const existingDPTotal = dp
+    .filter((d) => String(d.order_id) === String(orderId) && String(d.id) !== String(excludingDpId))
+    .reduce((sum, d) => sum + Number(d.total_dp), 0);
+
+  if (existingDPTotal + additionalAmount > itemsTotal) {
+    const remaining = Math.max(0, itemsTotal - existingDPTotal);
+    throw new ApiError(400, `Total DP tidak boleh melebihi total rincian order (sisa maksimal ${remaining})`);
+  }
+}
+
+export async function addOrderDP(orderId, input) {
+  await getHeaderOrThrow(orderId);
+  const normalized = validateDPInput(input);
+  await assertDPWithinItemsTotal(orderId, normalized.total_dp, null);
+  const dp = await OrderDPRepo.insert({ order_id: orderId, ...normalized });
+  return enrichDP(dp);
+}
+
+async function getOwnDPOrThrow(orderId, dpId) {
+  const existing = await OrderDPRepo.getById(dpId);
+  if (!existing || String(existing.order_id) !== String(orderId)) {
+    throw new ApiError(404, 'DP tidak ditemukan');
+  }
+  return existing;
+}
+
+export async function updateOrderDP(orderId, dpId, input) {
+  const existing = await getOwnDPOrThrow(orderId, dpId);
+  const normalized = validateDPInput({
+    dp_at: input.dp_at ?? existing.dp_at,
+    total_dp: input.total_dp ?? existing.total_dp,
+  });
+  await assertDPWithinItemsTotal(orderId, normalized.total_dp, dpId);
+  const updated = await OrderDPRepo.updateById(dpId, normalized);
+  return enrichDP(updated);
+}
+
+export async function deleteOrderDP(orderId, dpId) {
+  await getOwnDPOrThrow(orderId, dpId);
+  await OrderDPRepo.deleteById(dpId);
+}
+
 // The "Tambah Item" quick-entry template: one submit creates the item plus
 // every size row the admin filled a qty for. Harga isn't part of the
 // template (it defaults to 0) — sizes keep going through the existing
@@ -384,9 +480,10 @@ async function ensureInvoiceNo(order) {
 }
 
 // Powers the invoice print/export — fetches the same enriched detail as
-// getOrderDetail, plus a persisted/idempotent invoice_no assigned on first
-// print. Customer contact details, discount, and down-payment are
-// deliberately left out of scope for now (see orderExportService.js).
+// getOrderDetail (which now includes the DP list and DP-adjusted
+// sisa_pembayaran), plus a persisted/idempotent invoice_no assigned on first
+// print. Customer contact details and discount are still out of scope (see
+// orderExportService.js).
 export async function getOrderInvoice(orderId) {
   const order = await getHeaderOrThrow(orderId);
   const invoiceNo = await ensureInvoiceNo(order);

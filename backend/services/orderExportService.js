@@ -114,18 +114,35 @@ export function orderInvoiceToPdf(order) {
     doc.moveTo(startX, y).lineTo(startX + pageWidth, y).lineWidth(0.75).strokeColor(BORDER_COLOR).stroke();
     y += 10;
 
-    const summaryLabelX = colX[2];
-    const summaryValueW = colWidths[2] + colWidths[3];
+    // Summary labels get the Qty+Harga columns' combined width (both empty
+    // on these rows) instead of just the Harga column — "Sisa Pembayaran"
+    // doesn't fit on one line in the narrower width and wraps awkwardly.
+    const summaryLabelX = colX[1];
+    const summaryLabelW = colWidths[1] + colWidths[2];
     doc.fontSize(9).font('Helvetica').fillColor(LABEL_COLOR);
-    doc.text('Subtotal', summaryLabelX, y, { width: colWidths[2], align: 'right' });
+    doc.text('Subtotal', summaryLabelX, y, { width: summaryLabelW, align: 'right' });
     doc.fillColor('#000').text(formatCurrency(order.items_total), colX[3], y, { width: colWidths[3], align: 'right' });
     y += 18;
+
+    // DP (down payment) lines only appear when the order actually has any —
+    // orders without DP keep the original plain Subtotal/Total look.
+    const hasDP = order.dp && order.dp.length > 0;
+    if (hasDP) {
+      order.dp.forEach((dpEntry) => {
+        doc.fontSize(8.5).font('Helvetica').fillColor(LABEL_COLOR);
+        doc.text(`DP (${formatDateShort(dpEntry.dp_at)})`, summaryLabelX, y, { width: summaryLabelW, align: 'right' });
+        doc
+          .fillColor('#000')
+          .text(`-${formatCurrency(dpEntry.total_dp)}`, colX[3], y, { width: colWidths[3], align: 'right' });
+        y += 14;
+      });
+    }
 
     doc.moveTo(summaryLabelX, y).lineTo(startX + pageWidth, y).lineWidth(0.75).strokeColor(BORDER_COLOR).stroke();
     y += 8;
     doc.fontSize(11).font('Helvetica-Bold').fillColor('#000');
-    doc.text('Total', summaryLabelX, y, { width: colWidths[2], align: 'right' });
-    doc.text(formatCurrency(order.items_total), colX[3], y, { width: colWidths[3], align: 'right' });
+    doc.text(hasDP ? 'Sisa Pembayaran' : 'Total', summaryLabelX, y, { width: summaryLabelW, align: 'right' });
+    doc.text(formatCurrency(order.sisa_pembayaran), colX[3], y, { width: colWidths[3], align: 'right' });
     y += 30;
 
     y = ensurePdfSpace(doc, y, 160, pageTop, pageBottom);

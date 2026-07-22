@@ -56,7 +56,7 @@ import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import * as orderApi from '@/services/orderApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate } from '@/utils/format'
-import type { OrderItem, OrderItemSize, OrderStatus } from '@/types'
+import type { OrderDP, OrderItem, OrderItemSize, OrderStatus } from '@/types'
 
 const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'Desain Fix', label: 'Desain Fix' },
@@ -331,6 +331,77 @@ function AddItemTemplateDialog({
   )
 }
 
+function DPFormDialog({
+  dp,
+  open,
+  pending,
+  onOpenChange,
+  onSubmit,
+}: {
+  dp?: OrderDP
+  open: boolean
+  pending: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: { dp_at: string; total_dp: number }) => void
+}) {
+  const [dpAt, setDpAt] = React.useState('')
+  const [totalDp, setTotalDp] = React.useState('')
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (open) {
+      setDpAt(dp?.dp_at || '')
+      setTotalDp(dp ? String(dp.total_dp) : '')
+      setError(null)
+    }
+  }, [open, dp])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const amount = Number(totalDp)
+    if (!dpAt) return setError('Tanggal DP wajib diisi')
+    if (!(amount > 0)) return setError('Nominal DP harus lebih dari 0')
+    setError(null)
+    onSubmit({ dp_at: dpAt, total_dp: amount })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{dp ? 'Edit DP' : 'Tambah DP'}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Tanggal DP</label>
+            <Input type="date" value={dpAt} onChange={(e) => setDpAt(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Nominal DP</label>
+            <Input
+              type="number"
+              min={0}
+              placeholder="Rp"
+              value={totalDp}
+              onChange={(e) => setTotalDp(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-destructive text-xs">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -343,6 +414,9 @@ export default function OrderDetailPage() {
   const [editingSize, setEditingSize] = React.useState<{ itemId: string; size: OrderItemSize } | null>(null)
   const [deletingSize, setDeletingSize] = React.useState<{ itemId: string; size: OrderItemSize } | null>(null)
   const [pdfPending, setPdfPending] = React.useState<'print' | 'download' | null>(null)
+  const [dpDialogOpen, setDpDialogOpen] = React.useState(false)
+  const [editingDP, setEditingDP] = React.useState<OrderDP | undefined>(undefined)
+  const [deletingDP, setDeletingDP] = React.useState<OrderDP | null>(null)
 
   function toggleExpanded(itemId: string) {
     setExpandedItemIds((prev) => {
@@ -433,6 +507,38 @@ export default function OrderDetailPage() {
     onSuccess: () => {
       toast.success('Size dihapus')
       setDeletingSize(null)
+      invalidate()
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  const addDPMutation = useMutation({
+    mutationFn: (input: orderApi.OrderDPInput) => orderApi.addOrderDP(id!, input),
+    onSuccess: () => {
+      toast.success('DP ditambahkan')
+      setDpDialogOpen(false)
+      invalidate()
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  const updateDPMutation = useMutation({
+    mutationFn: (vars: { dpId: string; input: orderApi.OrderDPInput }) =>
+      orderApi.updateOrderDP(id!, vars.dpId, vars.input),
+    onSuccess: () => {
+      toast.success('DP diperbarui')
+      setEditingDP(undefined)
+      setDpDialogOpen(false)
+      invalidate()
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  const deleteDPMutation = useMutation({
+    mutationFn: (dpId: string) => orderApi.deleteOrderDP(id!, dpId),
+    onSuccess: () => {
+      toast.success('DP dihapus')
+      setDeletingDP(null)
       invalidate()
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -714,8 +820,82 @@ export default function OrderDetailPage() {
           </div>
 
           <div className="flex justify-end gap-2 text-sm font-semibold">
-            <span>Total</span>
+            <span>Total Item</span>
             <span>{formatCurrency(data.items_total)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4 shadow-sm">
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading text-sm font-semibold">Pembayaran (DP)</h3>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingDP(undefined)
+                setDpDialogOpen(true)
+              }}
+            >
+              <Plus className="size-4" /> Tambah DP
+            </Button>
+          </div>
+
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal DP</TableHead>
+                  <TableHead className="w-40">Nominal</TableHead>
+                  <TableHead className="w-24 text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.dp.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-muted-foreground text-center">
+                      Belum ada DP.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {data.dp.map((dp) => (
+                  <TableRow key={dp.id}>
+                    <TableCell>{formatDate(dp.dp_at)}</TableCell>
+                    <TableCell>{formatCurrency(dp.total_dp)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditingDP(dp)
+                          setDpDialogOpen(true)
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeletingDP(dp)}>
+                        <Trash2 className="text-destructive size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-col items-end gap-1 text-sm">
+            <div className="text-muted-foreground flex gap-2">
+              <span>Total Item</span>
+              <span className="w-32 text-right">{formatCurrency(data.items_total)}</span>
+            </div>
+            <div className="text-muted-foreground flex gap-2">
+              <span>Total DP</span>
+              <span className="w-32 text-right">-{formatCurrency(data.total_dp)}</span>
+            </div>
+            <div className="flex gap-2 font-semibold">
+              <span>Sisa Pembayaran</span>
+              <span className="w-32 text-right">{formatCurrency(data.sisa_pembayaran)}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -766,6 +946,41 @@ export default function OrderDetailPage() {
               }
             >
               {deleteSizeMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <DPFormDialog
+        dp={editingDP}
+        open={dpDialogOpen}
+        pending={editingDP ? updateDPMutation.isPending : addDPMutation.isPending}
+        onOpenChange={(open) => {
+          setDpDialogOpen(open)
+          if (!open) setEditingDP(undefined)
+        }}
+        onSubmit={(input) =>
+          editingDP ? updateDPMutation.mutate({ dpId: editingDP.id, input }) : addDPMutation.mutate(input)
+        }
+      />
+
+      <AlertDialog open={!!deletingDP} onOpenChange={(open) => !open && setDeletingDP(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus DP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              DP tanggal {deletingDP && formatDate(deletingDP.dp_at)} sebesar{' '}
+              {deletingDP && formatCurrency(deletingDP.total_dp)} akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingDP && deleteDPMutation.mutate(deletingDP.id)}
+            >
+              {deleteDPMutation.isPending && <Loader2 className="size-4 animate-spin" />}
               Hapus
             </AlertDialogAction>
           </AlertDialogFooter>

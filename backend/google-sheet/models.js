@@ -38,6 +38,124 @@ export const ORDER_FROM_OPTIONS = ['SHOPEE', 'TIKTOK', 'WHATSAPP', 'WORKSHOP'];
 // size names) summed into a single CUSTOM column.
 export const ORDER_ITEM_FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL'];
 
+// The fixed set of WhatsApp follow-up templates — admin can edit each
+// template's content/label, but the key itself (and the set of 7) is fixed,
+// since order follow-up actions reference these keys directly.
+export const WA_TEMPLATE_DEFAULTS = [
+  {
+    template_key: 'invoice',
+    label: 'Kirim Invoice',
+    content: `{SALAM}, Kak {NAMA}! Berikut detail invoice pesanan Kakak:
+
+INVOICE ORDER {NAMA_USAHA}
+------------------------------
+No. Order : {NO_INVOICE}
+Nama      : {NAMA}
+Alamat    : {ALAMAT}
+Nama Order: {ORDER}
+------------------------------
+
+{RINCIAN}
+
+Total Invoice     : {TOTAL_BRUTO}
+DP minimal 60%    : {DP_MIN}
+
+Transfer ke salah satu rekening:
+{REKENING_BANK}
+
+{CATATAN}`,
+  },
+  {
+    template_key: 'payment_confirmation',
+    label: 'Konfirmasi Pembayaran',
+    content: `TERIMA KASIH PEMBAYARANNYA — {NAMA_USAHA}
+
+No. Order : {NO_INVOICE}
+Nama      : {NAMA}
+Alamat    : {ALAMAT}
+Order     : {ORDER}
+--------------------------
+Total      : {TOTAL}
+Pembayaran : {BAYAR}
+Sisa       : {SISA}
+Estimasi selesai: {DEADLINE}
+
+{DP_HISTORY}
+
+Pelunasan ke salah satu rekening:
+{REKENING_BANK}
+
+Terima kasih 🙏`,
+  },
+  {
+    template_key: 'production_started',
+    label: 'Data Diproduksi',
+    content: `{SALAM}, Kak {NAMA}!
+
+No. Invoice: {NO_INVOICE}
+Order: {ORDER}
+
+TELAH DI-ACC TANPA DP. Pesanan di-antrikan ke produksi.
+
+Terima kasih.`,
+  },
+  {
+    template_key: 'order_completed',
+    label: 'Pesanan Selesai',
+    content: `HALO KAK {NAMA}!
+
+Pesanan {ORDER} (No. {NO_INVOICE}) SUDAH SELESAI.
+Sisa pembayaran {SISA}
+Bisa diambil langsung / dikirim.
+
+Terima kasih telah order di {NAMA_USAHA}.`,
+  },
+  {
+    template_key: 'payment_reminder',
+    label: 'Kirim Tagihan',
+    content: `{SALAM}, Kak {NAMA}.
+
+Kami mengingatkan untuk sisa pembayaran pesanan:
+No. Invoice: {NO_INVOICE}
+Order: {ORDER}
+
+Sisa tagihan: {SISA}
+
+Pelunasan dapat ditransfer ke:
+{REKENING_BANK}
+
+Terima kasih.`,
+  },
+  {
+    template_key: 'picked_up',
+    label: 'Diambil Customer',
+    content: `Terima kasih, {NAMA}!
+
+Pesanan Anda:
+No Invoice: {NO_INVOICE}
+Nama Order: {ORDER}
+
+Pesanan telah {DISTRIBUSI} dan diterima oleh {DITERIMA}.
+
+Jika puas dengan pelayanan kami, mohon bantu ulasan di Google Maps:
+https://maps.app.goo.gl/H6YqpBHhvhLpaxRv6`,
+  },
+  {
+    template_key: 'qc_report',
+    label: 'Laporan QC - Pesanan Selesai',
+    content: `✅ *LAPORAN QC - PESANAN SELESAI*
+
+{SALAM} Admin *22STUDIO SABLON KONVEKSI*,
+Pesanan *{ORDER}* a.n. *{NAMA}* dengan No Invoice *{NO_INVOICE}* telah selesai dicek oleh tim QC.
+
+QTY PO : *{QTY_PO}*
+QTY QC : *{QTY_QC}*
+Selisih : *{QTY_SELISIH}*
+
+Status Order : *{STATUS}*`,
+  },
+];
+
 export const CUSTOMER_CATEGORIES = [
   'BRAND OWNER',
   'KAOS ANAK',
@@ -111,6 +229,7 @@ export const SHEET_SCHEMAS = {
   ],
   OrderItems: ['id', 'order_id', 'nama_item', 'harga', 'qty', 'total', 'warna'],
   OrderItemSizes: ['id', 'order_item_id', 'size', 'harga', 'qty'],
+  OrderDP: ['id', 'order_id', 'dp_at', 'total_dp'],
   Tasks: [
     'id',
     'order_id',
@@ -143,6 +262,8 @@ export const SHEET_SCHEMAS = {
     'hangtag',
     'created_at',
   ],
+  AppSettings: ['id', 'key', 'value'],
+  WATemplates: ['id', 'template_key', 'label', 'content'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -156,8 +277,11 @@ export const AttendanceRepo = new SheetRepository('Attendance', SHEET_SCHEMAS.At
 export const OrdersRepo = new SheetRepository('Orders', SHEET_SCHEMAS.Orders);
 export const OrderItemsRepo = new SheetRepository('OrderItems', SHEET_SCHEMAS.OrderItems);
 export const OrderItemSizesRepo = new SheetRepository('OrderItemSizes', SHEET_SCHEMAS.OrderItemSizes);
+export const OrderDPRepo = new SheetRepository('OrderDP', SHEET_SCHEMAS.OrderDP);
 export const TasksRepo = new SheetRepository('Tasks', SHEET_SCHEMAS.Tasks);
 export const SuratJalanRepo = new SheetRepository('SuratJalan', SHEET_SCHEMAS.SuratJalan);
 export const SuratJalanItemsRepo = new SheetRepository('SuratJalanItems', SHEET_SCHEMAS.SuratJalanItems);
 export const LembarPORepo = new SheetRepository('LembarPO', SHEET_SCHEMAS.LembarPO);
+export const AppSettingsRepo = new SheetRepository('AppSettings', SHEET_SCHEMAS.AppSettings);
+export const WATemplatesRepo = new SheetRepository('WATemplates', SHEET_SCHEMAS.WATemplates);
 

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,6 +67,25 @@ const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
   { value: 'Done', label: 'Done' },
   { value: 'Di Ambil Costumer', label: 'Di Ambil Costumer' },
 ]
+
+type OrderSortField = 'order_name' | 'customer_name' | 'deadline'
+type SortDirection = 'asc' | 'desc'
+
+const ORDER_SORT_FIELD_OPTIONS: { value: OrderSortField; label: string }[] = [
+  { value: 'order_name', label: 'Nama Order' },
+  { value: 'customer_name', label: 'Customer' },
+  { value: 'deadline', label: 'Deadline' },
+]
+
+function compareOrders(a: Order, b: Order, field: OrderSortField): number {
+  if (field === 'deadline') {
+    if (!a.deadline && !b.deadline) return 0
+    if (!a.deadline) return 1
+    if (!b.deadline) return -1
+    return a.deadline < b.deadline ? -1 : a.deadline > b.deadline ? 1 : 0
+  }
+  return (a[field] || '').localeCompare(b[field] || '')
+}
 
 const orderSchema = z.object({
   customer_id: z.string().min(1, 'Customer wajib dipilih'),
@@ -190,6 +209,8 @@ export default function Orders() {
   const queryClient = useQueryClient()
   const [customerFilter, setCustomerFilter] = React.useState(ALL)
   const [statusFilter, setStatusFilter] = React.useState(ALL)
+  const [sortField, setSortField] = React.useState<OrderSortField>('deadline')
+  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingOrder, setEditingOrder] = React.useState<Order | undefined>(undefined)
   const [deletingOrder, setDeletingOrder] = React.useState<Order | null>(null)
@@ -205,6 +226,12 @@ export default function Orders() {
     queryKey: ['orders', filters],
     queryFn: () => orderApi.listOrders(filters),
   })
+
+  const sortedData = React.useMemo(() => {
+    if (!data) return []
+    const sorted = [...data].sort((a, b) => compareOrders(a, b, sortField))
+    return sortDir === 'asc' ? sorted : sorted.reverse()
+  }, [data, sortField, sortDir])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
@@ -260,6 +287,27 @@ export default function Orders() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Urutkan</label>
+            <div className="flex items-center gap-2">
+              <Select value={sortField} onValueChange={(v) => setSortField(v as OrderSortField)}>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ORDER_SORT_FIELD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+              </Button>
+            </div>
+          </div>
           {hasFilters && (
             <Button variant="ghost" onClick={() => { setCustomerFilter(ALL); setStatusFilter(ALL) }}>
               <X className="size-4" /> Reset
@@ -295,7 +343,7 @@ export default function Orders() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data?.map((order) => (
+                {sortedData.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.order_name}</TableCell>
                     <TableCell>{order.customer_name}</TableCell>

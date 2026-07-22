@@ -97,6 +97,9 @@ export async function createWorkLog(employeeId, { task_id, article_id, work_date
 export async function listWorkLogs(filters = {}) {
   let logs = await WorkLogsRepo.getAll();
 
+  if (filters.task_id) {
+    logs = logs.filter((l) => String(l.task_id) === String(filters.task_id));
+  }
   if (filters.employee_id) {
     logs = logs.filter((l) => String(l.employee_id) === String(filters.employee_id));
   }

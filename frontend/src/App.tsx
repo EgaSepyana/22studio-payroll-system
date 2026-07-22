@@ -22,6 +22,7 @@ import AdminSuratJalan from '@/pages/admin/SuratJalan'
 import AdminSuratJalanDetail from '@/pages/admin/SuratJalanDetail'
 import AdminKalenderProduksi from '@/pages/admin/KalenderProduksi'
 import AdminLembarPO from '@/pages/admin/LembarPO'
+import AdminPengaturanAplikasi from '@/pages/admin/PengaturanAplikasi'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="/admin/surat-jalan/:id" element={<AdminSuratJalanDetail />} />
             <Route path="/admin/kalender-produksi" element={<AdminKalenderProduksi />} />
             <Route path="/admin/lembar-po" element={<AdminLembarPO />} />
+            <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
           </Route>
         </Route>
 

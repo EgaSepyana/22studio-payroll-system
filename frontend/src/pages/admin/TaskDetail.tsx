@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Pencil, Trash2, Loader2, MoreHorizontal, ArrowUp, ArrowDown } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Loader2, MoreHorizontal, ArrowUp, ArrowDown, Eye } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,7 +64,9 @@ import {
 } from '@/components/ui/form'
 import * as orderApi from '@/services/orderApi'
 import * as taskApi from '@/services/taskApi'
+import * as workLogApi from '@/services/workLogApi'
 import { getErrorMessage } from '@/services/api'
+import { formatCurrency, formatDate, workStatusLabel } from '@/utils/format'
 import type { Divisi, Task, TaskStatus } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
@@ -348,6 +350,79 @@ function EditTaskDialog({
   )
 }
 
+function TaskWorkLogDialog({ task, onOpenChange }: { task: Task | null; onOpenChange: (open: boolean) => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['worklogs', { task_id: task?.id }],
+    queryFn: () => workLogApi.listAllWorkLogs({ task_id: task!.id }),
+    enabled: !!task,
+  })
+
+  const total = data?.reduce((sum, log) => sum + log.total, 0) || 0
+
+  return (
+    <Dialog open={!!task} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Detail Pekerjaan — {task?.description || task?.divisi}</DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Karyawan</TableHead>
+                  <TableHead>Artikel</TableHead>
+                  <TableHead className="w-20">Qty</TableHead>
+                  <TableHead className="w-28">Harga</TableHead>
+                  <TableHead className="w-28">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-muted-foreground text-center">
+                      Belum ada pekerjaan tercatat untuk task ini.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {data?.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="whitespace-nowrap">{formatDate(log.work_date)}</TableCell>
+                    <TableCell>{log.employee_name || '-'}</TableCell>
+                    <TableCell>{log.article_name || '-'}</TableCell>
+                    <TableCell>{log.quantity}</TableCell>
+                    <TableCell>{formatCurrency(log.price)}</TableCell>
+                    <TableCell>{formatCurrency(log.total)}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{workStatusLabel(log.status)}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {data && data.length > 0 && (
+          <div className="flex justify-end gap-2 text-sm font-semibold">
+            <span>Total</span>
+            <span>{formatCurrency(total)}</span>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -355,6 +430,7 @@ export default function TaskDetailPage() {
   const [createFormOpen, setCreateFormOpen] = React.useState(false)
   const [editingTask, setEditingTask] = React.useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = React.useState<Task | null>(null)
+  const [viewingTask, setViewingTask] = React.useState<Task | null>(null)
   const [sortField, setSortField] = React.useState<TaskSortField>('status')
   const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
 
@@ -496,6 +572,9 @@ export default function TaskDetailPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setViewingTask(task)}>
+                            <Eye className="size-4" /> Detail Pekerjaan
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setEditingTask(task)}>
                             <Pencil className="size-4" /> Edit
                           </DropdownMenuItem>
@@ -531,6 +610,8 @@ export default function TaskDetailPage() {
           onOpenChange={(open) => !open && setEditingTask(null)}
         />
       )}
+
+      <TaskWorkLogDialog task={viewingTask} onOpenChange={(open) => !open && setViewingTask(null)} />
 
       <AlertDialog open={!!deletingTask} onOpenChange={(open) => !open && setDeletingTask(null)}>
         <AlertDialogContent>

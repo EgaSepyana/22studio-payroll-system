@@ -12,6 +12,7 @@ export interface WorkLogInput {
 }
 
 export interface WorkLogFilters {
+  task_id?: string
   employee_id?: string
   customer_id?: string
   article_id?: string
