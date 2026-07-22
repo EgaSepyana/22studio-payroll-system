@@ -82,15 +82,16 @@ export function orderInvoiceToPdf(order) {
 
     y += infoBoxH + 24;
 
-    const colWidths = [250, 50, 90, 125];
+    const colWidths = [190, 70, 40, 90, 125];
     const colX = [
       startX,
       startX + colWidths[0],
       startX + colWidths[0] + colWidths[1],
       startX + colWidths[0] + colWidths[1] + colWidths[2],
+      startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3],
     ];
-    const align = ['left', 'center', 'right', 'right'];
-    const headers = ['Deskripsi', 'Qty', 'Harga', 'Total'];
+    const align = ['left', 'left', 'center', 'right', 'right'];
+    const headers = ['Deskripsi', 'Warna', 'Qty', 'Harga', 'Total'];
 
     doc.fontSize(9).font('Helvetica-Bold').fillColor(LABEL_COLOR);
     headers.forEach((h, i) => doc.text(h, colX[i], y, { width: colWidths[i], align: align[i] }));
@@ -101,7 +102,13 @@ export function orderInvoiceToPdf(order) {
     order.items.forEach((item) => {
       item.sizes.forEach((size) => {
         const desc = `${item.nama_item} (${size.size})`;
-        const values = [desc, String(size.qty), formatCurrency(size.harga), formatCurrency(size.total)];
+        const values = [
+          desc,
+          item.warna || '-',
+          String(size.qty),
+          formatCurrency(size.harga),
+          formatCurrency(size.total),
+        ];
         doc.fontSize(9).font('Helvetica');
         const rowHeight = Math.max(14, doc.heightOfString(values[0], { width: colWidths[0] }));
         y = ensurePdfSpace(doc, y, rowHeight + 8, pageTop, pageBottom);
@@ -114,14 +121,15 @@ export function orderInvoiceToPdf(order) {
     doc.moveTo(startX, y).lineTo(startX + pageWidth, y).lineWidth(0.75).strokeColor(BORDER_COLOR).stroke();
     y += 10;
 
-    // Summary labels get the Qty+Harga columns' combined width (both empty
-    // on these rows) instead of just the Harga column — "Sisa Pembayaran"
-    // doesn't fit on one line in the narrower width and wraps awkwardly.
+    // Summary labels get the Warna+Qty+Harga columns' combined width (all
+    // empty on these rows) instead of just the Harga column — "Sisa
+    // Pembayaran" doesn't fit on one line in the narrower width and wraps
+    // awkwardly.
     const summaryLabelX = colX[1];
-    const summaryLabelW = colWidths[1] + colWidths[2];
+    const summaryLabelW = colWidths[1] + colWidths[2] + colWidths[3];
     doc.fontSize(9).font('Helvetica').fillColor(LABEL_COLOR);
     doc.text('Subtotal', summaryLabelX, y, { width: summaryLabelW, align: 'right' });
-    doc.fillColor('#000').text(formatCurrency(order.items_total), colX[3], y, { width: colWidths[3], align: 'right' });
+    doc.fillColor('#000').text(formatCurrency(order.items_total), colX[4], y, { width: colWidths[4], align: 'right' });
     y += 18;
 
     // DP (down payment) lines only appear when the order actually has any —
@@ -133,7 +141,7 @@ export function orderInvoiceToPdf(order) {
         doc.text(`DP (${formatDateShort(dpEntry.dp_at)})`, summaryLabelX, y, { width: summaryLabelW, align: 'right' });
         doc
           .fillColor('#000')
-          .text(`-${formatCurrency(dpEntry.total_dp)}`, colX[3], y, { width: colWidths[3], align: 'right' });
+          .text(`-${formatCurrency(dpEntry.total_dp)}`, colX[4], y, { width: colWidths[4], align: 'right' });
         y += 14;
       });
     }
@@ -142,7 +150,7 @@ export function orderInvoiceToPdf(order) {
     y += 8;
     doc.fontSize(11).font('Helvetica-Bold').fillColor('#000');
     doc.text(hasDP ? 'Sisa Pembayaran' : 'Total', summaryLabelX, y, { width: summaryLabelW, align: 'right' });
-    doc.text(formatCurrency(order.sisa_pembayaran), colX[3], y, { width: colWidths[3], align: 'right' });
+    doc.text(formatCurrency(order.sisa_pembayaran), colX[4], y, { width: colWidths[4], align: 'right' });
     y += 30;
 
     y = ensurePdfSpace(doc, y, 160, pageTop, pageBottom);
