@@ -1,5 +1,6 @@
 import { CustomersRepo, FINISHING_DIVISION } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 import { formatCurrency, formatDate } from './pdfHelpers.js';
 import * as orderService from './orderService.js';
 import * as settingsService from './settingsService.js';
@@ -19,7 +20,8 @@ function formatRincian(items) {
   for (const item of items) {
     for (const size of item.sizes) {
       const label = item.warna ? `${item.nama_item} (${item.warna})` : item.nama_item;
-      lines.push(`- ${label} ${size.size} x${size.qty} = ${formatCurrency(size.total)}`);
+      const unitPrice = Number(size.harga).toLocaleString('id-ID');
+      lines.push(`- ${label} ${size.size} ( ${unitPrice} x ${size.qty} ) = ${formatCurrency(size.total)}`);
     }
   }
   return lines.length ? lines.join('\n') : '-';
@@ -28,16 +30,6 @@ function formatRincian(items) {
 function formatDPHistory(dp) {
   if (!dp.length) return 'Belum ada riwayat DP.';
   return dp.map((d) => `- ${formatDate(d.dp_at)}: ${formatCurrency(d.total_dp)}`).join('\n');
-}
-
-// WhatsApp deep links need the number without a leading 0/+, prefixed with
-// the country code — Indonesian numbers are stored locally as "08xxx".
-function normalizePhone(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('62')) return digits;
-  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-  return digits;
 }
 
 function substitute(content, variables) {

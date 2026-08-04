@@ -1,6 +1,28 @@
-import { TasksRepo, OrdersRepo, EmployeesRepo, CustomersRepo, FINISHING_DIVISION } from '../google-sheet/models.js';
+import {
+  TasksRepo,
+  OrdersRepo,
+  EmployeesRepo,
+  CustomersRepo,
+  FINISHING_DIVISION,
+  DIVISI_SUBSTAGE_LABELS,
+} from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { recalculateOrderStatus } from './orderService.js';
+import { appendTimelineEntry } from './orderTimelineService.js';
+
+// Emits the "Proses <Divisi Label> Selesai" timeline entry the first time a
+// task flips into 'completed' — called after the atomic qty update commits,
+// never inside it (timeline writes hit a different sheet/lock and don't need
+// to be atomic with the task's own row write).
+async function noteSubStageCompletion(orderId, divisi) {
+  const label = DIVISI_SUBSTAGE_LABELS[divisi] || divisi;
+  await appendTimelineEntry(orderId, {
+    stage: 'On Progress',
+    sub_stage: label,
+    note: `Proses ${label} Selesai`,
+    actor: 'system',
+  });
+}
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -194,6 +216,8 @@ function taskStatusFromQty(completedQty, targetQty) {
 // several work logs without ever flipping to "completed".
 export async function applyWorkLog(taskId, employeeId, qty) {
   let orderId;
+  let becameCompleted = false;
+  let divisi;
   const updated = await TasksRepo.updateById(taskId, (task) => {
     if (task.status === 'completed') throw new ApiError(400, 'Task ini sudah selesai');
 
@@ -206,9 +230,12 @@ export async function applyWorkLog(taskId, employeeId, qty) {
     }
 
     orderId = task.order_id;
+    divisi = task.divisi;
+    const nextStatus = taskStatusFromQty(nextCompleted, target);
+    becameCompleted = nextStatus === 'completed';
     const patch = {
       completed_qty: nextCompleted,
-      status: taskStatusFromQty(nextCompleted, target),
+      status: nextStatus,
     };
     if (!task.assigned_to) patch.assigned_to = employeeId;
     return patch;
@@ -216,6 +243,7 @@ export async function applyWorkLog(taskId, employeeId, qty) {
   if (!updated) throw new ApiError(400, 'Task tidak valid');
 
   await recalculateOrderStatus(orderId);
+  if (becameCompleted) await noteSubStageCompletion(orderId, divisi);
 }
 
 // Finishing employees are paid hourly via Attendance, not per piece — so
@@ -248,6 +276,8 @@ export async function addTaskProgress(taskId, employeeId, qty) {
 // completed, negative = less). Same atomic-updater reasoning as applyWorkLog.
 export async function reapplyWorkLog(taskId, qtyDelta) {
   let orderId;
+  let becameCompleted = false;
+  let divisi;
   const updated = await TasksRepo.updateById(taskId, (task) => {
     const target = Number(task.target_qty);
     const currentCompleted = Number(task.completed_qty || 0);
@@ -258,11 +288,15 @@ export async function reapplyWorkLog(taskId, qtyDelta) {
     }
 
     orderId = task.order_id;
-    return { completed_qty: nextCompleted, status: taskStatusFromQty(nextCompleted, target) };
+    divisi = task.divisi;
+    const nextStatus = taskStatusFromQty(nextCompleted, target);
+    becameCompleted = task.status !== 'completed' && nextStatus === 'completed';
+    return { completed_qty: nextCompleted, status: nextStatus };
   });
   if (!updated) throw new ApiError(400, 'Task tidak valid');
 
   await recalculateOrderStatus(orderId);
+  if (becameCompleted) await noteSubStageCompletion(orderId, divisi);
 }
 
 // Called by workLogService.deleteWorkLog. Same atomic-updater reasoning as

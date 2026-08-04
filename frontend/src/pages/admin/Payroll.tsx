@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, CheckCircle2, Loader2, FileSpreadsheet, FileDown, Printer, FileText } from 'lucide-react'
+import { Eye, CheckCircle2, Loader2, FileSpreadsheet, FileDown, Printer, FileText, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -53,10 +53,14 @@ import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime, todayISO, MONTH_NAMES } from '@/utils/format'
 import type { PayrollExportFilters } from '@/services/payrollApi'
-import type { Divisi, PayrollRow } from '@/types'
+import type { Divisi, PaymentStatus, PayrollRow } from '@/types'
 
 const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
+const PAYMENT_STATUS_OPTIONS: { value: PaymentStatus; label: string }[] = [
+  { value: 'unpaid', label: 'Belum Dibayar' },
+  { value: 'paid', label: 'Sudah Dibayar' },
+]
 const now = new Date()
 const YEARS = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)
 
@@ -183,6 +187,8 @@ export default function Payroll() {
   const [dateTo, setDateTo] = React.useState(todayISO())
   const [employeeId, setEmployeeId] = React.useState(ALL)
   const [divisiFilter, setDivisiFilter] = React.useState(ALL)
+  const [paymentStatusFilter, setPaymentStatusFilter] = React.useState(ALL)
+  const [search, setSearch] = React.useState('')
   const [detailId, setDetailId] = React.useState<string | null>(null)
   const [rowAction, setRowAction] = React.useState<{ id: string; type: 'print' | 'excel' | 'pdf' } | null>(null)
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
@@ -225,6 +231,16 @@ export default function Payroll() {
 
   const data = isRangeMode ? rangeData : monthData
   const isLoading = isRangeMode ? rangeLoading : monthLoading
+
+  const filteredData = React.useMemo(() => {
+    if (!data) return []
+    const query = search.trim().toLowerCase()
+    return data.filter((row) => {
+      if (paymentStatusFilter !== ALL && row.payment_status !== paymentStatusFilter) return false
+      if (query && !row.employee_name.toLowerCase().includes(query)) return false
+      return true
+    })
+  }, [data, paymentStatusFilter, search])
 
   const rangeTotals = React.useMemo(() => {
     if (!isRangeMode || !rangeData) return null
@@ -400,6 +416,30 @@ export default function Payroll() {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Status</label>
+            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Status</SelectItem>
+                {PAYMENT_STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Cari</label>
+            <div className="relative">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input
+                placeholder="Nama karyawan..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-48 pl-8"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -465,7 +505,7 @@ export default function Payroll() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.length === 0 && (
+                {filteredData.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={isRangeMode ? 5 : 4} className="text-muted-foreground text-center">
                       {isRangeMode
@@ -474,7 +514,7 @@ export default function Payroll() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data?.map((row) => (
+                {filteredData.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.employee_name}</TableCell>
                     {isRangeMode && <TableCell>{formatDate(String(row.pay_date))}</TableCell>}

@@ -8,12 +8,25 @@ import {
   EmployeesRepo,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 import { enrichTask } from './taskService.js';
+import * as orderTimelineService from './orderTimelineService.js';
 
+const STATUS_BELUM_PROSES = 'Belum Di Proses';
 const STATUS_DESAIN_FIX = 'Desain Fix';
 const STATUS_ON_PROGRESS = 'On Progress';
 const STATUS_DONE = 'Done';
+const STATUS_DIKIRIM = 'Dikirim';
 const STATUS_DIAMBIL = 'Di Ambil Costumer';
+
+// The only manual (admin- or customer-triggered) transitions allowed via
+// updateOrder/approveDesign. Desain Fix -> On Progress -> Done are never in
+// this map — those stay purely automatic, driven by recalculateOrderStatus.
+const MANUAL_TRANSITIONS = {
+  [STATUS_BELUM_PROSES]: [STATUS_DESAIN_FIX],
+  [STATUS_DONE]: [STATUS_DIKIRIM],
+  [STATUS_DIKIRIM]: [STATUS_DIAMBIL],
+};
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -85,6 +98,31 @@ function enrichDP(dp) {
   return { ...clean(dp), total_dp: Number(dp.total_dp) };
 }
 
+function todayYYYYMMDD() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}${m}${day}`;
+}
+
+// Numbers like INV-20260713-001 — date is the day the invoice number was
+// generated, sequence resets per day, computed by scanning every existing
+// order's invoice_no for that day's prefix and taking max + 1.
+async function generateInvoiceNo() {
+  const datePart = todayYYYYMMDD();
+  const prefix = `INV-${datePart}-`;
+  const allOrders = await OrdersRepo.getAll();
+  let max = 0;
+  for (const o of allOrders) {
+    if (o.invoice_no && o.invoice_no.startsWith(prefix)) {
+      const seq = Number(o.invoice_no.slice(prefix.length));
+      if (Number.isFinite(seq)) max = Math.max(max, seq);
+    }
+  }
+  return `${prefix}${String(max + 1).padStart(3, '0')}`;
+}
+
 export async function createOrder({
   customer_id,
   order_name,
@@ -98,17 +136,25 @@ export async function createOrder({
   const customer = await CustomersRepo.getById(customer_id);
   if (!customer) throw new ApiError(400, 'Customer tidak valid');
 
+  const invoiceNo = await generateInvoiceNo();
   const order = await OrdersRepo.insert({
     customer_id,
     order_name,
-    status: STATUS_DESAIN_FIX,
+    status: STATUS_BELUM_PROSES,
     created_at: new Date().toISOString(),
     notes: notes || '',
     deadline: deadline || '',
+    invoice_no: invoiceNo,
     jenis_category: jenis_category || '',
     order_from: order_from || '',
     broker: broker || '',
     desain_fix_url: desain_fix_url || '',
+  });
+
+  await orderTimelineService.appendTimelineEntry(order.id, {
+    stage: STATUS_BELUM_PROSES,
+    note: 'Pesanan diterima, menunggu approval desain.',
+    actor: 'system',
   });
 
   return enrichOrder(order, { tasks: [], customers: [customer], items: [], sizes: [], dp: [] });
@@ -172,26 +218,52 @@ export async function getOrderDetail(orderId) {
   return { ...enriched, tasks: orderTasks, items: orderItems, dp: orderDP };
 }
 
+// Shared by the admin manual-change path (updateOrder) and the public
+// customer design-approval path (approveDesign) — both funnel through the
+// same MANUAL_TRANSITIONS guard and both write a timeline entry, just with
+// a different actor. Never used for the automatic Desain Fix -> On Progress
+// -> Done cascade (see recalculateOrderStatus), which writes status/timeline
+// directly since it isn't a "manual" transition.
+async function transitionOrderStatus(order, nextStatus, { note, actor, resi, shipping_method } = {}) {
+  const allowed = MANUAL_TRANSITIONS[order.status] || [];
+  if (!allowed.includes(nextStatus)) {
+    throw new ApiError(400, `Tidak dapat mengubah status dari "${order.status}" ke "${nextStatus}"`);
+  }
+  if (nextStatus === STATUS_DIKIRIM) {
+    if (!resi || !shipping_method) {
+      throw new ApiError(400, 'Resi dan metode pengiriman wajib diisi');
+    }
+    await orderTimelineService.upsertOrderShipping(order.id, { method: shipping_method, resi, note });
+  }
+
+  const updated = await OrdersRepo.updateById(order.id, { status: nextStatus });
+  await orderTimelineService.appendTimelineEntry(order.id, { stage: nextStatus, note, actor });
+  return updated;
+}
+
 export async function updateOrder(
   orderId,
-  { order_name, notes, deadline, status, jenis_category, order_from, broker, desain_fix_url }
+  { order_name, notes, deadline, status, jenis_category, order_from, broker, desain_fix_url, note, resi, shipping_method }
 ) {
   const existing = await getHeaderOrThrow(orderId);
   if (existing.status === STATUS_DIAMBIL && status === undefined) {
     throw new ApiError(400, 'Order sudah diambil customer, tidak dapat diubah');
   }
 
+  if (status !== undefined && status !== existing.status) {
+    await transitionOrderStatus(existing, status, { note, actor: 'admin', resi, shipping_method });
+  }
+
   const patch = {};
   if (order_name !== undefined) patch.order_name = order_name;
   if (notes !== undefined) patch.notes = notes;
   if (deadline !== undefined) patch.deadline = deadline;
-  if (status !== undefined) patch.status = status;
   if (jenis_category !== undefined) patch.jenis_category = jenis_category;
   if (order_from !== undefined) patch.order_from = order_from;
   if (broker !== undefined) patch.broker = broker;
   if (desain_fix_url !== undefined) patch.desain_fix_url = desain_fix_url;
 
-  const updated = await OrdersRepo.updateById(orderId, patch);
+  const updated = Object.keys(patch).length > 0 ? await OrdersRepo.updateById(orderId, patch) : await getHeaderOrThrow(orderId);
 
   const [tasks, customers, items, sizes, dp] = await Promise.all([
     TasksRepo.getAll(),
@@ -201,6 +273,13 @@ export async function updateOrder(
     OrderDPRepo.getAll(),
   ]);
   return enrichOrder(updated, { tasks, customers, items, sizes, dp });
+}
+
+// Public customer-facing design approval (Belum Di Proses -> Desain Fix),
+// looked up by phone + invoice number rather than an authenticated session —
+// see publicOrderTrackingService for the lookup + rate limiting around this.
+export async function approveDesign(order, note) {
+  return transitionOrderStatus(order, STATUS_DESAIN_FIX, { note, actor: 'customer' });
 }
 
 export async function deleteOrder(orderId) {
@@ -227,6 +306,7 @@ export async function deleteOrder(orderId) {
   for (const d of ownDP) {
     await OrderDPRepo.deleteById(d.id);
   }
+  await orderTimelineService.deleteOrderTimelineAndShipping(orderId);
 
   await OrdersRepo.deleteById(orderId);
 }
@@ -234,14 +314,18 @@ export async function deleteOrder(orderId) {
 // Called by taskService whenever a task's status changes, to keep the parent
 // order's status in sync: Desain Fix (no task started yet) -> On Progress (at
 // least one task started) -> Done (every task completed) — same cascade as
-// before, just relabeled. "Di Ambil Costumer" is a manual-only state (the
-// customer physically picked up the order) that this cascade never sets and
-// never overwrites once reached — it's sticky/terminal until an admin
-// explicitly changes it via updateOrder's status field.
+// before, just relabeled. Order status only enters this cascade once it's
+// already at Desain Fix or later (Belum Di Proses requires customer/admin
+// approval first — see approveDesign/updateOrder). "Di Ambil Costumer" and
+// "Dikirim" are manual-only states this cascade never sets and never
+// overwrites once reached — they're sticky/terminal until an admin
+// explicitly changes them via updateOrder's status field.
 export async function recalculateOrderStatus(orderId) {
   const order = await OrdersRepo.getById(orderId);
   if (!order) return;
-  if (order.status === STATUS_DIAMBIL) return;
+  if (order.status === STATUS_DIAMBIL || order.status === STATUS_DIKIRIM || order.status === STATUS_BELUM_PROSES) {
+    return;
+  }
 
   const tasks = await TasksRepo.getAll();
   const orderTasks = tasks.filter((t) => String(t.order_id) === String(orderId));
@@ -258,6 +342,11 @@ export async function recalculateOrderStatus(orderId) {
 
   if (nextStatus !== order.status) {
     await OrdersRepo.updateById(orderId, { status: nextStatus });
+    await orderTimelineService.appendTimelineEntry(orderId, {
+      stage: nextStatus,
+      actor: 'system',
+      note: nextStatus === STATUS_DONE ? 'Semua task selesai.' : 'Task pertama dimulai.',
+    });
   }
 }
 
@@ -423,14 +512,14 @@ export async function deleteOrderDP(orderId, dpId) {
 }
 
 // The "Tambah Item" quick-entry template: one submit creates the item plus
-// every size row the admin filled a qty for. Harga isn't part of the
-// template (it defaults to 0) — sizes keep going through the existing
-// add/edit-size flow for pricing, same as items added one size at a time.
+// every size row the admin filled a qty for. Harga is optional per size here
+// (defaults to 0 if left blank) — price can still be adjusted afterward
+// through the existing add/edit-size flow.
 export async function addOrderItemFromTemplate(orderId, { nama_item, warna, sizes }) {
   await getHeaderOrThrow(orderId);
   const name = validateItemName(nama_item);
   const normalizedSizes = (sizes || [])
-    .map((s) => ({ size: String(s.size || '').trim(), qty: Number(s.qty) }))
+    .map((s) => ({ size: String(s.size || '').trim(), harga: Number(s.harga || 0), qty: Number(s.qty) }))
     .filter((s) => s.size && s.qty > 0);
   if (normalizedSizes.length === 0) throw new ApiError(400, 'Minimal isi satu size');
 
@@ -443,38 +532,19 @@ export async function addOrderItemFromTemplate(orderId, { nama_item, warna, size
     total: '',
   });
   for (const s of normalizedSizes) {
-    await OrderItemSizesRepo.insert({ order_item_id: item.id, size: s.size, harga: 0, qty: s.qty });
+    await OrderItemSizesRepo.insert({ order_item_id: item.id, size: s.size, harga: s.harga, qty: s.qty });
   }
   const allSizes = await OrderItemSizesRepo.getAll();
   return enrichItem(item, allSizes);
 }
 
-function todayYYYYMMDD() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}${m}${day}`;
-}
-
-// Numbers like INV-20260713-001 — date is the day the invoice was FIRST
-// printed (not the order's creation date), sequence resets per day. Once
-// assigned it's persisted on the order and never regenerated, so printing
-// the same order's invoice twice always shows the same number.
+// Defensive fallback only — every order created after this feature shipped
+// already has an invoice_no from createOrder. This covers any pre-existing
+// order created before that change. Once assigned it's persisted and never
+// regenerated.
 async function ensureInvoiceNo(order) {
   if (order.invoice_no) return order.invoice_no;
-
-  const datePart = todayYYYYMMDD();
-  const prefix = `INV-${datePart}-`;
-  const allOrders = await OrdersRepo.getAll();
-  let max = 0;
-  for (const o of allOrders) {
-    if (o.invoice_no && o.invoice_no.startsWith(prefix)) {
-      const seq = Number(o.invoice_no.slice(prefix.length));
-      if (Number.isFinite(seq)) max = Math.max(max, seq);
-    }
-  }
-  const invoiceNo = `${prefix}${String(max + 1).padStart(3, '0')}`;
+  const invoiceNo = await generateInvoiceNo();
   await OrdersRepo.updateById(order.id, { invoice_no: invoiceNo });
   return invoiceNo;
 }

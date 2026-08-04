@@ -2,6 +2,7 @@ import { z } from 'zod';
 import * as orderService from '../services/orderService.js';
 import * as orderExportService from '../services/orderExportService.js';
 import * as waFollowUpService from '../services/waFollowUpService.js';
+import * as orderTimelineService from '../services/orderTimelineService.js';
 import { ORDER_STATUSES, ORDER_JENIS_CATEGORIES, ORDER_FROM_OPTIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
@@ -25,6 +26,9 @@ const updateSchema = z.object({
   order_from: z.enum(ORDER_FROM_OPTIONS).optional(),
   broker: z.string().optional(),
   desain_fix_url: z.union([z.literal(''), z.string().url()]).optional(),
+  note: z.string().optional(),
+  resi: z.string().optional(),
+  shipping_method: z.string().optional(),
 });
 
 const filterSchema = z.object({
@@ -49,6 +53,7 @@ const itemTemplateSchema = z.object({
     .array(
       z.object({
         size: z.string().min(1),
+        harga: z.coerce.number().min(0).optional(),
         qty: z.coerce.number().positive(),
       })
     )
@@ -236,6 +241,18 @@ export async function followUp(req, res, next) {
   try {
     const { template_key, fields } = followUpSchema.parse(req.body);
     ok(res, await waFollowUpService.resolveFollowUpMessage(req.params.id, template_key, fields || {}));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function timeline(req, res, next) {
+  try {
+    const [timelineEntries, shipping] = await Promise.all([
+      orderTimelineService.getOrderTimeline(req.params.id),
+      orderTimelineService.getOrderShipping(req.params.id),
+    ]);
+    ok(res, { timeline: timelineEntries, shipping });
   } catch (err) {
     next(err);
   }

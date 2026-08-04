@@ -121,6 +121,15 @@ export function orderInvoiceToPdf(order) {
     doc.moveTo(startX, y).lineTo(startX + pageWidth, y).lineWidth(0.75).strokeColor(BORDER_COLOR).stroke();
     y += 10;
 
+    const totalQty = order.items.reduce(
+      (sum, item) => sum + item.sizes.reduce((s, size) => s + Number(size.qty), 0),
+      0
+    );
+    doc.fontSize(9).font('Helvetica-Bold').fillColor(LABEL_COLOR);
+    doc.text('Total Qty', colX[0], y, { width: colWidths[0], align: 'left' });
+    doc.fillColor('#000').text(String(totalQty), colX[2], y, { width: colWidths[2], align: 'center' });
+    y += 18;
+
     // Summary labels get the Warna+Qty+Harga columns' combined width (all
     // empty on these rows) instead of just the Harga column — "Sisa
     // Pembayaran" doesn't fit on one line in the narrower width and wraps

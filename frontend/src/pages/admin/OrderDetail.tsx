@@ -53,20 +53,24 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { Textarea } from '@/components/ui/textarea'
 import * as orderApi from '@/services/orderApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate } from '@/utils/format'
-import type { OrderDP, OrderItem, OrderItemSize, OrderStatus } from '@/types'
-
-const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
-  { value: 'Desain Fix', label: 'Desain Fix' },
-  { value: 'On Progress', label: 'On Progress' },
-  { value: 'Done', label: 'Done' },
-  { value: 'Di Ambil Costumer', label: 'Di Ambil Costumer' },
-]
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import type { OrderDP, OrderItem, OrderItemSize, OrderStatus, OrderTimelineEntry } from '@/types'
 
 const FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const SIZE_SELECT_OPTIONS = [...FIXED_SIZES, 'Custom']
+
+// Mirrors backend orderService.js's MANUAL_TRANSITIONS — Desain Fix -> On
+// Progress -> Done are never here since those stay purely automatic
+// (driven by task completion). Only these 3 manual transitions ever show an
+// action button + confirm dialog.
+const MANUAL_TRANSITIONS: Partial<Record<OrderStatus, { next: OrderStatus; label: string; requiresShipping: boolean }>> = {
+  'Belum Di Proses': { next: 'Desain Fix', label: 'Konfirmasi Desain Fix', requiresShipping: false },
+  Done: { next: 'Dikirim', label: 'Tandai Dikirim', requiresShipping: true },
+  Dikirim: { next: 'Di Ambil Costumer', label: 'Tandai Diambil Customer', requiresShipping: false },
+}
 
 function ItemEditForm({
   initial,
@@ -236,8 +240,10 @@ function AddItemTemplateDialog({
   const [namaItem, setNamaItem] = React.useState('')
   const [warna, setWarna] = React.useState('')
   const [qtyBySize, setQtyBySize] = React.useState<Record<string, string>>({})
+  const [hargaBySize, setHargaBySize] = React.useState<Record<string, string>>({})
   const [customSize, setCustomSize] = React.useState('')
   const [customQty, setCustomQty] = React.useState('')
+  const [customHarga, setCustomHarga] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -245,8 +251,10 @@ function AddItemTemplateDialog({
       setNamaItem('')
       setWarna('')
       setQtyBySize({})
+      setHargaBySize({})
       setCustomSize('')
       setCustomQty('')
+      setCustomHarga('')
       setError(null)
     }
   }, [open])
@@ -256,14 +264,14 @@ function AddItemTemplateDialog({
     const name = namaItem.trim()
     if (!name) return setError('Nama item wajib diisi')
 
-    const sizes: { size: string; qty: number }[] = []
+    const sizes: { size: string; harga?: number; qty: number }[] = []
     for (const size of FIXED_SIZES) {
       const qty = Number(qtyBySize[size])
-      if (qty > 0) sizes.push({ size, qty })
+      if (qty > 0) sizes.push({ size, harga: Number(hargaBySize[size]) || 0, qty })
     }
     const customQtyNum = Number(customQty)
     if (customSize.trim() && customQtyNum > 0) {
-      sizes.push({ size: customSize.trim(), qty: customQtyNum })
+      sizes.push({ size: customSize.trim(), harga: Number(customHarga) || 0, qty: customQtyNum })
     }
     if (sizes.length === 0) return setError('Isi qty minimal satu size')
 
@@ -286,24 +294,45 @@ function AddItemTemplateDialog({
             <label className="w-20 shrink-0 text-sm font-medium">Color</label>
             <Input value={warna} onChange={(e) => setWarna(e.target.value)} className="flex-1" />
           </div>
+          <div className="flex items-center gap-3">
+            <span className="w-20 shrink-0" />
+            <span className="text-muted-foreground flex-1 text-xs">Harga</span>
+            <span className="text-muted-foreground w-20 shrink-0 text-xs">Qty</span>
+          </div>
           {FIXED_SIZES.map((size) => (
             <div key={size} className="flex items-center gap-3">
               <label className="w-20 shrink-0 text-sm">{size}</label>
               <Input
                 type="number"
                 min={0}
+                placeholder="Harga"
+                value={hargaBySize[size] || ''}
+                onChange={(e) => setHargaBySize((prev) => ({ ...prev, [size]: e.target.value }))}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                min={0}
+                placeholder="Qty"
                 value={qtyBySize[size] || ''}
                 onChange={(e) => setQtyBySize((prev) => ({ ...prev, [size]: e.target.value }))}
-                className="flex-1"
+                className="w-20 shrink-0"
               />
             </div>
           ))}
           <div className="flex items-center gap-3">
-            <label className="w-20 shrink-0 text-sm">Custom</label>
             <Input
               placeholder="Nama size"
               value={customSize}
               onChange={(e) => setCustomSize(e.target.value)}
+              className="w-20 shrink-0"
+            />
+            <Input
+              type="number"
+              min={0}
+              placeholder="Harga"
+              value={customHarga}
+              onChange={(e) => setCustomHarga(e.target.value)}
               className="flex-1"
             />
             <Input
@@ -402,6 +431,85 @@ function DPFormDialog({
   )
 }
 
+function StatusTransitionDialog({
+  transition,
+  pending,
+  onOpenChange,
+  onSubmit,
+}: {
+  transition: { next: OrderStatus; label: string; requiresShipping: boolean } | null
+  pending: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmit: (data: { status: OrderStatus; note?: string; resi?: string; shipping_method?: string }) => void
+}) {
+  const [note, setNote] = React.useState('')
+  const [resi, setResi] = React.useState('')
+  const [method, setMethod] = React.useState('')
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (transition) {
+      setNote('')
+      setResi('')
+      setMethod('')
+      setError(null)
+    }
+  }, [transition])
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!transition) return
+    if (transition.requiresShipping && (!resi.trim() || !method.trim())) {
+      return setError('Resi dan metode pengiriman wajib diisi')
+    }
+    setError(null)
+    onSubmit({
+      status: transition.next,
+      note: note.trim() || undefined,
+      resi: transition.requiresShipping ? resi.trim() : undefined,
+      shipping_method: transition.requiresShipping ? method.trim() : undefined,
+    })
+  }
+
+  return (
+    <Dialog open={!!transition} onOpenChange={(open) => !open && onOpenChange(false)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{transition?.label}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          {transition?.requiresShipping && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Metode Pengiriman</label>
+                <Input placeholder="Contoh: JNE REG" value={method} onChange={(e) => setMethod(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">No. Resi</label>
+                <Input value={resi} onChange={(e) => setResi(e.target.value)} />
+              </div>
+            </>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Catatan (opsional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          {error && <p className="text-destructive text-xs">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              Konfirmasi
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -417,6 +525,7 @@ export default function OrderDetailPage() {
   const [dpDialogOpen, setDpDialogOpen] = React.useState(false)
   const [editingDP, setEditingDP] = React.useState<OrderDP | undefined>(undefined)
   const [deletingDP, setDeletingDP] = React.useState<OrderDP | null>(null)
+  const [transitionDialogOpen, setTransitionDialogOpen] = React.useState(false)
 
   function toggleExpanded(itemId: string) {
     setExpandedItemIds((prev) => {
@@ -439,13 +548,24 @@ export default function OrderDetailPage() {
   }
 
   const statusMutation = useMutation({
-    mutationFn: (status: OrderStatus) => orderApi.updateOrder(id!, { status }),
+    mutationFn: (vars: { status: OrderStatus; note?: string; resi?: string; shipping_method?: string }) =>
+      orderApi.updateOrder(id!, vars),
     onSuccess: () => {
       toast.success('Status order diperbarui')
+      setTransitionDialogOpen(false)
       invalidate()
+      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const { data: timelineData } = useQuery({
+    queryKey: ['order-timeline', id],
+    queryFn: () => orderApi.getOrderTimeline(id!),
+    enabled: !!id,
+  })
+
+  const pendingTransition = data ? MANUAL_TRANSITIONS[data.status] || null : null
 
   const addMutation = useMutation({
     mutationFn: (input: orderApi.OrderItemTemplateInput) => orderApi.addOrderItemFromTemplate(id!, input),
@@ -617,22 +737,14 @@ export default function OrderDetailPage() {
           </div>
           <div>
             <p className="text-muted-foreground mb-1 text-xs">Status</p>
-            <Select
-              value={data.status}
-              onValueChange={(v) => statusMutation.mutate(v as OrderStatus)}
-              disabled={statusMutation.isPending}
-            >
-              <SelectTrigger className="h-8 w-full">
-                <SelectValue>
-                  <OrderTaskStatusBadge status={data.status} />
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {ORDER_STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <OrderTaskStatusBadge status={data.status} />
+              {pendingTransition && (
+                <Button size="sm" variant="outline" onClick={() => setTransitionDialogOpen(true)}>
+                  {pendingTransition.label}
+                </Button>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-muted-foreground text-xs">Jenis Category</p>
@@ -677,6 +789,41 @@ export default function OrderDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {timelineData && timelineData.timeline.length > 0 && (
+        <Card className="mb-4 shadow-sm">
+          <CardContent className="flex flex-col gap-3">
+            <h3 className="font-heading text-sm font-semibold">Riwayat Status</h3>
+            <div className="flex flex-col gap-3">
+              {timelineData.timeline.map((entry: OrderTimelineEntry) => (
+                <div key={entry.id} className="border-border flex items-start gap-3 border-l-2 pl-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <OrderTaskStatusBadge status={entry.stage} />
+                      {entry.sub_stage && <span className="text-muted-foreground text-xs">{entry.sub_stage}</span>}
+                    </div>
+                    {entry.note && <p className="text-muted-foreground mt-0.5 text-xs">{entry.note}</p>}
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      {formatDateTime(entry.created_at)} — {entry.actor}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {timelineData.shipping && (
+              <div className="border-border mt-1 border-t pt-3 text-sm">
+                <p className="text-muted-foreground text-xs">Pengiriman</p>
+                <p className="font-medium">
+                  {timelineData.shipping.method} — {timelineData.shipping.resi}
+                </p>
+                {timelineData.shipping.note && (
+                  <p className="text-muted-foreground text-xs">{timelineData.shipping.note}</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-sm">
         <CardContent className="flex flex-col gap-4">
@@ -986,6 +1133,13 @@ export default function OrderDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <StatusTransitionDialog
+        transition={transitionDialogOpen ? pendingTransition : null}
+        pending={statusMutation.isPending}
+        onOpenChange={setTransitionDialogOpen}
+        onSubmit={(vars) => statusMutation.mutate(vars)}
+      />
     </div>
   )
 }

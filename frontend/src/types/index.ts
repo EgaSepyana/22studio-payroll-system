@@ -5,7 +5,7 @@ export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
 export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
 export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
 export type PaySource = 'worklog' | 'attendance'
-export type OrderStatus = 'Desain Fix' | 'On Progress' | 'Done' | 'Di Ambil Costumer'
+export type OrderStatus = 'Belum Di Proses' | 'Desain Fix' | 'On Progress' | 'Done' | 'Dikirim' | 'Di Ambil Costumer'
 export type TaskStatus = 'open' | 'in_progress' | 'completed'
 
 export type OrderJenisCategory =
@@ -151,6 +151,25 @@ export interface OrderDetail extends Order {
   tasks: Task[]
   items: OrderItem[]
   dp: OrderDP[]
+}
+
+export interface OrderTimelineEntry {
+  id: string
+  order_id: string
+  stage: OrderStatus
+  sub_stage: string
+  note: string
+  actor: 'system' | 'admin' | 'customer'
+  created_at: string
+}
+
+export interface OrderShippingInfo {
+  id: string
+  order_id: string
+  method: string
+  resi: string
+  note: string
+  shipped_at: string
 }
 
 export interface Task {

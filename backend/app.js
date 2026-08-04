@@ -19,6 +19,7 @@ import suratJalanRoutes from './routes/suratJalanRoutes.js';
 import lembarPORoutes from './routes/lembarPORoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import publicOrderRoutes from './routes/publicOrderRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -46,6 +47,7 @@ app.use('/api/surat-jalan', suratJalanRoutes);
 app.use('/api/lembar-po', lembarPORoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/public', publicOrderRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

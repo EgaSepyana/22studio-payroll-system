@@ -19,6 +19,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
+import {
   Form,
   FormControl,
   FormField,
@@ -144,28 +152,33 @@ export default function InputPekerjaan() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-base">Task</FormLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={(v) => {
-                    field.onChange(v)
+                <Combobox
+                  items={activeTasks}
+                  itemToStringLabel={(t) =>
+                    `${t.customer_name ? `${t.customer_name} - ` : ''}${t.order_name} — ${t.description || t.divisi}`
+                  }
+                  value={activeTasks.find((t) => t.id === field.value) ?? null}
+                  onValueChange={(t) => {
+                    field.onChange(t ? t.id : '')
                     form.setValue('article_id', '')
                   }}
                   disabled={activeTasks.length === 0}
                 >
                   <FormControl>
-                    <SelectTrigger className="h-12 w-full text-base">
-                      <SelectValue placeholder="Pilih task" />
-                    </SelectTrigger>
+                    <ComboboxInput placeholder="Cari task..." className="h-12 w-full text-base" />
                   </FormControl>
-                  <SelectContent>
-                    {activeTasks.map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="text-base">
-                        {t.customer_name ? `${t.customer_name} - ` : ''}
-                        {t.order_name} — {t.description || t.divisi}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxContent>
+                    <ComboboxEmpty>Task tidak ditemukan.</ComboboxEmpty>
+                    <ComboboxList>
+                      {(t: (typeof activeTasks)[number]) => (
+                        <ComboboxItem key={t.id} value={t}>
+                          {t.customer_name ? `${t.customer_name} - ` : ''}
+                          {t.order_name} — {t.description || t.divisi}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
                 <FormMessage />
               </FormItem>
             )}

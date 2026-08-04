@@ -8,9 +8,11 @@ const LABELS: Record<OrderStatus | TaskStatus, string> = {
   in_progress: 'Sedang Dikerjakan',
   completed: 'Selesai',
   // Order statuses.
+  'Belum Di Proses': 'Belum Di Proses',
   'Desain Fix': 'Desain Fix',
   'On Progress': 'On Progress',
   Done: 'Done',
+  Dikirim: 'Dikirim',
   'Di Ambil Costumer': 'Di Ambil Costumer',
 }
 
@@ -21,7 +23,9 @@ export function OrderTaskStatusBadge({ status }: { status: OrderStatus | TaskSta
       className={cn(
         (status === 'completed' || status === 'Done') && 'bg-success text-success-foreground',
         (status === 'in_progress' || status === 'On Progress') && 'bg-warning text-warning-foreground',
-        (status === 'open' || status === 'Desain Fix') && 'bg-muted text-muted-foreground',
+        (status === 'open' || status === 'Desain Fix' || status === 'Belum Di Proses') &&
+          'bg-muted text-muted-foreground',
+        status === 'Dikirim' && 'bg-primary/70 text-primary-foreground',
         status === 'Di Ambil Costumer' && 'bg-primary text-primary-foreground'
       )}
     >

@@ -10,8 +10,24 @@ export const FINISHING_DIVISION = 'Finishing';
 
 export const PAY_SOURCES = ['worklog', 'attendance'];
 
-export const ORDER_STATUSES = ['Desain Fix', 'On Progress', 'Done', 'Di Ambil Costumer'];
+export const ORDER_STATUSES = [
+  'Belum Di Proses',
+  'Desain Fix',
+  'On Progress',
+  'Done',
+  'Dikirim',
+  'Di Ambil Costumer',
+];
 export const TASK_STATUSES = ['open', 'in_progress', 'completed'];
+
+// Fixed divisi -> production sub-stage label, used to build the "Proses
+// <label> Selesai" timeline note when a division's task completes.
+export const DIVISI_SUBSTAGE_LABELS = {
+  Jahit: 'Sewing',
+  Sablon: 'Printing',
+  Cutting: 'Cutting',
+  Finishing: 'QC',
+};
 
 export const ORDER_JENIS_CATEGORIES = [
   'ATRIBUT SEKOLAH',
@@ -264,6 +280,8 @@ export const SHEET_SCHEMAS = {
   ],
   AppSettings: ['id', 'key', 'value'],
   WATemplates: ['id', 'template_key', 'label', 'content'],
+  OrderTimeline: ['id', 'order_id', 'stage', 'sub_stage', 'note', 'actor', 'created_at'],
+  OrderShipping: ['id', 'order_id', 'method', 'resi', 'note', 'shipped_at'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -284,4 +302,6 @@ export const SuratJalanItemsRepo = new SheetRepository('SuratJalanItems', SHEET_
 export const LembarPORepo = new SheetRepository('LembarPO', SHEET_SCHEMAS.LembarPO);
 export const AppSettingsRepo = new SheetRepository('AppSettings', SHEET_SCHEMAS.AppSettings);
 export const WATemplatesRepo = new SheetRepository('WATemplates', SHEET_SCHEMAS.WATemplates);
+export const OrderTimelineRepo = new SheetRepository('OrderTimeline', SHEET_SCHEMAS.OrderTimeline);
+export const OrderShippingRepo = new SheetRepository('OrderShipping', SHEET_SCHEMAS.OrderShipping);
 

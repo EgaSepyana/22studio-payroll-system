@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -252,6 +252,7 @@ export default function Articles() {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Article | undefined>(undefined)
   const [divisiFilter, setDivisiFilter] = React.useState<string>(ALL)
+  const [search, setSearch] = React.useState('')
 
   const filters = { divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi) }
 
@@ -259,6 +260,15 @@ export default function Articles() {
     queryKey: ['articles', filters],
     queryFn: () => articleApi.listArticles(filters),
   })
+
+  const filteredData = React.useMemo(() => {
+    if (!data) return []
+    const query = search.trim().toLowerCase()
+    if (!query) return data
+    return data.filter((a) =>
+      `${a.article_name} ${a.customer_name || ''}`.toLowerCase().includes(query)
+    )
+  }, [data, search])
 
   const deleteMutation = useMutation({
     mutationFn: articleApi.deleteArticle,
@@ -289,6 +299,18 @@ export default function Articles() {
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Cari</label>
+            <div className="relative">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input
+                placeholder="Nama artikel atau customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-56 pl-8"
+              />
+            </div>
+          </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
             <Select value={divisiFilter} onValueChange={setDivisiFilter}>
@@ -329,14 +351,14 @@ export default function Articles() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data?.length === 0 && (
+                {filteredData.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-muted-foreground text-center">
                       Belum ada data artikel.
                     </TableCell>
                   </TableRow>
                 )}
-                {data?.map((article) => (
+                {filteredData.map((article) => (
                   <TableRow key={article.id}>
                     <TableCell>{article.customer_name}</TableCell>
                     <TableCell className="font-medium">{article.article_name}</TableCell>

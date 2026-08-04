@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown, ChevronDown, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,17 +64,37 @@ import {
 import * as orderApi from '@/services/orderApi'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
-import type { Order, OrderStatus } from '@/types'
+import type { Order, OrderJenisCategory, OrderStatus } from '@/types'
 
 const ALL = 'all'
 const ORDER_STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+  { value: 'Belum Di Proses', label: 'Belum Di Proses' },
   { value: 'Desain Fix', label: 'Desain Fix' },
   { value: 'On Progress', label: 'On Progress' },
   { value: 'Done', label: 'Done' },
+  { value: 'Dikirim', label: 'Dikirim' },
   { value: 'Di Ambil Costumer', label: 'Di Ambil Costumer' },
 ]
 const ALL_ORDER_STATUSES = ORDER_STATUS_OPTIONS.map((opt) => opt.value)
 const DEFAULT_STATUS_FILTER = ALL_ORDER_STATUSES.filter((s) => s !== 'Done')
+
+const ORDER_JENIS_CATEGORIES: OrderJenisCategory[] = [
+  'ATRIBUT SEKOLAH',
+  'CMT (cutting-finishing)',
+  'JAKET',
+  'JAS ALMAMATER',
+  'JERSEY',
+  'KAOS',
+  'KAOS POLOS',
+  'KAOS SATUAN',
+  'KAOS WISATA',
+  'KEMEJA',
+  'MAKLON BORDIR',
+  'MAKLON JAHIT',
+  'MAKLON SABLON',
+  'PENDAPATAN LAINNYA',
+  'SERAGAM SEKOLAH',
+]
 
 type OrderSortField = 'order_name' | 'customer_name' | 'deadline'
 type SortDirection = 'asc' | 'desc'
@@ -217,6 +237,8 @@ export default function Orders() {
   const queryClient = useQueryClient()
   const [customerFilter, setCustomerFilter] = React.useState(ALL)
   const [statusFilter, setStatusFilter] = React.useState<OrderStatus[]>(DEFAULT_STATUS_FILTER)
+  const [jenisCategoryFilter, setJenisCategoryFilter] = React.useState(ALL)
+  const [search, setSearch] = React.useState('')
   const [sortField, setSortField] = React.useState<OrderSortField>('deadline')
   const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
   const [formOpen, setFormOpen] = React.useState(false)
@@ -242,10 +264,19 @@ export default function Orders() {
 
   const sortedData = React.useMemo(() => {
     if (!data) return []
-    const filtered = data.filter((o) => statusFilter.includes(o.status))
+    const query = search.trim().toLowerCase()
+    const filtered = data.filter((o) => {
+      if (!statusFilter.includes(o.status)) return false
+      if (jenisCategoryFilter !== ALL && o.jenis_category !== jenisCategoryFilter) return false
+      if (query) {
+        const haystack = `${o.order_name} ${o.customer_name || ''}`.toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+      return true
+    })
     const sorted = [...filtered].sort((a, b) => compareOrders(a, b, sortField))
     return sortDir === 'asc' ? sorted : sorted.reverse()
-  }, [data, statusFilter, sortField, sortDir])
+  }, [data, statusFilter, jenisCategoryFilter, search, sortField, sortDir])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
@@ -259,6 +290,8 @@ export default function Orders() {
 
   const hasFilters =
     customerFilter !== ALL ||
+    jenisCategoryFilter !== ALL ||
+    search.trim() !== '' ||
     statusFilter.length !== DEFAULT_STATUS_FILTER.length ||
     !DEFAULT_STATUS_FILTER.every((s) => statusFilter.includes(s))
 
@@ -283,12 +316,34 @@ export default function Orders() {
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Cari</label>
+            <div className="relative">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input
+                placeholder="Nama order atau customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-56 pl-8"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Customer</label>
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Customer</SelectItem>
                 {customers?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Jenis Category</label>
+            <Select value={jenisCategoryFilter} onValueChange={setJenisCategoryFilter}>
+              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Kategori</SelectItem>
+                {ORDER_JENIS_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -341,7 +396,15 @@ export default function Orders() {
             </div>
           </div>
           {hasFilters && (
-            <Button variant="ghost" onClick={() => { setCustomerFilter(ALL); setStatusFilter(DEFAULT_STATUS_FILTER) }}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setCustomerFilter(ALL)
+                setJenisCategoryFilter(ALL)
+                setSearch('')
+                setStatusFilter(DEFAULT_STATUS_FILTER)
+              }}
+            >
               <X className="size-4" /> Reset
             </Button>
           )}

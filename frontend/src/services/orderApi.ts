@@ -1,5 +1,16 @@
 import { api } from './api'
-import type { ApiResponse, Order, OrderDetail, OrderDP, OrderFrom, OrderItem, OrderJenisCategory, OrderStatus } from '@/types'
+import type {
+  ApiResponse,
+  Order,
+  OrderDetail,
+  OrderDP,
+  OrderFrom,
+  OrderItem,
+  OrderJenisCategory,
+  OrderShippingInfo,
+  OrderStatus,
+  OrderTimelineEntry,
+} from '@/types'
 
 export interface OrderInput {
   customer_id: string
@@ -14,6 +25,9 @@ export interface OrderInput {
 
 export interface OrderUpdateInput extends Partial<OrderInput> {
   status?: OrderStatus
+  note?: string
+  resi?: string
+  shipping_method?: string
 }
 
 export interface OrderFilters {
@@ -35,7 +49,7 @@ export interface OrderItemSizeInput {
 export interface OrderItemTemplateInput {
   nama_item: string
   warna?: string
-  sizes: { size: string; qty: number }[]
+  sizes: { size: string; harga?: number; qty: number }[]
 }
 
 export interface OrderDPInput {
@@ -117,6 +131,13 @@ export async function updateOrderDP(orderId: string, dpId: string, data: Partial
 
 export async function deleteOrderDP(orderId: string, dpId: string) {
   await api.delete(`/orders/${orderId}/dp/${dpId}`)
+}
+
+export async function getOrderTimeline(orderId: string) {
+  const res = await api.get<ApiResponse<{ timeline: OrderTimelineEntry[]; shipping: OrderShippingInfo | null }>>(
+    `/orders/${orderId}/timeline`
+  )
+  return res.data.data
 }
 
 export async function resolveFollowUpMessage(
