@@ -397,7 +397,7 @@ Deploy ke **Vercel**: frontend sebagai static build (`frontend/dist`), backend s
 ```
 frontend/
 │
-├── components/
+├── components/ 
 ├── pages/
 │   ├── admin/       # 17 halaman: Dashboard, Employees, Customers, Articles,
 │   │                # Order, Orders, OrderDetail, TaskDetail, SuratJalan,
