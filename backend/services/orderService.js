@@ -563,6 +563,16 @@ export async function getOrderInvoice(orderId) {
   return { ...detail, invoice_no: invoiceNo };
 }
 
+// Same invoice data as getOrderInvoice, plus the raw Customer record — the
+// Excel export needs pic/no_hp directly (getOrderDetail only exposes
+// customer_name), and this keeps that detail out of the shared enrichment
+// shape used everywhere else.
+export async function getOrderInvoiceWithCustomer(orderId) {
+  const invoice = await getOrderInvoice(orderId);
+  const customer = await CustomersRepo.getById(invoice.customer_id);
+  return { invoice, customer };
+}
+
 // Builds the customer-facing tracking link (see utils/trackingTokenUtils.js)
 // for the admin's "Lacak Order" action. Requires the customer to have a
 // phone number on file — without one there's nothing for the token to bind

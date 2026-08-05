@@ -176,3 +176,18 @@ export async function downloadOrderInvoicePdf(id: string, orderName: string) {
   link.remove()
   window.URL.revokeObjectURL(url)
 }
+
+export async function downloadOrderInvoiceExcel(id: string, orderName: string) {
+  const res = await api.get(`/orders/${id}/invoice-excel`, { responseType: 'blob' })
+  const blob = new Blob([res.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `Invoice - ${orderName}.xlsx`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}

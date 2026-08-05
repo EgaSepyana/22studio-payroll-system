@@ -12,6 +12,7 @@ import {
   Check,
   Printer,
   FileDown,
+  FileSpreadsheet,
   ChevronRight,
   ChevronDown,
 } from 'lucide-react'
@@ -521,7 +522,7 @@ export default function OrderDetailPage() {
   const [addingSizeItemId, setAddingSizeItemId] = React.useState<string | null>(null)
   const [editingSize, setEditingSize] = React.useState<{ itemId: string; size: OrderItemSize } | null>(null)
   const [deletingSize, setDeletingSize] = React.useState<{ itemId: string; size: OrderItemSize } | null>(null)
-  const [pdfPending, setPdfPending] = React.useState<'print' | 'download' | null>(null)
+  const [pdfPending, setPdfPending] = React.useState<'print' | 'download' | 'excel' | null>(null)
   const [dpDialogOpen, setDpDialogOpen] = React.useState(false)
   const [editingDP, setEditingDP] = React.useState<OrderDP | undefined>(undefined)
   const [deletingDP, setDeletingDP] = React.useState<OrderDP | null>(null)
@@ -688,6 +689,18 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleDownloadExcel() {
+    if (!id || !data) return
+    setPdfPending('excel')
+    try {
+      await orderApi.downloadOrderInvoiceExcel(id, data.order_name)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setPdfPending(null)
+    }
+  }
+
   if (isLoading || !data) {
     return (
       <div className="flex flex-col gap-4">
@@ -720,6 +733,14 @@ export default function OrderDetailPage() {
             <Button variant="outline" disabled={!!pdfPending} onClick={handleDownload}>
               {pdfPending === 'download' ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
               Download PDF
+            </Button>
+            <Button variant="outline" disabled={!!pdfPending} onClick={handleDownloadExcel}>
+              {pdfPending === 'excel' ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="size-4" />
+              )}
+              Download Excel
             </Button>
           </div>
         }

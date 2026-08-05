@@ -9,6 +9,7 @@ router.post('/', requireRole('admin'), orderController.create);
 router.get('/', requireRole('admin', 'employee'), orderController.list);
 router.get('/:id', requireRole('admin', 'employee'), orderController.detail);
 router.get('/:id/invoice-pdf', requireRole('admin'), orderController.invoicePdf);
+router.get('/:id/invoice-excel', requireRole('admin'), orderController.invoiceExcel);
 router.put('/:id', requireRole('admin'), orderController.update);
 router.delete('/:id', requireRole('admin'), orderController.remove);
 

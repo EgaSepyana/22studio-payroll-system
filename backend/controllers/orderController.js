@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import * as orderService from '../services/orderService.js';
 import * as orderExportService from '../services/orderExportService.js';
+import * as orderInvoiceExcelService from '../services/orderInvoiceExcelService.js';
 import * as waFollowUpService from '../services/waFollowUpService.js';
 import * as orderTimelineService from '../services/orderTimelineService.js';
 import { ORDER_STATUSES, ORDER_JENIS_CATEGORIES, ORDER_FROM_OPTIONS } from '../google-sheet/models.js';
@@ -134,6 +135,18 @@ export async function invoicePdf(req, res, next) {
     const buffer = await orderExportService.orderInvoiceToPdf(data);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${data.invoice_no}.pdf"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function invoiceExcel(req, res, next) {
+  try {
+    const { invoice, customer } = await orderService.getOrderInvoiceWithCustomer(req.params.id);
+    const buffer = await orderInvoiceExcelService.orderInvoiceToExcel(invoice, customer);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoice_no}.xlsx"`);
     res.send(buffer);
   } catch (err) {
     next(err);
