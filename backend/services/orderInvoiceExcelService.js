@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { ORDER_ITEM_FIXED_SIZES } from '../google-sheet/models.js';
+import { loadLogoImage } from './pdfHelpers.js';
 
 // Reproduces the shop's original manual "invoice basic.xlsx" template
 // (sheet "basic 20s") using the SAME column positions and widths as the
@@ -12,7 +13,7 @@ import { ORDER_ITEM_FIXED_SIZES } from '../google-sheet/models.js';
 const CURRENCY_FMT = '_-"Rp"* #,##0_-;"-Rp"* #,##0_-;_-"Rp"* \\-_-;_-@';
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3F3F3F' } };
 const HEADER_FONT = { bold: true, color: { argb: 'FFFFFFFF' } };
-const SIZE_INPUT_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8EAADB' } };
+const SIZE_INPUT_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F81BD' } };
 const COLOR_BLOCK_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB4C6E7' } };
 const TOTAL_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
 const CODE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0CECE' } };
@@ -88,26 +89,40 @@ export async function orderInvoiceToExcel(order, customer) {
   sheet.getRow(1).height = 14.25;
   sheet.getRow(2).height = 20;
 
-  // Shop info block (left), spans wide columns C:H like the original D4:H5.
-  sheet.mergeCells(4, COL.namaStart, 5, 8);
-  const shopNameCell = sheet.getCell(4, COL.namaStart);
+  // Logo, anchored to merged B4:C8 (shop info block below is shifted to
+  // start at column D instead of C to make room, same D:H span width).
+  sheet.mergeCells(4, 2, 8, 3); // B4:C8
+  const logoBuffer = loadLogoImage();
+  if (logoBuffer) {
+    const imageId = workbook.addImage({ buffer: logoBuffer, extension: 'png' });
+    sheet.addImage(imageId, {
+      tl: { col: 1, row: 3 }, // B4 (0-indexed: col B=1, row 4=3)
+      br: { col: 3, row: 8 }, // C8 (0-indexed: col D=3, row 9=8) — exclusive bottom-right
+      editAs: 'oneCell',
+    });
+  }
+
+  // Shop info block (left), spans columns D:H, right next to the logo.
+  const shopInfoCol = COL.namaStart + 1; // D
+  sheet.mergeCells(4, shopInfoCol, 5, 8);
+  const shopNameCell = sheet.getCell(4, shopInfoCol);
   shopNameCell.value = '22Studio-Sablon Konveksi Bandung';
   shopNameCell.font = { bold: true };
   shopNameCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-  sheet.mergeCells(6, COL.namaStart, 6, 8);
-  const addrCell = sheet.getCell(6, COL.namaStart);
+  sheet.mergeCells(6, shopInfoCol, 6, 8);
+  const addrCell = sheet.getCell(6, shopInfoCol);
   addrCell.value = 'JL. Cimerang No.16 Padalarang, Bandung Barat';
   addrCell.alignment = { horizontal: 'center' };
 
-  sheet.mergeCells(7, COL.namaStart, 7, 8);
-  const tlpLabelCell = sheet.getCell(7, COL.namaStart);
+  sheet.mergeCells(7, shopInfoCol, 7, 8);
+  const tlpLabelCell = sheet.getCell(7, shopInfoCol);
   tlpLabelCell.value = 'tlp';
   tlpLabelCell.font = { bold: true };
   tlpLabelCell.alignment = { horizontal: 'center' };
 
-  sheet.mergeCells(8, COL.namaStart, 8, 8);
-  const tlpCell = sheet.getCell(8, COL.namaStart);
+  sheet.mergeCells(8, shopInfoCol, 8, 8);
+  const tlpCell = sheet.getCell(8, shopInfoCol);
   tlpCell.value = '0813 1232 2833';
   tlpCell.alignment = { horizontal: 'center' };
 
@@ -222,8 +237,10 @@ export async function orderInvoiceToExcel(order, customer) {
 
       for (let c = COL.sizeStart; c <= COL.sizeEnd; c++) {
         const cell = sheet.getCell(r, c);
-        if (c === col) cell.value = size.qty;
-        cell.fill = SIZE_INPUT_FILL;
+        if (c === col) {
+          cell.value = size.qty;
+          cell.fill = SIZE_INPUT_FILL;
+        }
         borderedCell(cell);
       }
       if (col === null) {
@@ -240,7 +257,7 @@ export async function orderInvoiceToExcel(order, customer) {
 
       const jumlahCell = sheet.getCell(r, COL.jumlah);
       jumlahCell.value = { formula: `SUM(${sheet.getCell(r, COL.sizeStart).address}:${sheet.getCell(r, COL.sizeEnd).address})` };
-      jumlahCell.fill = COLOR_BLOCK_FILL;
+      jumlahCell.fill = SIZE_INPUT_FILL;
       jumlahCell.numFmt = '0';
       borderedCell(jumlahCell);
 
@@ -294,6 +311,7 @@ export async function orderInvoiceToExcel(order, customer) {
         }
       : 0;
   jumlahSumCell.font = { bold: true };
+  jumlahSumCell.fill = SIZE_INPUT_FILL;
   borderedCell(jumlahSumCell);
 
   const totalSumCell = sheet.getCell(summaryRow, COL.total);
