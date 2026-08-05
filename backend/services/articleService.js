@@ -6,9 +6,36 @@ function clean(record) {
   return rest;
 }
 
-async function attachCustomerName(article) {
-  const customer = await CustomersRepo.getById(article.customer_id);
-  return { ...clean(article), customer_name: customer?.name || null };
+// Google Sheets cells are scalar-only, so an Article's many customers are
+// stored as a comma-joined string in one cell (e.g. "3,7,12") and
+// parsed/serialized only here — every other consumer works with a real
+// string[] once it comes through this service.
+export function parseCustomerIds(value) {
+  return String(value || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function serializeCustomerIds(ids) {
+  return (ids || []).map(String).join(',');
+}
+
+function attachCustomerNames(article, customers) {
+  const ids = parseCustomerIds(article.customer_ids);
+  const names = ids.map((id) => customers.find((c) => String(c.id) === id)?.name || null);
+  return { ...clean(article), customer_ids: ids, customer_names: names };
+}
+
+async function validateCustomerIds(ids) {
+  if (!ids || ids.length === 0) throw new ApiError(400, 'Pilih minimal satu customer');
+  const customers = await CustomersRepo.getAll();
+  for (const id of ids) {
+    if (!customers.some((c) => String(c.id) === String(id))) {
+      throw new ApiError(400, `Customer tidak valid: ${id}`);
+    }
+  }
+  return customers;
 }
 
 export async function listArticles(filters = {}) {
@@ -16,30 +43,33 @@ export async function listArticles(filters = {}) {
   if (filters.divisi) {
     articles = articles.filter((a) => a.divisi === filters.divisi);
   }
-  return Promise.all(articles.map(attachCustomerName));
+  const customers = await CustomersRepo.getAll();
+  return articles.map((a) => attachCustomerNames(a, customers));
 }
 
-export async function createArticle({ customer_id, article_name, price, status, divisi }) {
-  const customer = await CustomersRepo.getById(customer_id);
-  if (!customer) throw new ApiError(400, 'Customer tidak valid');
+export async function createArticle({ customer_ids, article_name, price, status, divisi }) {
+  const customers = await validateCustomerIds(customer_ids);
 
   const article = await ArticlesRepo.insert({
-    customer_id,
+    customer_ids: serializeCustomerIds(customer_ids),
     article_name,
     price,
     status: status || 'active',
     divisi: divisi || '',
   });
-  return attachCustomerName(article);
+  return attachCustomerNames(article, customers);
 }
 
-export async function updateArticle(id, { customer_id, article_name, price, status, divisi }) {
-  if (customer_id !== undefined) {
-    const customer = await CustomersRepo.getById(customer_id);
-    if (!customer) throw new ApiError(400, 'Customer tidak valid');
+export async function updateArticle(id, { customer_ids, article_name, price, status, divisi }) {
+  let customers;
+  if (customer_ids !== undefined) {
+    customers = await validateCustomerIds(customer_ids);
+  } else {
+    customers = await CustomersRepo.getAll();
   }
+
   const patch = {};
-  if (customer_id !== undefined) patch.customer_id = customer_id;
+  if (customer_ids !== undefined) patch.customer_ids = serializeCustomerIds(customer_ids);
   if (article_name !== undefined) patch.article_name = article_name;
   if (price !== undefined) patch.price = price;
   if (status !== undefined) patch.status = status;
@@ -47,7 +77,7 @@ export async function updateArticle(id, { customer_id, article_name, price, stat
 
   const updated = await ArticlesRepo.updateById(id, patch);
   if (!updated) throw new ApiError(404, 'Artikel tidak ditemukan');
-  return attachCustomerName(updated);
+  return attachCustomerNames(updated, customers);
 }
 
 export async function deleteArticle(id) {

@@ -2,7 +2,7 @@ import { api } from './api'
 import type { ApiResponse, Article, Divisi } from '@/types'
 
 export interface ArticleInput {
-  customer_id: string
+  customer_ids: string[]
   article_name: string
   price: number
   status?: 'active' | 'inactive'

@@ -77,7 +77,8 @@ export default function InputPekerjaan() {
     () =>
       articles?.filter(
         (a) =>
-          a.customer_id === selectedTask?.customer_id &&
+          !!selectedTask?.customer_id &&
+          a.customer_ids.includes(selectedTask.customer_id) &&
           (!a.divisi || a.divisi === selectedTask?.divisi)
       ) || [],
     [articles, selectedTask]

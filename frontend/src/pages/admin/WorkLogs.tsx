@@ -168,7 +168,10 @@ export default function WorkLogs() {
   )
   const selectedFormTask = employeeTasks.find((t) => t.id === formTaskId)
   const availableFormArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_id === selectedFormTask?.customer_id) || [],
+    () =>
+      articles?.filter(
+        (a) => !!selectedFormTask?.customer_id && a.customer_ids.includes(selectedFormTask.customer_id)
+      ) || [],
     [articles, selectedFormTask]
   )
 

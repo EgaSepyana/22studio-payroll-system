@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Form,
   FormControl,
   FormField,
@@ -64,7 +70,7 @@ const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 const ALL = 'all'
 
 const schema = z.object({
-  customer_id: z.string().min(1, 'Customer wajib dipilih'),
+  customer_ids: z.array(z.string()).min(1, 'Pilih minimal satu customer'),
   article_name: z.string().min(1, 'Nama artikel wajib diisi'),
   price: z.coerce.number().positive('Harga harus lebih dari 0'),
   status: z.enum(['active', 'inactive']),
@@ -89,7 +95,7 @@ function ArticleFormDialog({
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      customer_id: article?.customer_id || '',
+      customer_ids: article?.customer_ids || [],
       article_name: article?.article_name || '',
       price: article?.price || 0,
       status: article?.status || 'active',
@@ -100,7 +106,7 @@ function ArticleFormDialog({
   React.useEffect(() => {
     if (open) {
       form.reset({
-        customer_id: article?.customer_id || '',
+        customer_ids: article?.customer_ids || [],
         article_name: article?.article_name || '',
         price: article?.price || 0,
         status: article?.status || 'active',
@@ -134,24 +140,41 @@ function ArticleFormDialog({
           >
             <FormField
               control={form.control}
-              name="customer_id"
+              name="customer_ids"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Customer</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <DropdownMenu>
                     <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih customer" />
-                      </SelectTrigger>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between font-normal">
+                          {field.value.length === 0
+                            ? 'Pilih customer'
+                            : field.value.length === 1
+                              ? customers?.find((c) => c.id === field.value[0])?.name || '1 customer dipilih'
+                              : `${field.value.length} customer dipilih`}
+                          <ChevronDown className="size-4 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {customers?.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+                      {customers?.map((c) => {
+                        const checked = field.value.includes(c.id)
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={c.id}
+                            checked={checked}
+                            onCheckedChange={(v) =>
+                              field.onChange(v ? [...field.value, c.id] : field.value.filter((id) => id !== c.id))
+                            }
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            {c.name}
+                          </DropdownMenuCheckboxItem>
+                        )
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <FormMessage />
                 </FormItem>
               )}
@@ -267,7 +290,7 @@ export default function Articles() {
     const query = search.trim().toLowerCase()
     if (!query) return data
     return data.filter((a) =>
-      `${a.article_name} ${a.customer_name || ''}`.toLowerCase().includes(query)
+      `${a.article_name} ${a.customer_names.filter(Boolean).join(' ')}`.toLowerCase().includes(query)
     )
   }, [data, search])
 
@@ -361,7 +384,7 @@ export default function Articles() {
                 )}
                 {filteredData.map((article) => (
                   <TableRow key={article.id}>
-                    <TableCell>{article.customer_name}</TableCell>
+                    <TableCell>{article.customer_names.filter(Boolean).join(', ') || '-'}</TableCell>
                     <TableCell className="font-medium">{article.article_name}</TableCell>
                     <TableCell>
                       {article.divisi ? <Badge variant="outline">{article.divisi}</Badge> : '-'}

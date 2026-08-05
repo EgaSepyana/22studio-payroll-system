@@ -70,12 +70,12 @@ export interface Customer {
 
 export interface Article {
   id: string
-  customer_id: string
+  customer_ids: string[]
   article_name: string
   price: number
   status: Status
   divisi: Divisi | ''
-  customer_name: string | null
+  customer_names: (string | null)[]
 }
 
 export interface WorkLog {

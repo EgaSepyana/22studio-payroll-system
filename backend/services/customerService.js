@@ -1,5 +1,6 @@
 import { CustomersRepo, ArticlesRepo, OrdersRepo } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
+import { parseCustomerIds } from './articleService.js';
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -55,7 +56,7 @@ export async function updateCustomer(id, { name, pic, alamat, no_hp, category })
 
 export async function deleteCustomer(id) {
   const articles = await ArticlesRepo.getAll();
-  if (articles.some((a) => String(a.customer_id) === String(id))) {
+  if (articles.some((a) => parseCustomerIds(a.customer_ids).includes(String(id)))) {
     throw new ApiError(400, 'Customer masih memiliki artikel, hapus artikel terlebih dahulu');
   }
   const deleted = await CustomersRepo.deleteById(id);

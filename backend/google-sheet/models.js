@@ -186,7 +186,7 @@ export const SHEET_SCHEMAS = {
   Users: ['id', 'username', 'password', 'role', 'employee_id'],
   Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate'],
   Customers: ['id', 'name', 'pic', 'alamat', 'no_hp', 'category'],
-  Articles: ['id', 'customer_id', 'article_name', 'price', 'status', 'divisi'],
+  Articles: ['id', 'customer_ids', 'article_name', 'price', 'status', 'divisi'],
   WorkLogs: [
     'id',
     'employee_id',

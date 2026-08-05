@@ -72,7 +72,7 @@ export default function RiwayatPekerjaan() {
 
   const formCustomerId = form.watch('customer_id')
   const availableArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_id === formCustomerId && a.status === 'active') || [],
+    () => articles?.filter((a) => a.customer_ids.includes(formCustomerId) && a.status === 'active') || [],
     [articles, formCustomerId]
   )
 
