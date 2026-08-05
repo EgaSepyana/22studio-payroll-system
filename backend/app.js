@@ -20,7 +20,9 @@ import suratJalanRoutes from './routes/suratJalanRoutes.js';
 import lembarPORoutes from './routes/lembarPORoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import cmsRoutes from './routes/cmsRoutes.js';
 import publicOrderRoutes from './routes/publicOrderRoutes.js';
+import publicCmsRoutes from './routes/publicCmsRoutes.js';
 import shortLinkRoutes from './routes/shortLinkRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
@@ -50,7 +52,13 @@ app.use('/api/surat-jalan', suratJalanRoutes);
 app.use('/api/lembar-po', lembarPORoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/cms', cmsRoutes);
+// Mounted at distinct sub-paths (not both at /api/public) so each router's
+// own rate limiter only ever applies to its own requests — two routers
+// sharing one prefix would otherwise both run their middleware for every
+// request under that prefix, double-limiting whichever one is stricter.
 app.use('/api/public', publicOrderRoutes);
+app.use('/api/public/cms', publicCmsRoutes);
 // Not under /api — this is meant to be a short, human-clickable URL
 // (e.g. https://backend.com/s/aB3xY), not an API endpoint.
 app.use('/s', shortLinkRoutes);

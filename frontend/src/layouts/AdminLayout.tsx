@@ -20,6 +20,7 @@ import {
   FileText,
   Settings,
   Tags,
+  Globe,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -83,7 +84,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Pengaturan',
-    items: [{ to: '/admin/pengaturan-aplikasi', label: 'Pengaturan Aplikasi', icon: Settings }],
+    items: [
+      { to: '/admin/pengaturan-aplikasi', label: 'Pengaturan Aplikasi', icon: Settings },
+      { to: '/admin/cms', label: 'Kelola Landing Page', icon: Globe },
+    ],
   },
 ]
 

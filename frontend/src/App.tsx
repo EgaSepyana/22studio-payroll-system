@@ -24,6 +24,7 @@ import AdminSuratJalanDetail from '@/pages/admin/SuratJalanDetail'
 import AdminKalenderProduksi from '@/pages/admin/KalenderProduksi'
 import AdminLembarPO from '@/pages/admin/LembarPO'
 import AdminPengaturanAplikasi from '@/pages/admin/PengaturanAplikasi'
+import AdminCmsLandingPage from '@/pages/admin/cms/CmsLandingPage'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/admin/kalender-produksi" element={<AdminKalenderProduksi />} />
             <Route path="/admin/lembar-po" element={<AdminLembarPO />} />
             <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
+            <Route path="/admin/cms" element={<AdminCmsLandingPage />} />
           </Route>
         </Route>
 

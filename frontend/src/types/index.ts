@@ -364,3 +364,105 @@ export interface ApiResponse<T> {
   data: T
   message?: string
 }
+
+// Landing-page CMS (content.js) — one interface per section, matching the
+// sheet columns 1:1 (see backend/google-sheet/models.js SHEET_SCHEMAS).
+export type CmsSection =
+  | 'nav-links'
+  | 'ink-swatches'
+  | 'hero-stats'
+  | 'hero-slides'
+  | 'clients'
+  | 'services'
+  | 'projects'
+  | 'steps'
+  | 'stats-band'
+  | 'faqs'
+
+export interface CmsNavLink {
+  id: string
+  href: string
+  label: string
+}
+
+export interface CmsInkSwatch {
+  id: string
+  code: string
+  name: string
+  css_var: string
+}
+
+export interface CmsHeroStat {
+  id: string
+  label: string
+  value: string
+}
+
+export interface CmsHeroSlide {
+  id: string
+  image_url: string
+  alt: string
+}
+
+export interface CmsClient {
+  id: string
+  name: string
+  logo_url: string
+}
+
+export interface CmsService {
+  id: string
+  icon: string
+  css_var: string
+  title: string
+  description: string
+  points: string[]
+}
+
+export interface CmsProject {
+  id: string
+  title: string
+  description: string
+  image_url: string
+}
+
+export interface CmsStep {
+  id: string
+  stage: string
+  title: string
+  description: string
+}
+
+export interface CmsStatsBandItem {
+  id: string
+  value: string | number
+  prefix: string
+  suffix: string
+  label: string
+}
+
+export interface CmsFaq {
+  id: string
+  question: string
+  answer: string
+}
+
+export interface CmsGeneralSettings {
+  wa_phone: string
+  wa_default_message: string
+  form_endpoint: string
+}
+
+export interface CmsFoundersPromise {
+  quote: string
+  name: string
+  role: string
+}
+
+export interface CmsContactInfo {
+  address: string
+  phone: string
+  email: string
+  hours: string[]
+  map_embed: string
+}

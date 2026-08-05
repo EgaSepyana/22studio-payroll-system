@@ -10,13 +10,14 @@ function clean(record) {
 
 // AppSettings is a generic key/value store — get/setSetting upserts by key
 // rather than requiring callers to know a row id, since there's always at
-// most one row per key.
-async function getSettingValue(key) {
+// most one row per key. Exported so other services (e.g. cmsService) reuse
+// the same upsert logic instead of re-implementing it against AppSettings.
+export async function getSettingValue(key) {
   const rows = await AppSettingsRepo.getAll();
   return rows.find((r) => r.key === key)?.value || '';
 }
 
-async function setSettingValue(key, value) {
+export async function setSettingValue(key, value) {
   const rows = await AppSettingsRepo.getAll({ fresh: true });
   const existing = rows.find((r) => r.key === key);
   if (existing) {

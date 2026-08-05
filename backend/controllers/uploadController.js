@@ -10,3 +10,13 @@ export async function uploadDesign(req, res, next) {
     next(err);
   }
 }
+
+export async function uploadCmsImage(req, res, next) {
+  try {
+    if (!req.file) throw new ApiError(400, 'File wajib diunggah');
+    const url = await cloudinaryUploadService.uploadCmsImage(req.file);
+    ok(res, { url });
+  } catch (err) {
+    next(err);
+  }
+}

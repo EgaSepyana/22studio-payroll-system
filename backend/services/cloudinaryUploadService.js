@@ -24,7 +24,7 @@ function ensureConfigured() {
 // so uploads go to Cloudinary's free tier instead — a single authenticated
 // API call, no OAuth consent flow, returns a public HTTPS URL directly
 // usable in <img> tags and the PDF export's raw fetch().
-export async function uploadDesignImage(file) {
+function uploadToFolder(file, folder) {
   ensureConfigured();
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
     throw new ApiError(400, 'File harus berupa gambar (JPEG, PNG, WEBP, atau GIF)');
@@ -34,13 +34,21 @@ export async function uploadDesignImage(file) {
   }
 
   return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: '22studio-order-designs', resource_type: 'image' },
-      (err, result) => {
-        if (err) return reject(new ApiError(502, `Upload ke Cloudinary gagal: ${err.message}`));
-        resolve(result.secure_url);
-      }
-    );
+    const stream = cloudinary.uploader.upload_stream({ folder, resource_type: 'image' }, (err, result) => {
+      if (err) return reject(new ApiError(502, `Upload ke Cloudinary gagal: ${err.message}`));
+      resolve(result.secure_url);
+    });
     stream.end(file.buffer);
   });
+}
+
+export async function uploadDesignImage(file) {
+  return uploadToFolder(file, '22studio-order-designs');
+}
+
+// Landing-page CMS images (hero slides, client logos, project photos) — kept
+// in a separate Cloudinary folder from order-design uploads so the two stay
+// organized independently in the Cloudinary dashboard.
+export async function uploadCmsImage(file) {
+  return uploadToFolder(file, '22studio-cms');
 }

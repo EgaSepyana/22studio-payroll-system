@@ -1,6 +1,24 @@
 import bcrypt from 'bcryptjs';
 import { getSheetsClient, SPREADSHEET_ID } from './sheetClient.js';
-import { SHEET_SCHEMAS, UsersRepo, EmployeesRepo, WATemplatesRepo, WA_TEMPLATE_DEFAULTS } from './models.js';
+import {
+  SHEET_SCHEMAS,
+  UsersRepo,
+  EmployeesRepo,
+  WATemplatesRepo,
+  WA_TEMPLATE_DEFAULTS,
+  AppSettingsRepo,
+  NavLinksRepo,
+  InkSwatchesRepo,
+  HeroStatsRepo,
+  HeroSlidesRepo,
+  ClientsRepo,
+  CmsServicesRepo,
+  CmsProjectsRepo,
+  CmsStepsRepo,
+  StatsBandRepo,
+  FaqsRepo,
+  CMS_SEED_DATA,
+} from './models.js';
 
 async function ensureSheets() {
   const sheets = await getSheetsClient();
@@ -76,10 +94,60 @@ async function seedWATemplates() {
   console.log(`Seeded ${missing.length} WA template(s).`);
 }
 
+// One repo per CMS list section, paired with its seed data and the
+// sort_order gap (10, 20, 30...) each row is assigned on first seed — lets
+// an admin insert an item between two existing ones later without
+// renumbering the whole sheet.
+const CMS_LIST_SECTIONS = [
+  { repo: NavLinksRepo, items: CMS_SEED_DATA.navLinks },
+  { repo: InkSwatchesRepo, items: CMS_SEED_DATA.inkSwatches },
+  { repo: HeroStatsRepo, items: CMS_SEED_DATA.heroStats },
+  { repo: HeroSlidesRepo, items: CMS_SEED_DATA.heroSlides },
+  { repo: ClientsRepo, items: CMS_SEED_DATA.clients },
+  { repo: CmsServicesRepo, items: CMS_SEED_DATA.services.map((s) => ({ ...s, points: s.points.join('|') })) },
+  { repo: CmsProjectsRepo, items: CMS_SEED_DATA.projects },
+  { repo: CmsStepsRepo, items: CMS_SEED_DATA.steps },
+  { repo: StatsBandRepo, items: CMS_SEED_DATA.statsBand },
+  { repo: FaqsRepo, items: CMS_SEED_DATA.faqs },
+];
+
+async function seedCmsContent() {
+  for (const { repo, items } of CMS_LIST_SECTIONS) {
+    const existing = await repo.getAll({ fresh: true });
+    if (existing.length > 0) {
+      console.log(`${repo.sheetName} already seeded, skipping.`);
+      continue;
+    }
+    let sortOrder = 10;
+    for (const item of items) {
+      await repo.insert({ ...item, sort_order: sortOrder });
+      sortOrder += 10;
+    }
+    console.log(`Seeded ${items.length} row(s) into ${repo.sheetName}.`);
+  }
+
+  const existingSettings = await AppSettingsRepo.getAll({ fresh: true });
+  const existingKeys = new Set(existingSettings.map((s) => s.key));
+  const scalarDefaults = {
+    ...CMS_SEED_DATA.general,
+    ...CMS_SEED_DATA.foundersPromise,
+    ...CMS_SEED_DATA.contactInfo,
+  };
+  let seededScalars = 0;
+  for (const [key, value] of Object.entries(scalarDefaults)) {
+    if (existingKeys.has(key)) continue;
+    await AppSettingsRepo.insert({ key, value });
+    seededScalars += 1;
+  }
+  if (seededScalars > 0) console.log(`Seeded ${seededScalars} CMS setting(s) into AppSettings.`);
+  else console.log('CMS settings already seeded, skipping.');
+}
+
 async function main() {
   await ensureSheets();
   await seedAdmin();
   await seedWATemplates();
+  await seedCmsContent();
   console.log('Google Sheets setup complete.');
 }
 

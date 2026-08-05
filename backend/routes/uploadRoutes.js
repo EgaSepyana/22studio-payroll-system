@@ -10,5 +10,6 @@ router.use(requireAuth);
 router.use(requireRole('admin'));
 
 router.post('/design', upload.single('file'), uploadController.uploadDesign);
+router.post('/cms-image', upload.single('file'), uploadController.uploadCmsImage);
 
 export default router;

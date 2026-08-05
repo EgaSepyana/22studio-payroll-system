@@ -9,3 +9,12 @@ export async function uploadDesignImage(file: File) {
   })
   return res.data.data.url
 }
+
+export async function uploadCmsImage(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await api.post<ApiResponse<{ url: string }>>('/uploads/cms-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data.data.url
+}
