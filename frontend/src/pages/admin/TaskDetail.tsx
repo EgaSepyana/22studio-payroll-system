@@ -62,6 +62,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { useFilterStore } from '@/stores/filterStore'
 import * as orderApi from '@/services/orderApi'
 import * as taskApi from '@/services/taskApi'
 import * as workLogApi from '@/services/workLogApi'
@@ -72,7 +73,6 @@ import type { Divisi, Task, TaskStatus } from '@/types'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 type TaskSortField = 'divisi' | 'description' | 'progress' | 'assigned_to_name' | 'status'
-type SortDirection = 'asc' | 'desc'
 
 const TASK_SORT_FIELD_OPTIONS: { value: TaskSortField; label: string }[] = [
   { value: 'divisi', label: 'Divisi' },
@@ -431,8 +431,8 @@ export default function TaskDetailPage() {
   const [editingTask, setEditingTask] = React.useState<Task | null>(null)
   const [deletingTask, setDeletingTask] = React.useState<Task | null>(null)
   const [viewingTask, setViewingTask] = React.useState<Task | null>(null)
-  const [sortField, setSortField] = React.useState<TaskSortField>('status')
-  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
+  const { sortField, sortDir } = useFilterStore((state) => state.taskDetail)
+  const setTaskDetailFilter = useFilterStore((state) => state.setTaskDetail)
 
   const { data, isLoading } = useQuery({
     queryKey: ['order-detail', id],
@@ -513,7 +513,7 @@ export default function TaskDetailPage() {
 
           {data.tasks.length > 0 && (
             <div className="flex items-center gap-2">
-              <Select value={sortField} onValueChange={(v) => setSortField(v as TaskSortField)}>
+              <Select value={sortField} onValueChange={(v) => setTaskDetailFilter({ sortField: v as TaskSortField })}>
                 <SelectTrigger className="h-9 w-48 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TASK_SORT_FIELD_OPTIONS.map((opt) => (
@@ -525,7 +525,7 @@ export default function TaskDetailPage() {
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                onClick={() => setTaskDetailFilter({ sortDir: sortDir === 'asc' ? 'desc' : 'asc' })}
                 title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
               >
                 {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}

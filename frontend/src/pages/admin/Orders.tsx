@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { useFilterStore } from '@/stores/filterStore'
 import {
   Table,
   TableBody,
@@ -97,7 +98,6 @@ const ORDER_JENIS_CATEGORIES: OrderJenisCategory[] = [
 ]
 
 type OrderSortField = 'order_name' | 'customer_name' | 'deadline'
-type SortDirection = 'asc' | 'desc'
 
 const ORDER_SORT_FIELD_OPTIONS: { value: OrderSortField; label: string }[] = [
   { value: 'order_name', label: 'Nama Order' },
@@ -235,12 +235,11 @@ function OrderFormDialog({
 export default function Orders() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [customerFilter, setCustomerFilter] = React.useState(ALL)
-  const [statusFilter, setStatusFilter] = React.useState<OrderStatus[]>(DEFAULT_STATUS_FILTER)
-  const [jenisCategoryFilter, setJenisCategoryFilter] = React.useState(ALL)
-  const [search, setSearch] = React.useState('')
-  const [sortField, setSortField] = React.useState<OrderSortField>('deadline')
-  const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
+  const { customerFilter, statusFilter, jenisCategoryFilter, search, sortField, sortDir } = useFilterStore(
+    (state) => state.order
+  )
+  const setOrderFilter = useFilterStore((state) => state.setOrder)
+  const resetOrderFilter = useFilterStore((state) => state.resetOrder)
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingOrder, setEditingOrder] = React.useState<Order | undefined>(undefined)
   const [deletingOrder, setDeletingOrder] = React.useState<Order | null>(null)
@@ -270,9 +269,9 @@ export default function Orders() {
   })
 
   function toggleStatus(status: OrderStatus, checked: boolean) {
-    setStatusFilter((current) =>
-      checked ? [...current, status] : current.filter((s) => s !== status)
-    )
+    setOrderFilter({
+      statusFilter: checked ? [...statusFilter, status] : statusFilter.filter((s) => s !== status),
+    })
   }
 
   const sortedData = React.useMemo(() => {
@@ -335,14 +334,14 @@ export default function Orders() {
               <Input
                 placeholder="Nama order atau customer..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => setOrderFilter({ search: e.target.value })}
                 className="w-56 pl-8"
               />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Customer</label>
-            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <Select value={customerFilter} onValueChange={(v) => setOrderFilter({ customerFilter: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Customer</SelectItem>
@@ -352,7 +351,7 @@ export default function Orders() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Jenis Category</label>
-            <Select value={jenisCategoryFilter} onValueChange={setJenisCategoryFilter}>
+            <Select value={jenisCategoryFilter} onValueChange={(v) => setOrderFilter({ jenisCategoryFilter: v })}>
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Kategori</SelectItem>
@@ -390,7 +389,7 @@ export default function Orders() {
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Urutkan</label>
             <div className="flex items-center gap-2">
-              <Select value={sortField} onValueChange={(v) => setSortField(v as OrderSortField)}>
+              <Select value={sortField} onValueChange={(v) => setOrderFilter({ sortField: v as OrderSortField })}>
                 <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ORDER_SORT_FIELD_OPTIONS.map((opt) => (
@@ -401,7 +400,7 @@ export default function Orders() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                onClick={() => setOrderFilter({ sortDir: sortDir === 'asc' ? 'desc' : 'asc' })}
                 title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
               >
                 {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
@@ -409,15 +408,7 @@ export default function Orders() {
             </div>
           </div>
           {hasFilters && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setCustomerFilter(ALL)
-                setJenisCategoryFilter(ALL)
-                setSearch('')
-                setStatusFilter(DEFAULT_STATUS_FILTER)
-              }}
-            >
+            <Button variant="ghost" onClick={resetOrderFilter}>
               <X className="size-4" /> Reset
             </Button>
           )}

@@ -48,6 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useFilterStore } from '@/stores/filterStore'
 import * as payrollApi from '@/services/payrollApi'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
@@ -180,15 +181,14 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
 
 export default function Payroll() {
   const queryClient = useQueryClient()
-  const [viewMode, setViewMode] = React.useState<'month' | 'range'>('month')
+  const { viewMode, employeeId, divisiFilter, paymentStatusFilter, search } = useFilterStore(
+    (state) => state.payroll
+  )
+  const setPayrollFilter = useFilterStore((state) => state.setPayroll)
   const [month, setMonth] = React.useState(String(now.getMonth() + 1))
   const [year, setYear] = React.useState(String(now.getFullYear()))
   const [dateFrom, setDateFrom] = React.useState(todayISO())
   const [dateTo, setDateTo] = React.useState(todayISO())
-  const [employeeId, setEmployeeId] = React.useState(ALL)
-  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
-  const [paymentStatusFilter, setPaymentStatusFilter] = React.useState(ALL)
-  const [search, setSearch] = React.useState('')
   const [detailId, setDetailId] = React.useState<string | null>(null)
   const [rowAction, setRowAction] = React.useState<{ id: string; type: 'print' | 'excel' | 'pdf' } | null>(null)
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
@@ -350,7 +350,7 @@ export default function Payroll() {
         </div>
       </div>
 
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'month' | 'range')} className="mb-4">
+      <Tabs value={viewMode} onValueChange={(v) => setPayrollFilter({ viewMode: v as 'month' | 'range' })} className="mb-4">
         <TabsList>
           <TabsTrigger value="month">Bulan</TabsTrigger>
           <TabsTrigger value="range">Range Tanggal</TabsTrigger>
@@ -396,7 +396,7 @@ export default function Payroll() {
           )}
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Karyawan</label>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
+            <Select value={employeeId} onValueChange={(v) => setPayrollFilter({ employeeId: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Karyawan</SelectItem>
@@ -408,7 +408,7 @@ export default function Payroll() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+            <Select value={divisiFilter} onValueChange={(v) => setPayrollFilter({ divisiFilter: v })}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Divisi</SelectItem>
@@ -418,7 +418,7 @@ export default function Payroll() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Status</label>
-            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+            <Select value={paymentStatusFilter} onValueChange={(v) => setPayrollFilter({ paymentStatusFilter: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Status</SelectItem>
@@ -435,7 +435,7 @@ export default function Payroll() {
               <Input
                 placeholder="Nama karyawan..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => setPayrollFilter({ search: e.target.value })}
                 className="w-48 pl-8"
               />
             </div>

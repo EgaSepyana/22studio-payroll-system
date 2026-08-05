@@ -54,6 +54,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import * as attendanceApi from '@/services/attendanceApi'
+import { useFilterStore } from '@/stores/filterStore'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate, formatTime, todayISO } from '@/utils/format'
@@ -246,7 +247,8 @@ function AttendanceFormDialog({
 
 export default function AttendancePage() {
   const queryClient = useQueryClient()
-  const [employeeId, setEmployeeId] = React.useState(ALL)
+  const { employeeId } = useFilterStore((state) => state.attendance)
+  const setAttendanceFilter = useFilterStore((state) => state.setAttendance)
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -282,7 +284,7 @@ export default function AttendancePage() {
   const hasFilters = employeeId !== ALL || dateFrom || dateTo
 
   function resetFilters() {
-    setEmployeeId(ALL)
+    setAttendanceFilter({ employeeId: ALL })
     setDateFrom('')
     setDateTo('')
   }
@@ -309,7 +311,7 @@ export default function AttendancePage() {
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Karyawan</label>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
+            <Select value={employeeId} onValueChange={(v) => setAttendanceFilter({ employeeId: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Karyawan</SelectItem>

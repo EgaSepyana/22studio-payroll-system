@@ -59,6 +59,7 @@ import { toast } from 'sonner'
 import { getErrorMessage } from '@/services/api'
 import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
+import { useFilterStore } from '@/stores/filterStore'
 import * as workLogApi from '@/services/workLogApi'
 import * as employeeApi from '@/services/employeeApi'
 import * as customerApi from '@/services/customerApi'
@@ -87,10 +88,8 @@ export default function WorkLogs() {
   const queryClient = useQueryClient()
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
-  const [employeeId, setEmployeeId] = React.useState(ALL)
-  const [customerId, setCustomerId] = React.useState(ALL)
-  const [articleId, setArticleId] = React.useState(ALL)
-  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
+  const { employeeId, customerId, articleId, divisiFilter } = useFilterStore((state) => state.workLogs)
+  const setWorkLogsFilter = useFilterStore((state) => state.setWorkLogs)
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
   const [deletingLog, setDeletingLog] = React.useState<WorkLog | null>(null)
@@ -120,10 +119,7 @@ export default function WorkLogs() {
   function resetFilters() {
     setDateFrom('')
     setDateTo('')
-    setEmployeeId(ALL)
-    setCustomerId(ALL)
-    setArticleId(ALL)
-    setDivisiFilter(ALL)
+    setWorkLogsFilter({ employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL })
   }
 
   const isEdit = !!editingLog
@@ -409,7 +405,7 @@ export default function WorkLogs() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Karyawan</label>
-            <Select value={employeeId} onValueChange={setEmployeeId}>
+            <Select value={employeeId} onValueChange={(v) => setWorkLogsFilter({ employeeId: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Karyawan</SelectItem>
@@ -419,7 +415,7 @@ export default function WorkLogs() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Customer</label>
-            <Select value={customerId} onValueChange={setCustomerId}>
+            <Select value={customerId} onValueChange={(v) => setWorkLogsFilter({ customerId: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Customer</SelectItem>
@@ -429,7 +425,7 @@ export default function WorkLogs() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Artikel</label>
-            <Select value={articleId} onValueChange={setArticleId}>
+            <Select value={articleId} onValueChange={(v) => setWorkLogsFilter({ articleId: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Artikel</SelectItem>
@@ -439,7 +435,7 @@ export default function WorkLogs() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+            <Select value={divisiFilter} onValueChange={(v) => setWorkLogsFilter({ divisiFilter: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Divisi</SelectItem>

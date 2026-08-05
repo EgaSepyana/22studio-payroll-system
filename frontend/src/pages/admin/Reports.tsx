@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useFilterStore } from '@/stores/filterStore'
 import * as reportApi from '@/services/reportApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/format'
@@ -41,10 +42,10 @@ const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 export default function Reports() {
-  const [groupBy, setGroupBy] = React.useState<ReportGroupBy>('monthly')
+  const { groupBy, divisiFilter } = useFilterStore((state) => state.reports)
+  const setReportsFilter = useFilterStore((state) => state.setReports)
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
-  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
 
   const filters = {
     groupBy,
@@ -75,7 +76,7 @@ export default function Reports() {
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Kelompokkan Berdasarkan</label>
-            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as ReportGroupBy)}>
+            <Select value={groupBy} onValueChange={(v) => setReportsFilter({ groupBy: v as ReportGroupBy })}>
               <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {GROUP_OPTIONS.map((opt) => (
@@ -94,7 +95,7 @@ export default function Reports() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+            <Select value={divisiFilter} onValueChange={(v) => setReportsFilter({ divisiFilter: v as Divisi | 'all' })}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Divisi</SelectItem>

@@ -53,6 +53,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import * as suratJalanApi from '@/services/suratJalanApi'
+import { useFilterStore } from '@/stores/filterStore'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
@@ -191,7 +192,8 @@ function SuratJalanFormDialog({
 export default function SuratJalanPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [customerFilter, setCustomerFilter] = React.useState(ALL)
+  const { customerFilter } = useFilterStore((state) => state.suratJalan)
+  const setSuratJalanFilter = useFilterStore((state) => state.setSuratJalan)
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingItem, setEditingItem] = React.useState<SuratJalan | undefined>(undefined)
   const [deletingItem, setDeletingItem] = React.useState<SuratJalan | null>(null)
@@ -262,7 +264,7 @@ export default function SuratJalanPage() {
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Customer</label>
-            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <Select value={customerFilter} onValueChange={(v) => setSuratJalanFilter({ customerFilter: v })}>
               <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Customer</SelectItem>
@@ -271,7 +273,7 @@ export default function SuratJalanPage() {
             </Select>
           </div>
           {customerFilter !== ALL && (
-            <Button variant="ghost" onClick={() => setCustomerFilter(ALL)}>
+            <Button variant="ghost" onClick={() => setSuratJalanFilter({ customerFilter: ALL })}>
               <X className="size-4" /> Reset
             </Button>
           )}

@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { useFilterStore } from '@/stores/filterStore'
 import * as cashAdvanceApi from '@/services/cashAdvanceApi'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
@@ -107,11 +108,10 @@ function KasbonDetailDialog({ id, onOpenChange }: { id: string | null; onOpenCha
 
 export default function Kasbon() {
   const queryClient = useQueryClient()
-  const [search, setSearch] = React.useState('')
-  const [statusFilter, setStatusFilter] = React.useState<CashAdvanceStatus | typeof ALL>(ALL)
+  const { search, statusFilter, divisiFilter } = useFilterStore((state) => state.kasbon)
+  const setKasbonFilter = useFilterStore((state) => state.setKasbon)
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
-  const [divisiFilter, setDivisiFilter] = React.useState(ALL)
   const [detailId, setDetailId] = React.useState<string | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
@@ -167,7 +167,7 @@ export default function Kasbon() {
             <Input
               placeholder="Nama karyawan..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setKasbonFilter({ search: e.target.value })}
               className="w-48"
               list="kasbon-employee-list"
             />
@@ -177,7 +177,10 @@ export default function Kasbon() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Status</label>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as CashAdvanceStatus | typeof ALL)}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setKasbonFilter({ statusFilter: v as CashAdvanceStatus | typeof ALL })}
+            >
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Status</SelectItem>
@@ -197,7 +200,7 @@ export default function Kasbon() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+            <Select value={divisiFilter} onValueChange={(v) => setKasbonFilter({ divisiFilter: v })}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>Semua Divisi</SelectItem>

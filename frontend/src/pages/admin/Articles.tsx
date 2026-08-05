@@ -53,6 +53,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { useFilterStore } from '@/stores/filterStore'
 import * as articleApi from '@/services/articleApi'
 import * as customerApi from '@/services/customerApi'
 import { getErrorMessage } from '@/services/api'
@@ -251,8 +252,8 @@ export default function Articles() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Article | undefined>(undefined)
-  const [divisiFilter, setDivisiFilter] = React.useState<string>(ALL)
-  const [search, setSearch] = React.useState('')
+  const { divisiFilter, search } = useFilterStore((state) => state.articles)
+  const setArticlesFilter = useFilterStore((state) => state.setArticles)
 
   const filters = { divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi) }
 
@@ -306,14 +307,14 @@ export default function Articles() {
               <Input
                 placeholder="Nama artikel atau customer..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => setArticlesFilter({ search: e.target.value })}
                 className="w-56 pl-8"
               />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Divisi</label>
-            <Select value={divisiFilter} onValueChange={setDivisiFilter}>
+            <Select value={divisiFilter} onValueChange={(v) => setArticlesFilter({ divisiFilter: v })}>
               <SelectTrigger className="w-44">
                 <SelectValue />
               </SelectTrigger>
