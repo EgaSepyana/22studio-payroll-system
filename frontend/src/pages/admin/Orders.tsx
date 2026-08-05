@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown, ChevronDown, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, ArrowUp, ArrowDown, ChevronDown, Search, MapPin } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -244,6 +244,19 @@ export default function Orders() {
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingOrder, setEditingOrder] = React.useState<Order | undefined>(undefined)
   const [deletingOrder, setDeletingOrder] = React.useState<Order | null>(null)
+  const [trackingLinkPendingId, setTrackingLinkPendingId] = React.useState<string | null>(null)
+
+  async function handleOpenTrackingLink(order: Order) {
+    setTrackingLinkPendingId(order.id)
+    try {
+      const { url } = await orderApi.getTrackingLink(order.id)
+      window.open(url, '_blank')
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setTrackingLinkPendingId(null)
+    }
+  }
 
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
 
@@ -454,6 +467,19 @@ export default function Orders() {
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                         <Eye className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={trackingLinkPendingId === order.id}
+                        onClick={() => handleOpenTrackingLink(order)}
+                        title="Lacak Order"
+                      >
+                        {trackingLinkPendingId === order.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <MapPin className="size-4" />
+                        )}
                       </Button>
                       <Button
                         variant="ghost"

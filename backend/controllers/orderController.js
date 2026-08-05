@@ -257,3 +257,11 @@ export async function timeline(req, res, next) {
     next(err);
   }
 }
+
+export async function trackingLink(req, res, next) {
+  try {
+    ok(res, await orderService.getTrackingLink(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+}

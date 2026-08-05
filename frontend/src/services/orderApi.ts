@@ -140,6 +140,11 @@ export async function getOrderTimeline(orderId: string) {
   return res.data.data
 }
 
+export async function getTrackingLink(orderId: string) {
+  const res = await api.get<ApiResponse<{ url: string }>>(`/orders/${orderId}/tracking-link`)
+  return res.data.data
+}
+
 export async function resolveFollowUpMessage(
   orderId: string,
   templateKey: string,

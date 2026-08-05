@@ -9,6 +9,8 @@ import {
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
+import { createTrackingToken } from '../utils/trackingTokenUtils.js';
+import { env } from '../config/env.js';
 import { enrichTask } from './taskService.js';
 import * as orderTimelineService from './orderTimelineService.js';
 
@@ -559,4 +561,19 @@ export async function getOrderInvoice(orderId) {
   const invoiceNo = await ensureInvoiceNo(order);
   const detail = await getOrderDetail(orderId);
   return { ...detail, invoice_no: invoiceNo };
+}
+
+// Builds the customer-facing tracking link (see utils/trackingTokenUtils.js)
+// for the admin's "Lacak Order" action. Requires the customer to have a
+// phone number on file — without one there's nothing for the token to bind
+// to, and the public tracking API could never match this order anyway.
+export async function getTrackingLink(orderId) {
+  const order = await getHeaderOrThrow(orderId);
+  const invoiceNo = await ensureInvoiceNo(order);
+  const customer = await CustomersRepo.getById(order.customer_id);
+  if (!customer?.no_hp) {
+    throw new ApiError(400, 'Customer belum memiliki nomor WhatsApp, tidak dapat membuat link lacak order');
+  }
+  const token = createTrackingToken(invoiceNo, customer.no_hp);
+  return { url: `${env.publicTrackingBaseUrl}/lacak-order/status?t=${token}` };
 }

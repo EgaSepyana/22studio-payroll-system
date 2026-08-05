@@ -27,5 +27,6 @@ router.delete('/:id/dp/:dpId', requireRole('admin'), orderController.removeDP);
 
 router.post('/:id/follow-up', requireRole('admin'), orderController.followUp);
 router.get('/:id/timeline', requireRole('admin', 'employee'), orderController.timeline);
+router.get('/:id/tracking-link', requireRole('admin'), orderController.trackingLink);
 
 export default router;

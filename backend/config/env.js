@@ -32,4 +32,8 @@ export const env = {
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME || null,
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || null,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || null,
+  // Signs the opaque token used in the public order-tracking link
+  // (/lacak-order/status?t=...) — see utils/trackingTokenUtils.js.
+  publicTrackingSecret: required('PUBLIC_TRACKING_SECRET'),
+  publicTrackingBaseUrl: process.env.PUBLIC_TRACKING_BASE_URL || 'https://22studio.vercel.app',
 };
