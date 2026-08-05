@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, ChevronDown } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Form,
   FormControl,
   FormField,
@@ -55,6 +61,7 @@ import {
 } from '@/components/ui/form'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
+import * as articleCategoryApi from '@/services/articleCategoryApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import type { Customer, CustomerCategory } from '@/types'
@@ -77,6 +84,7 @@ const schema = z.object({
   alamat: z.string().optional(),
   no_hp: z.string().optional(),
   category: z.string().optional(),
+  category_ids: z.array(z.string()),
 })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -92,6 +100,10 @@ function CustomerFormDialog({
 }) {
   const isEdit = !!customer
   const queryClient = useQueryClient()
+  const { data: categories } = useQuery({
+    queryKey: ['article-categories'],
+    queryFn: articleCategoryApi.listArticleCategories,
+  })
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -100,6 +112,7 @@ function CustomerFormDialog({
       alamat: customer?.alamat || '',
       no_hp: customer?.no_hp || '',
       category: customer?.category || '',
+      category_ids: customer?.category_ids || [],
     },
   })
 
@@ -111,21 +124,28 @@ function CustomerFormDialog({
         alamat: customer?.alamat || '',
         no_hp: customer?.no_hp || '',
         category: customer?.category || '',
+        category_ids: customer?.category_ids || [],
       })
     }
   }, [open, customer, form])
 
   const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
+    mutationFn: async (values: FormValues) => {
+      const { category_ids, ...rest } = values
       const payload = {
-        ...values,
-        category: values.category || undefined,
+        ...rest,
+        category: rest.category || undefined,
       } as customerApi.CustomerInput
-      return isEdit ? customerApi.updateCustomer(customer.id, payload) : customerApi.createCustomer(payload)
+      const saved = isEdit
+        ? await customerApi.updateCustomer(customer.id, payload)
+        : await customerApi.createCustomer(payload)
+      await customerApi.setCustomerCategories(saved.id, category_ids)
     },
     onSuccess: () => {
       toast.success(isEdit ? 'Customer diperbarui' : 'Customer ditambahkan')
       queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['article-categories'] })
+      queryClient.invalidateQueries({ queryKey: ['articles'] })
       onOpenChange(false)
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -197,6 +217,47 @@ function CustomerFormDialog({
                       {CUSTOMER_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="category_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Artikel (opsional)</FormLabel>
+                  <DropdownMenu>
+                    <FormControl>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full justify-between font-normal">
+                          {field.value.length === 0
+                            ? 'Pilih kategori artikel'
+                            : field.value.length === 1
+                              ? categories?.find((c) => c.id === field.value[0])?.name || '1 kategori dipilih'
+                              : `${field.value.length} kategori dipilih`}
+                          <ChevronDown className="size-4 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </FormControl>
+                    <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+                      {categories?.map((c) => {
+                        const checked = field.value.includes(c.id)
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={c.id}
+                            checked={checked}
+                            onCheckedChange={(v) =>
+                              field.onChange(v ? [...field.value, c.id] : field.value.filter((id) => id !== c.id))
+                            }
+                            onSelect={(e) => e.preventDefault()}
+                          >
+                            {c.name}
+                          </DropdownMenuCheckboxItem>
+                        )
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <FormMessage />
                 </FormItem>
               )}

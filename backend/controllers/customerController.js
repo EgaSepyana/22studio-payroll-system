@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as customerService from '../services/customerService.js';
+import * as articleCategoryService from '../services/articleCategoryService.js';
 import { CUSTOMER_CATEGORIES } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
@@ -47,6 +48,19 @@ export async function remove(req, res, next) {
   try {
     await customerService.deleteCustomer(req.params.id);
     ok(res, { message: 'Customer dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+const categoriesSchema = z.object({
+  category_ids: z.array(z.union([z.string(), z.number()])),
+});
+
+export async function setCategories(req, res, next) {
+  try {
+    const { category_ids } = categoriesSchema.parse(req.body);
+    ok(res, await articleCategoryService.setCustomerCategories(req.params.id, category_ids));
   } catch (err) {
     next(err);
   }

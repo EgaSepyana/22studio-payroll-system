@@ -8,6 +8,7 @@ router.use(requireAuth);
 router.get('/', customerController.list);
 router.post('/', requireRole('admin'), customerController.create);
 router.put('/:id', requireRole('admin'), customerController.update);
+router.put('/:id/categories', requireRole('admin'), customerController.setCategories);
 router.delete('/:id', requireRole('admin'), customerController.remove);
 
 export default router;

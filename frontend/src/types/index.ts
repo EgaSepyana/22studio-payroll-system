@@ -66,6 +66,8 @@ export interface Customer {
   /** Derived from the customer's most recent Order — never stored, always fresh. */
   terakhir_order: string | null
   order_terakhir: string | null
+  category_ids: string[]
+  category_names: (string | null)[]
 }
 
 export interface Article {

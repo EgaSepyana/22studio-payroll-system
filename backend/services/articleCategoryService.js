@@ -95,3 +95,41 @@ export async function setCategoryCustomers(categoryId, customerIds) {
   const freshLinks = await CustomerArticlesRepo.getAll({ fresh: true });
   return attachCustomers(category, { customers, customerArticles: freshLinks });
 }
+
+// Same diff-not-wipe logic as setCategoryCustomers, but keyed by customer_id —
+// lets the Customer form manage which categories (and therefore articles) it
+// can use, without needing to open each category individually.
+export async function setCustomerCategories(customerId, categoryIds) {
+  const [customer, categories, allLinks] = await Promise.all([
+    CustomersRepo.getById(customerId),
+    ArticlesCategoryRepo.getAll(),
+    CustomerArticlesRepo.getAll(),
+  ]);
+  if (!customer) throw new ApiError(404, 'Customer tidak ditemukan');
+
+  for (const id of categoryIds || []) {
+    if (!categories.some((c) => String(c.id) === String(id))) {
+      throw new ApiError(400, `Kategori tidak valid: ${id}`);
+    }
+  }
+
+  const existingLinks = allLinks.filter((ca) => String(ca.customer_id) === String(customerId));
+  const currentIds = new Set(existingLinks.map((l) => String(l.category_id)));
+  const nextIds = new Set((categoryIds || []).map(String));
+
+  const toRemove = existingLinks.filter((l) => !nextIds.has(String(l.category_id)));
+  const toAdd = [...nextIds].filter((id) => !currentIds.has(id));
+
+  for (const link of toRemove) {
+    await CustomerArticlesRepo.deleteById(link.id);
+  }
+  for (const categoryId of toAdd) {
+    await CustomerArticlesRepo.insert({
+      category_id: categoryId,
+      customer_id: customerId,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  return { customer_id: String(customerId), category_ids: [...nextIds] };
+}
