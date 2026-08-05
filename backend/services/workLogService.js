@@ -5,11 +5,11 @@ import {
   EmployeesRepo,
   TasksRepo,
   OrdersRepo,
+  CustomerArticlesRepo,
   DEFAULT_WORK_STATUS,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import * as taskService from './taskService.js';
-import { parseCustomerIds } from './articleService.js';
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -57,7 +57,11 @@ export async function createWorkLog(employeeId, { task_id, article_id, work_date
   if (!article_id) throw new ApiError(400, 'Artikel wajib dipilih');
   const article = await ArticlesRepo.getById(article_id);
   if (!article) throw new ApiError(400, 'Artikel tidak valid');
-  if (!parseCustomerIds(article.customer_ids).includes(String(order.customer_id))) {
+  const customerArticles = await CustomerArticlesRepo.getAll();
+  const isLinked = customerArticles.some(
+    (ca) => String(ca.category_id) === String(article.category_id) && String(ca.customer_id) === String(order.customer_id)
+  );
+  if (!isLinked) {
     throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
   }
 

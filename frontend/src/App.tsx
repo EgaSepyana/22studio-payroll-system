@@ -9,6 +9,7 @@ import AdminDashboard from '@/pages/admin/Dashboard'
 import AdminEmployees from '@/pages/admin/Employees'
 import AdminCustomers from '@/pages/admin/Customers'
 import AdminArticles from '@/pages/admin/Articles'
+import AdminArticleCategories from '@/pages/admin/ArticleCategories'
 import AdminWorkLogs from '@/pages/admin/WorkLogs'
 import AdminPayroll from '@/pages/admin/Payroll'
 import AdminReports from '@/pages/admin/Reports'
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="/admin/employees" element={<AdminEmployees />} />
             <Route path="/admin/customers" element={<AdminCustomers />} />
             <Route path="/admin/articles" element={<AdminArticles />} />
+            <Route path="/admin/article-categories" element={<AdminArticleCategories />} />
             <Route path="/admin/worklogs" element={<AdminWorkLogs />} />
             <Route path="/admin/payroll" element={<AdminPayroll />} />
             <Route path="/admin/reports" element={<AdminReports />} />

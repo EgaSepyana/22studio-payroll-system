@@ -76,6 +76,15 @@ export interface Article {
   status: Status
   divisi: Divisi | ''
   customer_names: (string | null)[]
+  category_id: string
+  category_name: string | null
+}
+
+export interface ArticleCategory {
+  id: string
+  name: string
+  customer_ids: string[]
+  customer_names: (string | null)[]
 }
 
 export interface WorkLog {

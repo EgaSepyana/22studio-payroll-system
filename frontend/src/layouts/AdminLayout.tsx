@@ -19,6 +19,7 @@ import {
   CalendarDays,
   FileText,
   Settings,
+  Tags,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -54,6 +55,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/admin/employees', label: 'Karyawan', icon: Users },
       { to: '/admin/customers', label: 'Customer', icon: Building2 },
       { to: '/admin/articles', label: 'Artikel', icon: Package },
+      { to: '/admin/article-categories', label: 'Kategori Artikel', icon: Tags },
     ],
   },
   {

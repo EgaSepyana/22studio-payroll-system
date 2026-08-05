@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Search, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,12 +46,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   Form,
   FormControl,
   FormField,
@@ -61,16 +55,17 @@ import {
 } from '@/components/ui/form'
 import { useFilterStore } from '@/stores/filterStore'
 import * as articleApi from '@/services/articleApi'
-import * as customerApi from '@/services/customerApi'
+import * as articleCategoryApi from '@/services/articleCategoryApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency } from '@/utils/format'
 import type { Article, Divisi } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 const ALL = 'all'
+const NONE = '__none__'
 
 const schema = z.object({
-  customer_ids: z.array(z.string()).min(1, 'Pilih minimal satu customer'),
+  category_id: z.string().optional(),
   article_name: z.string().min(1, 'Nama artikel wajib diisi'),
   price: z.coerce.number().positive('Harga harus lebih dari 0'),
   status: z.enum(['active', 'inactive']),
@@ -90,12 +85,15 @@ function ArticleFormDialog({
 }) {
   const isEdit = !!article
   const queryClient = useQueryClient()
-  const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
+  const { data: categories } = useQuery({
+    queryKey: ['article-categories'],
+    queryFn: articleCategoryApi.listArticleCategories,
+  })
 
   const form = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      customer_ids: article?.customer_ids || [],
+      category_id: article?.category_id || '',
       article_name: article?.article_name || '',
       price: article?.price || 0,
       status: article?.status || 'active',
@@ -106,7 +104,7 @@ function ArticleFormDialog({
   React.useEffect(() => {
     if (open) {
       form.reset({
-        customer_ids: article?.customer_ids || [],
+        category_id: article?.category_id || '',
         article_name: article?.article_name || '',
         price: article?.price || 0,
         status: article?.status || 'active',
@@ -140,41 +138,25 @@ function ArticleFormDialog({
           >
             <FormField
               control={form.control}
-              name="customer_ids"
+              name="category_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Customer</FormLabel>
-                  <DropdownMenu>
+                  <FormLabel>Kategori (opsional)</FormLabel>
+                  <Select value={field.value || NONE} onValueChange={(v) => field.onChange(v === NONE ? '' : v)}>
                     <FormControl>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between font-normal">
-                          {field.value.length === 0
-                            ? 'Pilih customer'
-                            : field.value.length === 1
-                              ? customers?.find((c) => c.id === field.value[0])?.name || '1 customer dipilih'
-                              : `${field.value.length} customer dipilih`}
-                          <ChevronDown className="size-4 opacity-50" />
-                        </Button>
-                      </DropdownMenuTrigger>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Pilih kategori" />
+                      </SelectTrigger>
                     </FormControl>
-                    <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
-                      {customers?.map((c) => {
-                        const checked = field.value.includes(c.id)
-                        return (
-                          <DropdownMenuCheckboxItem
-                            key={c.id}
-                            checked={checked}
-                            onCheckedChange={(v) =>
-                              field.onChange(v ? [...field.value, c.id] : field.value.filter((id) => id !== c.id))
-                            }
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            {c.name}
-                          </DropdownMenuCheckboxItem>
-                        )
-                      })}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Tidak ada</SelectItem>
+                      {categories?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -368,6 +350,7 @@ export default function Articles() {
                 <TableRow>
                   <TableHead>Customer</TableHead>
                   <TableHead>Nama Artikel</TableHead>
+                  <TableHead>Kategori</TableHead>
                   <TableHead>Divisi</TableHead>
                   <TableHead>Harga</TableHead>
                   <TableHead>Status</TableHead>
@@ -377,7 +360,7 @@ export default function Articles() {
               <TableBody>
                 {filteredData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground text-center">
+                    <TableCell colSpan={7} className="text-muted-foreground text-center">
                       Belum ada data artikel.
                     </TableCell>
                   </TableRow>
@@ -386,6 +369,7 @@ export default function Articles() {
                   <TableRow key={article.id}>
                     <TableCell>{article.customer_names.filter(Boolean).join(', ') || '-'}</TableCell>
                     <TableCell className="font-medium">{article.article_name}</TableCell>
+                    <TableCell>{article.category_name || '-'}</TableCell>
                     <TableCell>
                       {article.divisi ? <Badge variant="outline">{article.divisi}</Badge> : '-'}
                     </TableCell>

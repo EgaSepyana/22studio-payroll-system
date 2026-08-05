@@ -4,7 +4,7 @@ import { DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
-  customer_ids: z.array(z.union([z.string(), z.number()])).min(1, 'Pilih minimal satu customer'),
+  category_id: z.union([z.string(), z.number()]).optional(),
   article_name: z.string().min(1),
   price: z.coerce.number().positive(),
   status: z.enum(['active', 'inactive']).optional(),
@@ -12,7 +12,7 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
-  customer_ids: z.array(z.union([z.string(), z.number()])).min(1, 'Pilih minimal satu customer').optional(),
+  category_id: z.union([z.string(), z.number()]).optional(),
   article_name: z.string().min(1).optional(),
   price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'inactive']).optional(),

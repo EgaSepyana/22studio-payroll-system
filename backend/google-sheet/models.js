@@ -186,7 +186,7 @@ export const SHEET_SCHEMAS = {
   Users: ['id', 'username', 'password', 'role', 'employee_id'],
   Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate'],
   Customers: ['id', 'name', 'pic', 'alamat', 'no_hp', 'category'],
-  Articles: ['id', 'customer_ids', 'article_name', 'price', 'status', 'divisi'],
+  Articles: ['id', 'category_id', 'article_name', 'price', 'status', 'divisi'],
   WorkLogs: [
     'id',
     'employee_id',
@@ -282,6 +282,8 @@ export const SHEET_SCHEMAS = {
   WATemplates: ['id', 'template_key', 'label', 'content'],
   OrderTimeline: ['id', 'order_id', 'stage', 'sub_stage', 'note', 'actor', 'created_at'],
   OrderShipping: ['id', 'order_id', 'method', 'resi', 'note', 'shipped_at'],
+  ArticlesCategory: ['id', 'name'],
+  CustomerArticles: ['id', 'category_id', 'customer_id', 'created_at'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -304,4 +306,6 @@ export const AppSettingsRepo = new SheetRepository('AppSettings', SHEET_SCHEMAS.
 export const WATemplatesRepo = new SheetRepository('WATemplates', SHEET_SCHEMAS.WATemplates);
 export const OrderTimelineRepo = new SheetRepository('OrderTimeline', SHEET_SCHEMAS.OrderTimeline);
 export const OrderShippingRepo = new SheetRepository('OrderShipping', SHEET_SCHEMAS.OrderShipping);
+export const ArticlesCategoryRepo = new SheetRepository('ArticlesCategory', SHEET_SCHEMAS.ArticlesCategory);
+export const CustomerArticlesRepo = new SheetRepository('CustomerArticles', SHEET_SCHEMAS.CustomerArticles);
 

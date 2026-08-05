@@ -54,6 +54,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import * as customerApi from '@/services/customerApi'
+import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import type { Customer, CustomerCategory } from '@/types'
@@ -232,6 +233,19 @@ export default function Customers() {
   const [editing, setEditing] = React.useState<Customer | undefined>(undefined)
 
   const { data, isLoading } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
+  const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
+
+  const articleNamesByCustomer = React.useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const article of articles || []) {
+      for (const customerId of article.customer_ids) {
+        const existing = map.get(customerId) || []
+        existing.push(article.article_name)
+        map.set(customerId, existing)
+      }
+    }
+    return map
+  }, [articles])
 
   const deleteMutation = useMutation({
     mutationFn: customerApi.deleteCustomer,
@@ -276,6 +290,7 @@ export default function Customers() {
                   <TableHead>PIC</TableHead>
                   <TableHead>No HP</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Artikel</TableHead>
                   <TableHead>Terakhir Order</TableHead>
                   <TableHead>Order Terakhir</TableHead>
                   <TableHead className="text-right">Aksi</TableHead>
@@ -284,7 +299,7 @@ export default function Customers() {
               <TableBody>
                 {data?.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground text-center">
+                    <TableCell colSpan={8} className="text-muted-foreground text-center">
                       Belum ada data customer.
                     </TableCell>
                   </TableRow>
@@ -295,6 +310,9 @@ export default function Customers() {
                     <TableCell>{customer.pic || '-'}</TableCell>
                     <TableCell>{customer.no_hp || '-'}</TableCell>
                     <TableCell>{customer.category || '-'}</TableCell>
+                    <TableCell className="max-w-48 truncate">
+                      {(articleNamesByCustomer.get(customer.id) || []).join(', ') || '-'}
+                    </TableCell>
                     <TableCell>{customer.terakhir_order ? formatDate(customer.terakhir_order) : '-'}</TableCell>
                     <TableCell className="max-w-40 truncate">{customer.order_terakhir || '-'}</TableCell>
                     <TableCell className="text-right">
