@@ -350,6 +350,7 @@ export type WATemplateKey =
   | 'payment_reminder'
   | 'picked_up'
   | 'qc_report'
+  | 'design_confirmation'
 
 export interface WATemplate {
   id: string

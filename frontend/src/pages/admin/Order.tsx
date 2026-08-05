@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Loader2, Eye, X, Upload, ArrowUp, ArrowDown, MessageCircle, ChevronDown, Search, MapPin } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Eye, X, Upload, ArrowUp, ArrowDown, MessageCircle, ChevronDown, Search, SquareArrowOutUpRight } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -734,7 +734,7 @@ export default function OrderPage() {
                         {trackingLinkPendingId === order.id ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
-                          <MapPin className="size-4" />
+                          <SquareArrowOutUpRight className="size-4" />
                         )}
                       </Button>
                       <Button

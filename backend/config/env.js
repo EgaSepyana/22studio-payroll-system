@@ -36,4 +36,8 @@ export const env = {
   // (/lacak-order/status?t=...) — see utils/trackingTokenUtils.js.
   publicTrackingSecret: required('PUBLIC_TRACKING_SECRET'),
   publicTrackingBaseUrl: process.env.PUBLIC_TRACKING_BASE_URL || 'https://22studio.vercel.app',
+  // Where this backend itself is publicly reachable — short links
+  // (/s/:code) redirect through here, so they need the backend's own
+  // deployed origin, not the separate tracking-page frontend above.
+  publicBackendUrl: process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`,
 };

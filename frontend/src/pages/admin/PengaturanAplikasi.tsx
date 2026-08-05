@@ -35,6 +35,7 @@ const TEMPLATE_PLACEHOLDERS: Record<WATemplateKey, string[]> = {
   payment_reminder: ['SALAM', 'NAMA', 'NO_INVOICE', 'ORDER', 'SISA', 'REKENING_BANK'],
   picked_up: ['NAMA', 'NO_INVOICE', 'ORDER', 'DISTRIBUSI', 'DITERIMA'],
   qc_report: ['SALAM', 'ORDER', 'NAMA', 'NO_INVOICE', 'QTY_PO', 'QTY_QC', 'QTY_SELISIH', 'STATUS'],
+  design_confirmation: ['SALAM', 'NAMA', 'NO_INVOICE', 'LINK_TRACKING'],
 }
 
 function TemplateEditDialog({

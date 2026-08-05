@@ -21,6 +21,7 @@ import lembarPORoutes from './routes/lembarPORoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import publicOrderRoutes from './routes/publicOrderRoutes.js';
+import shortLinkRoutes from './routes/shortLinkRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -50,6 +51,9 @@ app.use('/api/lembar-po', lembarPORoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/public', publicOrderRoutes);
+// Not under /api — this is meant to be a short, human-clickable URL
+// (e.g. https://backend.com/s/aB3xY), not an API endpoint.
+app.use('/s', shortLinkRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -83,6 +83,13 @@ export async function resolveFollowUpMessage(orderId, templateKey, fields = {}) 
     else if (!(key in variables)) variables[key] = '';
   }
 
+  // Only fetched when the template actually references it — building this
+  // link creates a ShortLink row, and every other template has no use for it.
+  if (template.content.includes('{LINK_TRACKING}')) {
+    const { url } = await orderService.getTrackingLink(orderId);
+    variables.LINK_TRACKING = url;
+  }
+
   return {
     phone: normalizePhone(customer.no_hp),
     message: substitute(template.content, variables),

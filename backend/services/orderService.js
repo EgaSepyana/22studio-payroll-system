@@ -10,6 +10,7 @@ import {
 import { ApiError } from '../utils/response.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import { createTrackingToken } from '../utils/trackingTokenUtils.js';
+import { createShortLink } from './shortLinkService.js';
 import { env } from '../config/env.js';
 import { enrichTask } from './taskService.js';
 import * as orderTimelineService from './orderTimelineService.js';
@@ -585,5 +586,6 @@ export async function getTrackingLink(orderId) {
     throw new ApiError(400, 'Customer belum memiliki nomor WhatsApp, tidak dapat membuat link lacak order');
   }
   const token = createTrackingToken(invoiceNo, customer.no_hp);
-  return { url: `${env.publicTrackingBaseUrl}/lacak-order/status?t=${token}` };
+  const fullUrl = `${env.publicTrackingBaseUrl}/lacak-order/status?t=${token}`;
+  return { url: await createShortLink(fullUrl) };
 }

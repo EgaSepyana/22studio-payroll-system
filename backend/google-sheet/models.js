@@ -170,6 +170,21 @@ Selisih : *{QTY_SELISIH}*
 
 Status Order : *{STATUS}*`,
   },
+  {
+    template_key: 'design_confirmation',
+    label: 'Konfirmasi Design',
+    content: `{SALAM} Kak {NAMA} 👋
+
+**Anda memiliki Tracking Order Link** untuk pesanan dengan **No. Invoice {NO_INVOICE}**.
+
+Silakan buka link berikut untuk melihat status pesanan dan melakukan konfirmasi desain:
+
+🔗 {LINK_TRACKING}
+
+Jika desain sudah sesuai, mohon lakukan konfirmasi melalui halaman tersebut agar pesanan dapat segera diproses.
+
+Terima kasih 🙏`,
+  },
 ];
 
 export const CUSTOMER_CATEGORIES = [
@@ -284,6 +299,7 @@ export const SHEET_SCHEMAS = {
   OrderShipping: ['id', 'order_id', 'method', 'resi', 'note', 'shipped_at'],
   ArticlesCategory: ['id', 'name'],
   CustomerArticles: ['id', 'category_id', 'customer_id', 'created_at'],
+  ShortLink: ['id', 'code', 'original_url', 'created_at'],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -308,4 +324,5 @@ export const OrderTimelineRepo = new SheetRepository('OrderTimeline', SHEET_SCHE
 export const OrderShippingRepo = new SheetRepository('OrderShipping', SHEET_SCHEMAS.OrderShipping);
 export const ArticlesCategoryRepo = new SheetRepository('ArticlesCategory', SHEET_SCHEMAS.ArticlesCategory);
 export const CustomerArticlesRepo = new SheetRepository('CustomerArticles', SHEET_SCHEMAS.CustomerArticles);
+export const ShortLinkRepo = new SheetRepository('ShortLink', SHEET_SCHEMAS.ShortLink);
 

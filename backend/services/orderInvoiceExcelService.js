@@ -163,6 +163,7 @@ export async function orderInvoiceToExcel(order, customer) {
   sheet.mergeCells(headerRow1, COL.code, headerRow2, COL.code);
   sheet.mergeCells(headerRow1, COL.namaStart, headerRow2, COL.namaEnd);
   sheet.mergeCells(headerRow1, COL.sizeStart, headerRow1, COL.sizeEnd);
+  sheet.mergeCells(headerRow1, COL.sizeSumCol, headerRow2, COL.sizeSumCol);
   sheet.mergeCells(headerRow1, COL.warna, headerRow2, COL.warna);
   sheet.mergeCells(headerRow1, COL.jumlah, headerRow2, COL.jumlah);
   sheet.mergeCells(headerRow1, COL.harga, headerRow2, COL.harga);
@@ -184,9 +185,10 @@ export async function orderInvoiceToExcel(order, customer) {
     cell.font = HEADER_FONT;
     borderedCell(cell);
   }
-  // Also paint the merged-but-empty header cells in row 11 (size grid) and
-  // fill in the size sub-labels on row 12.
-  for (let c = COL.sizeStart; c <= COL.sizeEnd; c++) {
+  // Also paint the merged-but-empty header cells in row 11 (size grid, plus
+  // the column N per-block-qty helper) and fill in the size sub-labels on
+  // row 12.
+  for (let c = COL.sizeStart; c <= COL.sizeSumCol; c++) {
     const topCell = sheet.getCell(headerRow1, c);
     topCell.fill = HEADER_FILL;
     borderedCell(topCell);
@@ -237,10 +239,8 @@ export async function orderInvoiceToExcel(order, customer) {
 
       for (let c = COL.sizeStart; c <= COL.sizeEnd; c++) {
         const cell = sheet.getCell(r, c);
-        if (c === col) {
-          cell.value = size.qty;
-          cell.fill = SIZE_INPUT_FILL;
-        }
+        if (c === col) cell.value = size.qty;
+        cell.fill = c === col ? SIZE_INPUT_FILL : COLOR_BLOCK_FILL;
         borderedCell(cell);
       }
       if (col === null) {
@@ -257,7 +257,7 @@ export async function orderInvoiceToExcel(order, customer) {
 
       const jumlahCell = sheet.getCell(r, COL.jumlah);
       jumlahCell.value = { formula: `SUM(${sheet.getCell(r, COL.sizeStart).address}:${sheet.getCell(r, COL.sizeEnd).address})` };
-      jumlahCell.fill = SIZE_INPUT_FILL;
+      jumlahCell.fill = COLOR_BLOCK_FILL;
       jumlahCell.numFmt = '0';
       borderedCell(jumlahCell);
 
@@ -282,7 +282,8 @@ export async function orderInvoiceToExcel(order, customer) {
       formula: `SUM(${sheet.getCell(blockStartRow, COL.sizeStart).address}:${sheet.getCell(blockEndRow, COL.sizeEnd).address})`,
     };
     if (blockRowCount > 1) sheet.mergeCells(blockStartRow, COL.sizeSumCol, blockEndRow, COL.sizeSumCol);
-    sumCell.alignment = CENTER;
+    sumCell.fill = COLOR_BLOCK_FILL;
+    borderedCell(sumCell);
 
     if (item.sizes.length === 0) {
       for (let c = COL.sizeStart; c <= COL.sizeEnd; c++) borderedCell(sheet.getCell(blockStartRow, c));
@@ -311,7 +312,7 @@ export async function orderInvoiceToExcel(order, customer) {
         }
       : 0;
   jumlahSumCell.font = { bold: true };
-  jumlahSumCell.fill = SIZE_INPUT_FILL;
+  jumlahSumCell.fill = COLOR_BLOCK_FILL;
   borderedCell(jumlahSumCell);
 
   const totalSumCell = sheet.getCell(summaryRow, COL.total);
