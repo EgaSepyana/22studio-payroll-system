@@ -6,7 +6,7 @@ Tambahkan fitur **Kasbon (Cash Advance)** pada sistem payroll 22Studio.
 
 Kasbon memungkinkan karyawan mengajukan pinjaman kepada perusahaan melalui aplikasi. Pengajuan kasbon akan diproses oleh admin. Setelah disetujui, nominal kasbon akan otomatis dipotong dari payroll karyawan saat proses pembayaran gaji.
 
-Fitur ini bertujuan agar proses pengajuan, persetujuan, dan pelunasan kasbon terdokumentasi dalam satu sistem tanpa perlu pencatatan manual.
+Fitur ini bertujuan agar proses pengajuan, persetujuan, dan pelunasan kasbon terdokumentasi dalam satu sistem tanpa perlu pencatatan manual. 
 
 ---
 
