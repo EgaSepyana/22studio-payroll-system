@@ -379,6 +379,18 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
     ? unassignedAttendance.reduce((sum, a) => sum + Number(a.hours || 0), 0) * Number(employee?.hourly_rate || 0)
     : unassignedLogs.reduce((sum, l) => sum + Number(l.total), 0);
 
+  // A row the admin saw with a real, non-zero total that suddenly has zero
+  // unassigned work behind it at payment time is a duplicate whose sibling
+  // already claimed the real work logs/attendance (see reconcileDaily/
+  // markRangeAsPaid's dedup) — refuse rather than silently recording a
+  // Rp0 payment against it.
+  if (finalTotal === 0 && Number(row.total_salary) > 0) {
+    throw new ApiError(
+      400,
+      'Data pekerjaan untuk payroll ini sudah tercatat di baris lain (kemungkinan duplikat) — muat ulang halaman dan periksa kembali.'
+    );
+  }
+
   const approvedUnpaidKasbon = cashAdvances.filter(
     (c) => String(c.employee_id) === String(row.employee_id) && c.status === 'approved'
   );
@@ -455,8 +467,43 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
 // range — into a single Sheets API call.
 export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, adminId) {
   const rows = await getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId, divisi);
-  const unpaidRows = rows.filter((r) => r.payment_status === 'unpaid');
+  let unpaidRows = rows.filter((r) => r.payment_status === 'unpaid');
   if (unpaidRows.length === 0) return [];
+
+  // Defend against duplicate unpaid rows for the same employee/day/source
+  // that predate (or slipped past) reconcileDaily's own insert guard — the
+  // group's real work logs/attendance can only ever resolve to ONE row
+  // (whichever a plain .find() by employee+date+source hits), so paying
+  // every row in the group would pay N-1 of them with a fabricated total of
+  // 0 (exactly the "spawns duplicate Rp0 rows" bug). Within a group, keep
+  // the row with the HIGHEST total_salary, not the lowest id — reconcileDaily
+  // always inserts the phantom BEFORE the real work is reconciled onto a
+  // fresh row (or vice versa depending on timing), so id order carries no
+  // reliable meaning here; total_salary does, since only the row still
+  // tracking real unassigned work can have a non-zero one. Ties (including
+  // both being genuinely 0) keep the first and delete the rest — there is no
+  // way to distinguish further, but neither loses real money either way.
+  const groups = new Map();
+  for (const row of unpaidRows) {
+    const key = `${row.employee_id}|${row.pay_date}|${row.pay_source}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  const rowsToDelete = [];
+  const dedupedUnpaidRows = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      dedupedUnpaidRows.push(group[0]);
+      continue;
+    }
+    group.sort((a, b) => Number(b.total_salary) - Number(a.total_salary));
+    dedupedUnpaidRows.push(group[0]);
+    rowsToDelete.push(...group.slice(1));
+  }
+  for (const dupe of rowsToDelete) {
+    await PayrollRepo.deleteById(dupe.id);
+  }
+  unpaidRows = dedupedUnpaidRows;
 
   const [employees, workLogs, attendance, cashAdvances, payrollRows] = await Promise.all([
     EmployeesRepo.getAll(),
@@ -544,7 +591,27 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
     });
   }
 
-  await batchUpdateRows(entries);
+  // Re-verify every payroll row's status right before writing, not just at
+  // the top of this function — everything above is async and can span many
+  // employees/days, which is exactly the window a second concurrent call
+  // (double-click on "Ya, Tandai Semua", or the same race across two
+  // requests) can slip through: it would independently see the same rows as
+  // still-unpaid from its own snapshot, recompute totals against work logs
+  // the first call already claimed — finding none left, landing on 0 — and
+  // write that 0 over an already-correct payment. Drop any Payroll entry
+  // whose row has been paid since `payrollRows` was fetched; its work-log/
+  // attendance/kasbon entries are dropped too so nothing gets double-tagged.
+  const freshPayrollRows = await PayrollRepo.getAll({ fresh: true });
+  const freshStatusById = new Map(freshPayrollRows.map((p) => [String(p.id), p.payment_status]));
+  const stillUnpaidIds = new Set(
+    entries.filter((e) => e.repo === PayrollRepo).map((e) => String(e.existingRow.id)).filter((id) => freshStatusById.get(id) === 'unpaid')
+  );
+  const safeEntries = entries.filter((e) => {
+    if (e.repo === PayrollRepo) return stillUnpaidIds.has(String(e.existingRow.id));
+    return stillUnpaidIds.has(String(e.patch.payroll_id));
+  });
+
+  await batchUpdateRows(safeEntries);
 
   return getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId, divisi);
 }

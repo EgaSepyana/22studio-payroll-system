@@ -480,7 +480,14 @@ export default function Payroll() {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Batal</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => payRangeMutation.mutate()}>
+                    <AlertDialogAction
+                      disabled={payRangeMutation.isPending}
+                      onClick={() => {
+                        if (payRangeMutation.isPending) return
+                        payRangeMutation.mutate()
+                      }}
+                    >
+                      {payRangeMutation.isPending && <Loader2 className="size-4 animate-spin" />}
                       Tandai Semua Sudah Dibayar
                     </AlertDialogAction>
                   </AlertDialogFooter>
