@@ -139,7 +139,14 @@ async function reconcileDaily(employee, payrollRows, cashAdvances, sourceRows, m
   // source rows (e.g. a work log/attendance date was corrected, or the row
   // was added/edited by hand directly in the sheet) are surfaced as-is,
   // never deleted — a read must never destroy data. Only an explicit
-  // "Tandai Sudah Dibayar" ever changes a row's state.
+  // "Tandai Sudah Dibayar" ever changes a row's state. A day CAN legitimately
+  // have both a paid row and a separate unpaid one at once — more work
+  // logged for that date after the first batch was already paid — so this
+  // does NOT exclude dates that already have a paid sibling; genuinely empty
+  // phantoms (no real unassigned work behind them) are instead identified
+  // and cleaned up in the write paths (markAsPaid/markRangeAsPaid), which
+  // can check the actual source data directly instead of inferring from
+  // row shape alone.
   const existingUnpaidDaily = payrollRows.filter(
     (p) => String(p.employee_id) === String(employee.id) && isThisSource(p) && isDailyRow(p) && p.payment_status === 'unpaid' && matchesPeriod(p.pay_date)
   );
@@ -488,49 +495,55 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
 // attendance, kasbon, and Payroll, across however many days/employees are in
 // range — into a single Sheets API call.
 export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, adminId) {
-  const rows = await getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId, divisi);
-  let unpaidRows = rows.filter((r) => r.payment_status === 'unpaid');
-  if (unpaidRows.length === 0) return [];
+  // reconcileDaily's list view deliberately hides an unpaid row once a paid
+  // sibling exists for the same employee/day/source (see reconcileDaily) —
+  // right for what an admin should be offered to pay, wrong for cleanup,
+  // which needs to actually find and delete a genuinely empty leftover.
+  // Read straight from the sheet here instead of through
+  // getOrGeneratePayrollForRange so this pass can see every row, hidden or
+  // not — deliberately NOT filtered by employeeId/divisi, since cleanup is
+  // safe regardless of which slice of employees this call happens to be
+  // paying; only the final `unpaidRows` actually offered for payment below
+  // gets narrowed to this call's employeeId/divisi scope.
+  const [allPayrollRows, workLogs, attendance] = await Promise.all([
+    PayrollRepo.getAll({ fresh: true }),
+    WorkLogsRepo.getAll({ fresh: true }),
+    AttendanceRepo.getAll({ fresh: true }),
+  ]);
+  const matchesRange = (dateStr) => dateStr && dateStr !== '0' && dateStr >= dateFrom && dateStr <= dateTo;
+  const rows = allPayrollRows.filter((r) => matchesRange(r.pay_date));
 
-  // Defend against duplicate unpaid rows for the same employee/day/source
-  // that predate (or slipped past) reconcileDaily's own insert guard — the
-  // group's real work logs/attendance can only ever resolve to ONE row
-  // (whichever a plain .find() by employee+date+source hits), so paying
-  // every row in the group would pay N-1 of them with a fabricated total of
-  // 0 (exactly the "spawns duplicate Rp0 rows" bug). Within a group, keep
-  // the row with the HIGHEST total_salary, not the lowest id — reconcileDaily
-  // always inserts the phantom BEFORE the real work is reconciled onto a
-  // fresh row (or vice versa depending on timing), so id order carries no
-  // reliable meaning here; total_salary does, since only the row still
-  // tracking real unassigned work can have a non-zero one. Ties (including
-  // both being genuinely 0) keep the first and delete the rest — there is no
-  // way to distinguish further, but neither loses real money either way.
-  const groups = new Map();
-  for (const row of unpaidRows) {
-    const key = `${row.employee_id}|${row.pay_date}|${row.pay_source}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
-  }
+  // A day CAN legitimately carry more than one row for the same
+  // employee/source — e.g. one batch of work gets paid, then more work is
+  // logged for that same date afterward and reconciles onto a fresh row of
+  // its own (findDayRow only ever matches an UNPAID row, by design — see
+  // reconcileDaily). What's never legitimate is an unpaid row with ZERO
+  // real unassigned work/attendance behind it: that can only be a phantom
+  // left over from a race (two reconcile calls both deciding "no row yet"
+  // and both inserting). Check the real source data directly instead of
+  // inferring "duplicate = phantom" from row shape alone — that inference
+  // is what deleted real income the first time this was attempted.
   const rowsToDelete = [];
-  const dedupedUnpaidRows = [];
-  for (const group of groups.values()) {
-    if (group.length === 1) {
-      dedupedUnpaidRows.push(group[0]);
-      continue;
+  let unpaidRows = [];
+  for (const row of rows) {
+    if (row.payment_status !== 'unpaid') continue;
+    const hasRealWork =
+      row.pay_source === 'attendance'
+        ? attendance.some((a) => String(a.employee_id) === String(row.employee_id) && !a.payroll_id && a.check_out && a.date === row.pay_date)
+        : workLogs.some((l) => String(l.employee_id) === String(row.employee_id) && !l.payroll_id && l.work_date === row.pay_date);
+    if (hasRealWork) {
+      unpaidRows.push(row);
+    } else {
+      rowsToDelete.push(row);
     }
-    group.sort((a, b) => Number(b.total_salary) - Number(a.total_salary));
-    dedupedUnpaidRows.push(group[0]);
-    rowsToDelete.push(...group.slice(1));
   }
   for (const dupe of rowsToDelete) {
     await PayrollRepo.deleteById(dupe.id);
   }
-  unpaidRows = dedupedUnpaidRows;
+  if (unpaidRows.length === 0) return [];
 
-  const [employees, workLogs, attendance, cashAdvances, payrollRows] = await Promise.all([
+  const [employees, cashAdvances, payrollRows] = await Promise.all([
     EmployeesRepo.getAll(),
-    WorkLogsRepo.getAll({ fresh: true }),
-    AttendanceRepo.getAll({ fresh: true }),
     CashAdvancesRepo.getAll({ fresh: true }),
     PayrollRepo.getAll({ fresh: true }),
   ]);
@@ -539,6 +552,15 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
   // _rowNumber — batchUpdateRows needs the raw row to address the sheet, so
   // re-map each unpaid row back to its raw counterpart before writing.
   const rawPayrollMap = new Map(payrollRows.map((p) => [String(p.id), p]));
+
+  // Cleanup above deliberately ran unscoped; actual payment stays scoped to
+  // this call's employeeId/divisi, same as before.
+  unpaidRows = unpaidRows.filter((row) => {
+    if (employeeId && String(row.employee_id) !== String(employeeId)) return false;
+    if (divisi && employeeMap.get(String(row.employee_id))?.divisi !== divisi) return false;
+    return true;
+  });
+  if (unpaidRows.length === 0) return [];
 
   const paidAt = new Date().toISOString();
   const entries = [];

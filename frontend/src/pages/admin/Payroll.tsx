@@ -254,6 +254,16 @@ export default function Payroll() {
     )
   }, [isRangeMode, rangeData])
 
+  // React state updates from `useMutation`'s `isPending` aren't visible
+  // synchronously to a second click fired in the same event-loop turn as the
+  // first (e.g. a fast double-click, or two pointer events coalesced by the
+  // browser) — the render carrying `isPending: true` hasn't committed yet, so
+  // `disabled` and an `isPending` check in `onClick` can both still read
+  // `false` for that second click. A plain ref flips synchronously and closes
+  // that gap regardless of render timing.
+  const payInFlightRef = React.useRef(false)
+  const payRangeInFlightRef = React.useRef(false)
+
   const payMutation = useMutation({
     mutationFn: (vars: { id: string; kasbonDeduction?: number }) =>
       payrollApi.markPayrollPaid(vars.id, vars.kasbonDeduction),
@@ -270,6 +280,9 @@ export default function Payroll() {
       queryClient.invalidateQueries({ queryKey: isRangeMode ? ['payroll-range'] : ['payroll'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
+    onSettled: () => {
+      payInFlightRef.current = false
+    },
   })
 
   const payRangeMutation = useMutation({
@@ -279,6 +292,9 @@ export default function Payroll() {
       queryClient.invalidateQueries({ queryKey: ['payroll-range'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
+    onSettled: () => {
+      payRangeInFlightRef.current = false
+    },
   })
 
   async function handleGenerateSlip(row: PayrollRow, type: 'print' | 'excel' | 'pdf') {
@@ -483,7 +499,8 @@ export default function Payroll() {
                     <AlertDialogAction
                       disabled={payRangeMutation.isPending}
                       onClick={() => {
-                        if (payRangeMutation.isPending) return
+                        if (payRangeInFlightRef.current) return
+                        payRangeInFlightRef.current = true
                         payRangeMutation.mutate()
                       }}
                     >
@@ -621,7 +638,8 @@ export default function Payroll() {
             <AlertDialogAction
               disabled={payMutation.isPending}
               onClick={() => {
-                if (!payingRow || payMutation.isPending) return
+                if (!payingRow || payInFlightRef.current) return
+                payInFlightRef.current = true
                 const hasKasbon = payingRow.kasbon_deduction > 0
                 const kasbonDeduction = hasKasbon ? Number(kasbonInput || 0) : undefined
                 payMutation.mutate({ id: payingRow.id, kasbonDeduction })
