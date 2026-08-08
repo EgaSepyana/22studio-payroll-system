@@ -61,6 +61,17 @@ function allocateKasbonDeduction(approvedUnpaidKasbon, deductionAmount) {
   return allocations;
 }
 
+// A kasbon deduction must never exceed what's actually being paid out that
+// day — otherwise net_salary goes negative, which reads as the company
+// owing the employee money back through a payroll line, and there is no
+// such flow in this app. Cap it at earnings; whatever doesn't fit stays on
+// the kasbon's outstanding balance (paid_amount is only ever incremented by
+// however much was actually applied, per allocateKasbonDeduction) and rolls
+// forward to the next payroll — never gets waived.
+function capKasbonDeduction(kasbonDeduction, earnings) {
+  return Math.min(kasbonDeduction, Math.max(0, Number(earnings)));
+}
+
 function kasbonAllocationPatch(kasbon, applied, payrollId, paidAt) {
   const newPaidAmount = Number(kasbon.paid_amount || 0) + applied;
   const fullyPaid = newPaidAmount >= Number(kasbon.amount);
@@ -144,12 +155,25 @@ async function reconcileDaily(employee, payrollRows, cashAdvances, sourceRows, m
     const total = totalForRows(rows);
     if (total <= 0) continue;
 
-    const kasbonDeduction = date === earliestOpenDay ? computeApprovedUnpaidKasbon(cashAdvances, employee.id) : 0;
+    const kasbonDeduction = date === earliestOpenDay ? capKasbonDeduction(computeApprovedUnpaidKasbon(cashAdvances, employee.id), total) : 0;
     const netSalary = total - kasbonDeduction;
 
+    // Match only the UNPAID row for this day — a day can legitimately have
+    // both a paid row (settled earlier) and a separate unpaid one (more
+    // work logged for that same date afterward, still pending). Matching
+    // without the status filter means .find() could resolve to whichever
+    // row happens to come first in the array; if that's the paid one, the
+    // real unpaid row for this date is silently skipped (never updated,
+    // never surfaced) while the paid row gets pushed into `results` a
+    // second time (it was already added by existingPaidDaily above).
     const findDayRow = (rows) =>
       rows.find(
-        (p) => String(p.employee_id) === String(employee.id) && isThisSource(p) && isDailyRow(p) && p.pay_date === date
+        (p) =>
+          String(p.employee_id) === String(employee.id) &&
+          isThisSource(p) &&
+          isDailyRow(p) &&
+          p.pay_date === date &&
+          p.payment_status === 'unpaid'
       );
 
     let dayRow = findDayRow(payrollRows);
@@ -168,13 +192,6 @@ async function reconcileDaily(employee, payrollRows, cashAdvances, sourceRows, m
       // back from the same user action).
       const freshPayrollRows = await PayrollRepo.getAll({ fresh: true });
       dayRow = findDayRow(freshPayrollRows);
-    }
-
-    if (dayRow && dayRow.payment_status === 'paid') {
-      // Already paid for this day — never touch a paid row from a read
-      // path, and never spawn a second row for a day that's settled.
-      results.push({ ...clean(dayRow), employee_name: employee.name });
-      continue;
     }
 
     if (!dayRow) {
@@ -395,10 +412,15 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
     (c) => String(c.employee_id) === String(row.employee_id) && c.status === 'approved'
   );
   const totalOutstanding = approvedUnpaidKasbon.reduce((sum, c) => sum + outstandingAmount(c), 0);
+  // Never let a kasbon deduction exceed what's actually being paid out —
+  // same rule as the preview in reconcileDaily, enforced again here since
+  // an admin can override the previewed amount, and the day's real earnings
+  // (finalTotal) may have shifted since that preview was generated.
+  const maxDeduction = capKasbonDeduction(totalOutstanding, finalTotal);
 
-  const kasbonDeduction = kasbonDeductionInput === undefined ? totalOutstanding : Number(kasbonDeductionInput);
-  if (!(kasbonDeduction >= 0) || kasbonDeduction > totalOutstanding) {
-    throw new ApiError(400, `Nominal potongan kasbon tidak valid (maksimal ${totalOutstanding})`);
+  const kasbonDeduction = kasbonDeductionInput === undefined ? maxDeduction : Number(kasbonDeductionInput);
+  if (!(kasbonDeduction >= 0) || kasbonDeduction > maxDeduction) {
+    throw new ApiError(400, `Nominal potongan kasbon tidak valid (maksimal ${maxDeduction})`);
   }
 
   const netSalary = finalTotal - kasbonDeduction;
@@ -521,6 +543,12 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
   const paidAt = new Date().toISOString();
   const entries = [];
   const kasbonAlreadyQueued = new Set();
+  const kasbonRemainingByEmployee = new Map();
+
+  // Process each employee's days oldest-first so a kasbon remainder that one
+  // day's earnings couldn't fully cover rolls forward onto their next day,
+  // not backward onto an earlier one that's already been decided.
+  unpaidRows = [...unpaidRows].sort((a, b) => (a.pay_date < b.pay_date ? -1 : 1));
 
   for (const row of unpaidRows) {
     const usesAttendance = row.pay_source === 'attendance';
@@ -548,13 +576,18 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
       );
     }
 
-    // The fresh reconcile above already decided which single day (per
-    // employee) carries the kasbon deduction — trust it rather than
-    // re-deciding "earliest open day" again here. Bulk range payment always
-    // pays off the full outstanding balance (no per-row partial override
-    // like markAsPaid) — every allocation below will fully cover its kasbon.
+    // reconcileDaily only ever flags the single earliest open day as the
+    // one carrying a kasbon preview — but capping that day's deduction at
+    // its own earnings (see capKasbonDeduction) can leave a remainder that
+    // day alone can't absorb. Rather than strand that remainder until a
+    // whole separate payroll run, let it roll forward into the NEXT day
+    // this same batch pays for that employee: track running outstanding
+    // kasbon per employee (kasbonRemainingByEmployee) instead of a
+    // one-shot per-employee flag, and keep offering it to each subsequent
+    // day (in date order) until it's fully absorbed or the batch ends.
     let kasbonDeduction = 0;
-    if (Number(row.kasbon_deduction) > 0) {
+    const hasPendingKasbon = Number(row.kasbon_deduction) > 0 || kasbonRemainingByEmployee.has(String(row.employee_id));
+    if (hasPendingKasbon) {
       const approvedUnpaidKasbon = cashAdvances.filter(
         (c) =>
           String(c.employee_id) === String(row.employee_id) &&
@@ -562,14 +595,21 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
           !kasbonAlreadyQueued.has(String(c.id))
       );
       const totalOutstanding = approvedUnpaidKasbon.reduce((sum, c) => sum + outstandingAmount(c), 0);
-      kasbonDeduction = totalOutstanding;
-      for (const { kasbon, applied } of allocateKasbonDeduction(approvedUnpaidKasbon, totalOutstanding)) {
-        kasbonAlreadyQueued.add(String(kasbon.id));
-        entries.push({
-          repo: CashAdvancesRepo,
-          existingRow: kasbon,
-          patch: kasbonAllocationPatch(kasbon, applied, row.id, paidAt),
-        });
+      kasbonDeduction = capKasbonDeduction(totalOutstanding, finalTotal);
+      let stillOutstanding = totalOutstanding;
+      for (const { kasbon, applied } of allocateKasbonDeduction(approvedUnpaidKasbon, kasbonDeduction)) {
+        stillOutstanding -= applied;
+        const patch = kasbonAllocationPatch(kasbon, applied, row.id, paidAt);
+        // Only remove a kasbon from further consideration in this batch once
+        // it's actually fully paid off — a partial application must stay
+        // available for the next day to keep chipping away at.
+        if (patch.status === 'paid') kasbonAlreadyQueued.add(String(kasbon.id));
+        entries.push({ repo: CashAdvancesRepo, existingRow: kasbon, patch });
+      }
+      if (stillOutstanding > 0) {
+        kasbonRemainingByEmployee.set(String(row.employee_id), stillOutstanding);
+      } else {
+        kasbonRemainingByEmployee.delete(String(row.employee_id));
       }
     }
 
