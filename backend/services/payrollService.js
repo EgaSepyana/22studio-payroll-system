@@ -147,9 +147,35 @@ async function reconcileDaily(employee, payrollRows, cashAdvances, sourceRows, m
     const kasbonDeduction = date === earliestOpenDay ? computeApprovedUnpaidKasbon(cashAdvances, employee.id) : 0;
     const netSalary = total - kasbonDeduction;
 
-    let dayRow = payrollRows.find(
-      (p) => String(p.employee_id) === String(employee.id) && isThisSource(p) && isDailyRow(p) && p.pay_date === date && p.payment_status === 'unpaid'
-    );
+    const findDayRow = (rows) =>
+      rows.find(
+        (p) => String(p.employee_id) === String(employee.id) && isThisSource(p) && isDailyRow(p) && p.pay_date === date
+      );
+
+    let dayRow = findDayRow(payrollRows);
+
+    if (!dayRow) {
+      // The `payrollRows` snapshot passed into this function can be
+      // several requests old by the time execution reaches here (this
+      // runs once per employee/day, in a loop, and is itself invoked from
+      // a GET that has no exclusive lock on the sheet) — two concurrent
+      // reconcile calls can both see "no row yet" from their own snapshot
+      // and both insert, spawning a duplicate. A fresh re-check right
+      // before the insert can't fully eliminate the race (Sheets has no
+      // atomic compare-and-insert), but it closes the window down from
+      // "however long the whole request took" to one more read, which is
+      // enough for the realistic trigger here (two requests fired back to
+      // back from the same user action).
+      const freshPayrollRows = await PayrollRepo.getAll({ fresh: true });
+      dayRow = findDayRow(freshPayrollRows);
+    }
+
+    if (dayRow && dayRow.payment_status === 'paid') {
+      // Already paid for this day — never touch a paid row from a read
+      // path, and never spawn a second row for a day that's settled.
+      results.push({ ...clean(dayRow), employee_name: employee.name });
+      continue;
+    }
 
     if (!dayRow) {
       const d = new Date(date);
@@ -298,7 +324,7 @@ export async function getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId,
 // and outstanding for a future payroll to pick up (see
 // allocateKasbonDeduction). Must be between 0 and the total outstanding.
 export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
-  const row = await PayrollRepo.getById(payrollId);
+  const row = await PayrollRepo.getById(payrollId, { fresh: true });
   if (!row) throw new ApiError(404, 'Data payroll tidak ditemukan');
   if (row.payment_status === 'paid') throw new ApiError(400, 'Payroll sudah dibayar');
 
@@ -367,6 +393,20 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
   const paidAt = new Date().toISOString();
   const kasbonAllocations = allocateKasbonDeduction(approvedUnpaidKasbon, kasbonDeduction);
 
+  // Re-verify right before writing, not just at the top of this function —
+  // everything above this line is async (multiple fresh Sheets reads), which
+  // is exactly the window a concurrent duplicate call (a double-click with
+  // no disabled state on the confirm button, or two requests racing across
+  // separate serverless invocations) can slip through. Without this check, a
+  // second call still in flight when the first one's write lands would go on
+  // to recompute `finalTotal` against work logs the first call already
+  // claimed — finding none left, landing on 0 — and then unconditionally
+  // overwrite the payroll row's already-correct total_salary with that 0.
+  const currentRow = await PayrollRepo.getById(payrollId, { fresh: true });
+  if (!currentRow || currentRow.payment_status === 'paid') {
+    throw new ApiError(400, 'Payroll sudah dibayar');
+  }
+
   // Every row this action touches — the work logs, the kasbon, and the
   // payroll row itself — gets written in a single Sheets API call instead of
   // one call per row (previously 2 calls *per row* since updateById forced a
@@ -389,7 +429,7 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
     })),
     {
       repo: PayrollRepo,
-      existingRow: row,
+      existingRow: currentRow,
       patch: {
         payment_status: 'paid',
         paid_at: paidAt,

@@ -132,8 +132,8 @@ export class SheetRepository {
     }
   }
 
-  async getById(id) {
-    const all = await this.getAll();
+  async getById(id, { fresh = false } = {}) {
+    const all = await this.getAll({ fresh });
     return all.find((r) => String(r.id) === String(id)) || null;
   }
 

@@ -260,8 +260,14 @@ export default function Payroll() {
     onSuccess: () => {
       toast.success('Payroll ditandai sudah dibayar')
       setPayingRow(null)
-      queryClient.invalidateQueries({ queryKey: ['payroll'] })
-      queryClient.invalidateQueries({ queryKey: ['payroll-range'] })
+      // Only the query key backing the currently visible table needs to
+      // refetch — invalidating both regardless of which view is active
+      // fires two concurrent reconcile requests for every single pay
+      // action (one of them for a table the user isn't even looking at),
+      // which is exactly the kind of overlapping request that can race
+      // the backend's read-then-insert payroll upsert into creating a
+      // duplicate row.
+      queryClient.invalidateQueries({ queryKey: isRangeMode ? ['payroll-range'] : ['payroll'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
@@ -606,8 +612,9 @@ export default function Payroll() {
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction
+              disabled={payMutation.isPending}
               onClick={() => {
-                if (!payingRow) return
+                if (!payingRow || payMutation.isPending) return
                 const hasKasbon = payingRow.kasbon_deduction > 0
                 const kasbonDeduction = hasKasbon ? Number(kasbonInput || 0) : undefined
                 payMutation.mutate({ id: payingRow.id, kasbonDeduction })
