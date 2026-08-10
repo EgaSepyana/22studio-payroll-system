@@ -153,8 +153,11 @@ export async function getTaskDetail(taskId) {
 
 export async function updateTask(taskId, { divisi, description, target_qty }) {
   let orderId;
+  let becameCompleted = false;
+  let taskDivisi;
   const updated = await TasksRepo.updateById(taskId, (task) => {
     orderId = task.order_id;
+    taskDivisi = divisi !== undefined ? divisi : task.divisi;
     const patch = {};
     if (divisi !== undefined) patch.divisi = divisi;
     if (description !== undefined) patch.description = description;
@@ -168,13 +171,20 @@ export async function updateTask(taskId, { divisi, description, target_qty }) {
       // Editing the target can move a task in or out of "completed" (e.g.
       // raising the target on an already-completed task un-completes it),
       // so status is always re-derived alongside target_qty, not left stale.
-      patch.status = taskStatusFromQty(completedQty, nextTarget);
+      const nextStatus = taskStatusFromQty(completedQty, nextTarget);
+      becameCompleted = task.status !== 'completed' && nextStatus === 'completed';
+      patch.status = nextStatus;
     }
     return patch;
   });
   if (!updated) throw new ApiError(404, 'Task tidak ditemukan');
 
   await recalculateOrderStatus(orderId);
+  // A target_qty edit can complete a task exactly like a work log can (e.g.
+  // lowering the target down to the already-completed quantity) — the order
+  // timeline must reflect that transition the same way, or the substage
+  // silently never shows as done even though the task itself is complete.
+  if (becameCompleted) await noteSubStageCompletion(orderId, taskDivisi);
 
   const [ctx, fresh] = await Promise.all([fetchEnrichmentContext(), TasksRepo.getById(taskId)]);
   return enrichTaskWithOrder(fresh, ctx);
