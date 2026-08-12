@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -36,7 +38,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
   Select,
@@ -292,6 +293,7 @@ export default function Customers() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Customer | undefined>(undefined)
+  const [deletingCustomer, setDeletingCustomer] = React.useState<Customer | null>(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
   const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
@@ -312,10 +314,30 @@ export default function Customers() {
     mutationFn: customerApi.deleteCustomer,
     onSuccess: () => {
       toast.success('Customer dihapus')
+      setDeletingCustomer(null)
       queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((customer) => ({
+        customer,
+        actions: [
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditing(customer)
+              setDialogOpen(true)
+            },
+          },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingCustomer(customer) },
+        ] satisfies RowAction[],
+      })),
+    [data]
+  )
 
   return (
     <div>
@@ -344,83 +366,100 @@ export default function Customers() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Customer</TableHead>
-                  <TableHead>PIC</TableHead>
-                  <TableHead>No HP</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Artikel</TableHead>
-                  <TableHead>Terakhir Order</TableHead>
-                  <TableHead>Order Terakhir</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground text-center">
-                      Belum ada data customer.
-                    </TableCell>
+                    <TableHead>Nama Customer</TableHead>
+                    <TableHead>PIC</TableHead>
+                    <TableHead>No HP</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Artikel</TableHead>
+                    <TableHead>Terakhir Order</TableHead>
+                    <TableHead>Order Terakhir</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
-                    <TableCell>{customer.pic || '-'}</TableCell>
-                    <TableCell>{customer.no_hp || '-'}</TableCell>
-                    <TableCell>{customer.category || '-'}</TableCell>
-                    <TableCell className="max-w-48 truncate">
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-muted-foreground text-center">
+                        Belum ada data customer.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ customer, actions }) => (
+                    <TableRow key={customer.id}>
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>{customer.pic || '-'}</TableCell>
+                      <TableCell>{customer.no_hp || '-'}</TableCell>
+                      <TableCell>{customer.category || '-'}</TableCell>
+                      <TableCell className="max-w-48 truncate">
+                        {(articleNamesByCustomer.get(customer.id) || []).join(', ') || '-'}
+                      </TableCell>
+                      <TableCell>{customer.terakhir_order ? formatDate(customer.terakhir_order) : '-'}</TableCell>
+                      <TableCell className="max-w-40 truncate">{customer.order_terakhir || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada data customer.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ customer, actions }) => (
+                  <MobileCard key={customer.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{customer.name}</p>
+                        <p className="text-muted-foreground text-xs">{customer.pic || '-'}</p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="No HP">{customer.no_hp || '-'}</MobileCardRow>
+                    <MobileCardRow label="Category">{customer.category || '-'}</MobileCardRow>
+                    <MobileCardRow label="Artikel">
                       {(articleNamesByCustomer.get(customer.id) || []).join(', ') || '-'}
-                    </TableCell>
-                    <TableCell>{customer.terakhir_order ? formatDate(customer.terakhir_order) : '-'}</TableCell>
-                    <TableCell className="max-w-40 truncate">{customer.order_terakhir || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(customer)
-                          setDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="text-destructive size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Hapus Customer?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Customer "{customer.name}" akan dihapus permanen.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-white hover:bg-destructive/90"
-                              onClick={() => deleteMutation.mutate(customer.id)}
-                            >
-                              Hapus
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                    <MobileCardRow label="Terakhir Order">
+                      {customer.terakhir_order ? formatDate(customer.terakhir_order) : '-'}
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <CustomerFormDialog customer={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      <AlertDialog open={!!deletingCustomer} onOpenChange={(open) => !open && setDeletingCustomer(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Customer "{deletingCustomer?.name}" akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingCustomer && deleteMutation.mutate(deletingCustomer.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

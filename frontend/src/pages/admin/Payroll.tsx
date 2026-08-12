@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
@@ -524,83 +526,155 @@ export default function Payroll() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  {isRangeMode && <TableHead>Tanggal</TableHead>}
-                  <TableHead>Total Pendapatan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={isRangeMode ? 5 : 4} className="text-muted-foreground text-center">
-                      {isRangeMode
-                        ? 'Tidak ada payroll pada rentang tanggal ini.'
-                        : 'Belum ada pekerjaan pada periode ini.'}
-                    </TableCell>
+                    <TableHead>Nama</TableHead>
+                    {isRangeMode && <TableHead>Tanggal</TableHead>}
+                    <TableHead>Total Pendapatan</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {filteredData.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.employee_name}</TableCell>
-                    {isRangeMode && <TableCell>{formatDate(String(row.pay_date))}</TableCell>}
-                    <TableCell>
-                      {formatCurrency(row.total_salary)}
-                      {row.kasbon_deduction > 0 && (
-                        <span className="text-destructive block text-xs">
-                          -{formatCurrency(row.kasbon_deduction)} kasbon
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={row.payment_status === 'paid' ? 'default' : 'secondary'}
-                        className={row.payment_status === 'paid' ? 'bg-success text-success-foreground' : ''}
-                      >
-                        {row.payment_status === 'paid' ? 'Sudah Dibayar' : 'Belum Dibayar'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => setDetailId(row.id)}>
-                        <Eye className="size-4" />
-                      </Button>
-                      {row.payment_status === 'unpaid' && (
-                        <Button variant="ghost" size="icon" onClick={() => openPayDialog(row)}>
-                          <CheckCircle2 className="text-success size-4" />
+                </TableHeader>
+                <TableBody>
+                  {filteredData.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={isRangeMode ? 5 : 4} className="text-muted-foreground text-center">
+                        {isRangeMode
+                          ? 'Tidak ada payroll pada rentang tanggal ini.'
+                          : 'Belum ada pekerjaan pada periode ini.'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filteredData.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.employee_name}</TableCell>
+                      {isRangeMode && <TableCell>{formatDate(String(row.pay_date))}</TableCell>}
+                      <TableCell>
+                        {formatCurrency(row.total_salary)}
+                        {row.kasbon_deduction > 0 && (
+                          <span className="text-destructive block text-xs">
+                            -{formatCurrency(row.kasbon_deduction)} kasbon
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={row.payment_status === 'paid' ? 'default' : 'secondary'}
+                          className={row.payment_status === 'paid' ? 'bg-success text-success-foreground' : ''}
+                        >
+                          {row.payment_status === 'paid' ? 'Sudah Dibayar' : 'Belum Dibayar'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => setDetailId(row.id)}>
+                          <Eye className="size-4" />
                         </Button>
-                      )}
-                      {row.payment_status === 'paid' && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" disabled={rowAction?.id === row.id}>
-                              {rowAction?.id === row.id ? (
-                                <Loader2 className="size-4 animate-spin" />
-                              ) : (
-                                <FileText className="size-4" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'print')}>
-                              <Printer className="size-4" /> Print Slip Gaji
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'pdf')}>
-                              <FileDown className="size-4" /> Download PDF
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'excel')}>
-                              <FileSpreadsheet className="size-4" /> Download Excel
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                        {row.payment_status === 'unpaid' && (
+                          <Button variant="ghost" size="icon" onClick={() => openPayDialog(row)}>
+                            <CheckCircle2 className="text-success size-4" />
+                          </Button>
+                        )}
+                        {row.payment_status === 'paid' && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" disabled={rowAction?.id === row.id}>
+                                {rowAction?.id === row.id ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <FileText className="size-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'print')}>
+                                <Printer className="size-4" /> Print Slip Gaji
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'pdf')}>
+                                <FileDown className="size-4" /> Download PDF
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleGenerateSlip(row, 'excel')}>
+                                <FileSpreadsheet className="size-4" /> Download Excel
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {filteredData.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  {isRangeMode
+                    ? 'Tidak ada payroll pada rentang tanggal ini.'
+                    : 'Belum ada pekerjaan pada periode ini.'}
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {filteredData.map((row) => {
+                  const actions: RowAction[] = [
+                    { label: 'Lihat Detail', icon: Eye, onClick: () => setDetailId(row.id) },
+                    ...(row.payment_status === 'unpaid'
+                      ? [{ label: 'Tandai Sudah Dibayar', icon: CheckCircle2, onClick: () => openPayDialog(row) }]
+                      : [
+                          {
+                            label: 'Print Slip Gaji',
+                            icon: Printer,
+                            loading: rowAction?.id === row.id && rowAction.type === 'print',
+                            disabled: rowAction?.id === row.id && rowAction.type !== 'print',
+                            onClick: () => handleGenerateSlip(row, 'print'),
+                          },
+                          {
+                            label: 'Download PDF',
+                            icon: FileDown,
+                            loading: rowAction?.id === row.id && rowAction.type === 'pdf',
+                            disabled: rowAction?.id === row.id && rowAction.type !== 'pdf',
+                            onClick: () => handleGenerateSlip(row, 'pdf'),
+                          },
+                          {
+                            label: 'Download Excel',
+                            icon: FileSpreadsheet,
+                            loading: rowAction?.id === row.id && rowAction.type === 'excel',
+                            disabled: rowAction?.id === row.id && rowAction.type !== 'excel',
+                            onClick: () => handleGenerateSlip(row, 'excel'),
+                          },
+                        ]),
+                  ]
+                  return (
+                    <MobileCard key={row.id}>
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium">{row.employee_name}</p>
+                          {isRangeMode && (
+                            <p className="text-muted-foreground text-xs">{formatDate(String(row.pay_date))}</p>
+                          )}
+                        </div>
+                        <RowActionsMenu actions={actions} />
+                      </div>
+                      <MobileCardRow label="Total Pendapatan">
+                        <div>
+                          {formatCurrency(row.total_salary)}
+                          {row.kasbon_deduction > 0 && (
+                            <span className="text-destructive block text-xs">
+                              -{formatCurrency(row.kasbon_deduction)} kasbon
+                            </span>
+                          )}
+                        </div>
+                      </MobileCardRow>
+                      <MobileCardRow label="Status">
+                        <Badge variant={row.payment_status === 'paid' ? 'default' : 'secondary'}
+                          className={row.payment_status === 'paid' ? 'bg-success text-success-foreground' : ''}
+                        >
+                          {row.payment_status === 'paid' ? 'Sudah Dibayar' : 'Belum Dibayar'}
+                        </Badge>
+                      </MobileCardRow>
+                    </MobileCard>
+                  )
+                })}
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

@@ -14,6 +14,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import { useFilterStore } from '@/stores/filterStore'
 import {
   Table,
@@ -290,6 +292,39 @@ export default function Orders() {
     return sortDir === 'asc' ? sorted : sorted.reverse()
   }, [data, statusFilter, jenisCategoryFilter, search, sortField, sortDir])
 
+  const rowsWithActions = React.useMemo(
+    () =>
+      sortedData.map((order) => ({
+        order,
+        actions: [
+          { label: 'Lihat Detail', icon: Eye, onClick: () => navigate(`/admin/orders/${order.id}`) },
+          {
+            label: 'Lacak Order',
+            icon: SquareArrowOutUpRight,
+            onClick: () => handleOpenTrackingLink(order),
+            loading: trackingLinkPendingId === order.id,
+          },
+          {
+            label: 'Edit',
+            icon: Pencil,
+            disabled: order.status === 'Done',
+            onClick: () => {
+              setEditingOrder(order)
+              setFormOpen(true)
+            },
+          },
+          {
+            label: 'Hapus',
+            icon: Trash2,
+            variant: 'destructive',
+            disabled: order.task_count > 0,
+            onClick: () => setDeletingOrder(order),
+          },
+        ] satisfies RowAction[],
+      })),
+    [sortedData, trackingLinkPendingId]
+  )
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
     onSuccess: () => {
@@ -424,78 +459,74 @@ export default function Orders() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Order</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Progress Task</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground text-center">
-                      Belum ada order.
-                    </TableCell>
+                    <TableHead>Nama Order</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Progress Task</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {sortedData.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.order_name}</TableCell>
-                    <TableCell>{order.customer_name}</TableCell>
-                    <TableCell className="w-36">
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-muted-foreground text-center">
+                        Belum ada order.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ order, actions }) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">{order.order_name}</TableCell>
+                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell className="w-36">
+                        <div className="flex items-center gap-2">
+                          <ProgressBar value={order.progress} status={order.status} />
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {order.completed_task_count}/{order.task_count}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">Belum ada order.</p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ order, actions }) => (
+                  <MobileCard key={order.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{order.order_name}</p>
+                        <p className="text-muted-foreground text-xs">{order.customer_name}</p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Progress">
                       <div className="flex items-center gap-2">
-                        <ProgressBar value={order.progress} status={order.status} />
-                        <span className="text-muted-foreground shrink-0 text-xs">
+                        <span className="text-muted-foreground text-xs">
                           {order.completed_task_count}/{order.task_count}
                         </span>
+                        <ProgressBar value={order.progress} status={order.status} />
                       </div>
-                    </TableCell>
-                    <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/orders/${order.id}`)}>
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={trackingLinkPendingId === order.id}
-                        onClick={() => handleOpenTrackingLink(order)}
-                        title="Lacak Order"
-                      >
-                        {trackingLinkPendingId === order.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <SquareArrowOutUpRight className="size-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={order.status === 'Done'}
-                        onClick={() => {
-                          setEditingOrder(order)
-                          setFormOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={order.task_count > 0}
-                        onClick={() => setDeletingOrder(order)}
-                      >
-                        <Trash2 className="text-destructive size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                    <MobileCardRow label="Status">
+                      <OrderTaskStatusBadge status={order.status} />
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

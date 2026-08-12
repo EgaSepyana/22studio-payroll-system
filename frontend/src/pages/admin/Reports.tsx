@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Select,
   SelectContent,
@@ -123,41 +124,66 @@ export default function Reports() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Keterangan</TableHead>
-                  <TableHead>Jumlah Pekerjaan</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.rows.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground text-center">
-                      Tidak ada data untuk periode ini.
-                    </TableCell>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead>Jumlah Pekerjaan</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
                   </TableRow>
-                )}
+                </TableHeader>
+                <TableBody>
+                  {data?.rows.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-muted-foreground text-center">
+                        Tidak ada data untuk periode ini.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {data?.rows.map((row) => (
+                    <TableRow key={row.key}>
+                      <TableCell className="font-medium">{row.label}</TableCell>
+                      <TableCell>{row.count}</TableCell>
+                      <TableCell>{row.quantity}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {data && data.rows.length > 0 && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell>Grand Total</TableCell>
+                      <TableCell />
+                      <TableCell>{data.grand_quantity}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(data.grand_total)}</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              {data?.rows.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Tidak ada data untuk periode ini.
+                </p>
+              )}
+              <MobileCardList className="p-4">
                 {data?.rows.map((row) => (
-                  <TableRow key={row.key}>
-                    <TableCell className="font-medium">{row.label}</TableCell>
-                    <TableCell>{row.count}</TableCell>
-                    <TableCell>{row.quantity}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(row.total)}</TableCell>
-                  </TableRow>
+                  <MobileCard key={row.key}>
+                    <p className="mb-2 font-medium">{row.label}</p>
+                    <MobileCardRow label="Jumlah Pekerjaan">{row.count}</MobileCardRow>
+                    <MobileCardRow label="Quantity">{row.quantity}</MobileCardRow>
+                    <MobileCardRow label="Total">{formatCurrency(row.total)}</MobileCardRow>
+                  </MobileCard>
                 ))}
                 {data && data.rows.length > 0 && (
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell>Grand Total</TableCell>
-                    <TableCell />
-                    <TableCell>{data.grand_quantity}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(data.grand_total)}</TableCell>
-                  </TableRow>
+                  <MobileCard className="bg-muted/50">
+                    <p className="mb-2 font-semibold">Grand Total</p>
+                    <MobileCardRow label="Quantity">{data.grand_quantity}</MobileCardRow>
+                    <MobileCardRow label="Total">{formatCurrency(data.grand_total)}</MobileCardRow>
+                  </MobileCard>
                 )}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

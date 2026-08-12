@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -36,7 +38,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
   Select,
@@ -191,7 +192,7 @@ function AttendanceFormDialog({
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="check_in"
@@ -253,6 +254,7 @@ export default function AttendancePage() {
   const [dateTo, setDateTo] = React.useState('')
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Attendance | undefined>(undefined)
+  const [deletingRecord, setDeletingRecord] = React.useState<Attendance | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
   const finishingEmployees = React.useMemo(
@@ -276,10 +278,32 @@ export default function AttendancePage() {
     mutationFn: attendanceApi.deleteAttendance,
     onSuccess: () => {
       toast.success('Absensi dihapus')
+      setDeletingRecord(null)
       queryClient.invalidateQueries({ queryKey: ['attendance'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((row) => ({
+        row,
+        actions: (row.payroll_id
+          ? []
+          : [
+              {
+                label: 'Edit',
+                icon: Pencil,
+                onClick: () => {
+                  setEditing(row)
+                  setDialogOpen(true)
+                },
+              },
+              { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingRecord(row) },
+            ]) satisfies RowAction[],
+      })),
+    [data]
+  )
 
   const hasFilters = employeeId !== ALL || dateFrom || dateTo
 
@@ -346,34 +370,70 @@ export default function AttendancePage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Karyawan</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Check-in</TableHead>
-                  <TableHead>Check-out</TableHead>
-                  <TableHead>Jam Kerja</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground text-center">
-                      Belum ada data absensi.
-                    </TableCell>
+                    <TableHead>Karyawan</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Check-in</TableHead>
+                    <TableHead>Check-out</TableHead>
+                    <TableHead>Jam Kerja</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.employee_name}</TableCell>
-                    <TableCell>{formatDate(row.date)}</TableCell>
-                    <TableCell>{row.check_in ? formatTime(row.check_in) : '-'}</TableCell>
-                    <TableCell>{row.check_out ? formatTime(row.check_out) : '-'}</TableCell>
-                    <TableCell>{row.hours ?? '-'}</TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-muted-foreground text-center">
+                        Belum ada data absensi.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ row, actions }) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.employee_name}</TableCell>
+                      <TableCell>{formatDate(row.date)}</TableCell>
+                      <TableCell>{row.check_in ? formatTime(row.check_in) : '-'}</TableCell>
+                      <TableCell>{row.check_out ? formatTime(row.check_out) : '-'}</TableCell>
+                      <TableCell>{row.hours ?? '-'}</TableCell>
+                      <TableCell>
+                        {row.payroll_id ? (
+                          <Badge variant="secondary">Sudah Dibayar</Badge>
+                        ) : row.check_out ? (
+                          <Badge className="bg-success text-success-foreground">Selesai</Badge>
+                        ) : (
+                          <Badge variant="outline">Berlangsung</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada data absensi.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ row, actions }) => (
+                  <MobileCard key={row.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{row.employee_name}</p>
+                        <p className="text-muted-foreground text-xs">{formatDate(row.date)}</p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Check-in">{row.check_in ? formatTime(row.check_in) : '-'}</MobileCardRow>
+                    <MobileCardRow label="Check-out">{row.check_out ? formatTime(row.check_out) : '-'}</MobileCardRow>
+                    <MobileCardRow label="Jam Kerja">{row.hours ?? '-'}</MobileCardRow>
+                    <MobileCardRow label="Status">
                       {row.payroll_id ? (
                         <Badge variant="secondary">Sudah Dibayar</Badge>
                       ) : row.check_out ? (
@@ -381,57 +441,38 @@ export default function AttendancePage() {
                       ) : (
                         <Badge variant="outline">Berlangsung</Badge>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!row.payroll_id && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditing(row)
-                              setDialogOpen(true)
-                            }}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <Trash2 className="text-destructive size-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Hapus Absensi?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Data absensi {row.employee_name} pada {formatDate(row.date)} akan dihapus
-                                  permanen.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-white hover:bg-destructive/90"
-                                  onClick={() => deleteMutation.mutate(row.id)}
-                                >
-                                  Hapus
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <AttendanceFormDialog record={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      <AlertDialog open={!!deletingRecord} onOpenChange={(open) => !open && setDeletingRecord(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Absensi?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Data absensi {deletingRecord?.employee_name} pada{' '}
+              {deletingRecord ? formatDate(deletingRecord.date) : ''} akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingRecord && deleteMutation.mutate(deletingRecord.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

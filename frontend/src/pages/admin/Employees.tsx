@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -36,7 +38,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
   Select,
@@ -171,7 +172,7 @@ function EmployeeFormDialog({
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="username"
@@ -199,7 +200,7 @@ function EmployeeFormDialog({
                 )}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="status"
@@ -284,6 +285,7 @@ export default function Employees() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Employee | undefined>(undefined)
+  const [deletingEmployee, setDeletingEmployee] = React.useState<Employee | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['employees'],
@@ -294,10 +296,30 @@ export default function Employees() {
     mutationFn: employeeApi.deleteEmployee,
     onSuccess: () => {
       toast.success('Karyawan dihapus')
+      setDeletingEmployee(null)
       queryClient.invalidateQueries({ queryKey: ['employees'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((employee) => ({
+        employee,
+        actions: [
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditing(employee)
+              setDialogOpen(true)
+            },
+          },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingEmployee(employee) },
+        ] satisfies RowAction[],
+      })),
+    [data]
+  )
 
   return (
     <div>
@@ -326,84 +348,102 @@ export default function Employees() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Username</TableHead>
-                  <TableHead>Nomor HP</TableHead>
-                  <TableHead>Divisi</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground text-center">
-                      Belum ada data karyawan.
-                    </TableCell>
+                    <TableHead>Nama</TableHead>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Nomor HP</TableHead>
+                    <TableHead>Divisi</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((employee) => (
-                  <TableRow key={employee.id}>
-                    <TableCell className="font-medium">{employee.name}</TableCell>
-                    <TableCell>{employee.username}</TableCell>
-                    <TableCell>{employee.phone}</TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-muted-foreground text-center">
+                        Belum ada data karyawan.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ employee, actions }) => (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-medium">{employee.name}</TableCell>
+                      <TableCell>{employee.username}</TableCell>
+                      <TableCell>{employee.phone}</TableCell>
+                      <TableCell>
+                        {employee.divisi ? <Badge variant="outline">{employee.divisi}</Badge> : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
+                          {employee.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada data karyawan.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ employee, actions }) => (
+                  <MobileCard key={employee.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{employee.name}</p>
+                        <p className="text-muted-foreground text-xs">{employee.username}</p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Nomor HP">{employee.phone}</MobileCardRow>
+                    <MobileCardRow label="Divisi">
                       {employee.divisi ? <Badge variant="outline">{employee.divisi}</Badge> : '-'}
-                    </TableCell>
-                    <TableCell>
+                    </MobileCardRow>
+                    <MobileCardRow label="Status">
                       <Badge variant={employee.status === 'active' ? 'default' : 'secondary'}>
                         {employee.status === 'active' ? 'Aktif' : 'Nonaktif'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(employee)
-                          setDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="text-destructive size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Hapus Karyawan?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Data karyawan "{employee.name}" beserta akun loginnya akan dihapus
-                              permanen. Tindakan ini tidak dapat dibatalkan.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-white hover:bg-destructive/90"
-                              onClick={() => deleteMutation.mutate(employee.id)}
-                            >
-                              Hapus
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <EmployeeFormDialog employee={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      <AlertDialog open={!!deletingEmployee} onOpenChange={(open) => !open && setDeletingEmployee(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Karyawan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Data karyawan "{deletingEmployee?.name}" beserta akun loginnya akan dihapus permanen. Tindakan ini
+              tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingEmployee && deleteMutation.mutate(deletingEmployee.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

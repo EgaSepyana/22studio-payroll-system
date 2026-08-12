@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -242,6 +244,33 @@ export default function SuratJalanPage() {
     }
   }
 
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((row) => ({
+        row,
+        actions: [
+          { label: 'Lihat', icon: Eye, onClick: () => navigate(`/admin/surat-jalan/${row.id}`) },
+          {
+            label: 'Print',
+            icon: Printer,
+            loading: pdfActionId === row.id,
+            onClick: () => handlePrint(row),
+          },
+          { label: 'Download PDF', icon: FileDown, disabled: pdfActionId === row.id, onClick: () => handleDownload(row) },
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditingItem(row)
+              setFormOpen(true)
+            },
+          },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingItem(row) },
+        ] satisfies RowAction[],
+      })),
+    [data, pdfActionId]
+  )
+
   return (
     <div>
       <PageHeader
@@ -289,73 +318,65 @@ export default function SuratJalanPage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No Dokumen</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Nama Penerima</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground text-center">
-                      Belum ada surat jalan.
-                    </TableCell>
+                    <TableHead>No Dokumen</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Nama Penerima</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((row) => (
-                  <TableRow key={row.id} className="cursor-pointer" onClick={() => navigate(`/admin/surat-jalan/${row.id}`)}>
-                    <TableCell className="font-medium">{row.no_document}</TableCell>
-                    <TableCell>{row.customer_name}</TableCell>
-                    <TableCell>{row.penerima_nama || '-'}</TableCell>
-                    <TableCell>{formatDate(row.created_at)}</TableCell>
-                    <TableCell>{row.item_count}</TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/surat-jalan/${row.id}`)} title="Lihat">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={pdfActionId === row.id}
-                        onClick={() => handlePrint(row)}
-                        title="Print"
-                      >
-                        {pdfActionId === row.id ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={pdfActionId === row.id}
-                        onClick={() => handleDownload(row)}
-                        title="Download PDF"
-                      >
-                        <FileDown className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingItem(row)
-                          setFormOpen(true)
-                        }}
-                        title="Edit"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeletingItem(row)} title="Hapus">
-                        <Trash2 className="text-destructive size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-muted-foreground text-center">
+                        Belum ada surat jalan.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ row, actions }) => (
+                    <TableRow key={row.id} className="cursor-pointer" onClick={() => navigate(`/admin/surat-jalan/${row.id}`)}>
+                      <TableCell className="font-medium">{row.no_document}</TableCell>
+                      <TableCell>{row.customer_name}</TableCell>
+                      <TableCell>{row.penerima_nama || '-'}</TableCell>
+                      <TableCell>{formatDate(row.created_at)}</TableCell>
+                      <TableCell>{row.item_count}</TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada surat jalan.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ row, actions }) => (
+                  <MobileCard key={row.id} onClick={() => navigate(`/admin/surat-jalan/${row.id}`)}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{row.no_document}</p>
+                        <p className="text-muted-foreground text-xs">{row.customer_name}</p>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <RowActionsMenu actions={actions} />
+                      </div>
+                    </div>
+                    <MobileCardRow label="Nama Penerima">{row.penerima_nama || '-'}</MobileCardRow>
+                    <MobileCardRow label="Tanggal">{formatDate(row.created_at)}</MobileCardRow>
+                    <MobileCardRow label="Item">{row.item_count}</MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -36,7 +38,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
   Select,
@@ -174,7 +175,7 @@ function ArticleFormDialog({
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="price"
@@ -257,6 +258,7 @@ export default function Articles() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Article | undefined>(undefined)
+  const [deletingArticle, setDeletingArticle] = React.useState<Article | null>(null)
   const { divisiFilter, search } = useFilterStore((state) => state.articles)
   const setArticlesFilter = useFilterStore((state) => state.setArticles)
 
@@ -280,10 +282,30 @@ export default function Articles() {
     mutationFn: articleApi.deleteArticle,
     onSuccess: () => {
       toast.success('Artikel dihapus')
+      setDeletingArticle(null)
       queryClient.invalidateQueries({ queryKey: ['articles'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      filteredData.map((article) => ({
+        article,
+        actions: [
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditing(article)
+              setDialogOpen(true)
+            },
+          },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingArticle(article) },
+        ] satisfies RowAction[],
+      })),
+    [filteredData]
+  )
 
   return (
     <div>
@@ -345,85 +367,106 @@ export default function Articles() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Nama Artikel</TableHead>
-                  <TableHead>Kategori</TableHead>
-                  <TableHead>Divisi</TableHead>
-                  <TableHead>Harga</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground text-center">
-                      Belum ada data artikel.
-                    </TableCell>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Nama Artikel</TableHead>
+                    <TableHead>Kategori</TableHead>
+                    <TableHead>Divisi</TableHead>
+                    <TableHead>Harga</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {filteredData.map((article) => (
-                  <TableRow key={article.id}>
-                    <TableCell>{article.customer_names.filter(Boolean).join(', ') || '-'}</TableCell>
-                    <TableCell className="font-medium">{article.article_name}</TableCell>
-                    <TableCell>{article.category_name || '-'}</TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-muted-foreground text-center">
+                        Belum ada data artikel.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ article, actions }) => (
+                    <TableRow key={article.id}>
+                      <TableCell>{article.customer_names.filter(Boolean).join(', ') || '-'}</TableCell>
+                      <TableCell className="font-medium">{article.article_name}</TableCell>
+                      <TableCell>{article.category_name || '-'}</TableCell>
+                      <TableCell>
+                        {article.divisi ? <Badge variant="outline">{article.divisi}</Badge> : '-'}
+                      </TableCell>
+                      <TableCell>{formatCurrency(article.price)}</TableCell>
+                      <TableCell>
+                        <Badge variant={article.status === 'active' ? 'default' : 'secondary'}>
+                          {article.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {filteredData.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada data artikel.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ article, actions }) => (
+                  <MobileCard key={article.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{article.article_name}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {article.customer_names.filter(Boolean).join(', ') || '-'}
+                        </p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Kategori">{article.category_name || '-'}</MobileCardRow>
+                    <MobileCardRow label="Divisi">
                       {article.divisi ? <Badge variant="outline">{article.divisi}</Badge> : '-'}
-                    </TableCell>
-                    <TableCell>{formatCurrency(article.price)}</TableCell>
-                    <TableCell>
+                    </MobileCardRow>
+                    <MobileCardRow label="Harga">{formatCurrency(article.price)}</MobileCardRow>
+                    <MobileCardRow label="Status">
                       <Badge variant={article.status === 'active' ? 'default' : 'secondary'}>
                         {article.status === 'active' ? 'Aktif' : 'Nonaktif'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(article)
-                          setDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="text-destructive size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Hapus Artikel?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Artikel "{article.article_name}" akan dihapus permanen.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-white hover:bg-destructive/90"
-                              onClick={() => deleteMutation.mutate(article.id)}
-                            >
-                              Hapus
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <ArticleFormDialog article={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      <AlertDialog open={!!deletingArticle} onOpenChange={(open) => !open && setDeletingArticle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Artikel?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Artikel "{deletingArticle?.article_name}" akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingArticle && deleteMutation.mutate(deletingArticle.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
