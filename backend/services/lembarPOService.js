@@ -36,6 +36,15 @@ export async function listLembarPO() {
     .map((row) => enrichLembarPO(row, { orders, customers }));
 }
 
+// Just the set of order_ids that have a Lembar PO — powers the employee-
+// facing Tugas page, which shows many task cards at once and needs to know
+// which ones can show a "Lihat PO" button without firing one lookup per
+// card (see lembarPOController.orderIdsWithLembarPO).
+export async function listOrderIdsWithLembarPO() {
+  const rows = await LembarPORepo.getAll();
+  return [...new Set(rows.map((r) => String(r.order_id)))];
+}
+
 async function getRowOrThrow(id) {
   const row = await LembarPORepo.getById(id);
   if (!row) throw new ApiError(404, 'Lembar PO tidak ditemukan');

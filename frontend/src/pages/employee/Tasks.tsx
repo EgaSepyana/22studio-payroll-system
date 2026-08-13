@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { PlusCircle, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
+import { PlusCircle, Loader2, ArrowUp, ArrowDown, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -23,8 +23,10 @@ import {
 } from '@/components/ui/dialog'
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { LembarPOPreviewDialog } from '@/components/LembarPOPreviewDialog'
 import { useAuth } from '@/hooks/useAuth'
 import * as taskApi from '@/services/taskApi'
+import * as lembarPOApi from '@/services/lembarPOApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import type { Task, TaskStatus } from '@/types'
@@ -77,10 +79,12 @@ function DeadlineBadge({ deadline }: { deadline: string }) {
   )
 }
 
-function TaskCard({ task, canUpdateProgress, onUpdateProgress }: {
+function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onViewLembarPO }: {
   task: Task
   canUpdateProgress: boolean
   onUpdateProgress: (task: Task) => void
+  hasLembarPO: boolean
+  onViewLembarPO: (task: Task) => void
 }) {
   return (
     <Card className="shadow-sm">
@@ -105,10 +109,19 @@ function TaskCard({ task, canUpdateProgress, onUpdateProgress }: {
           </div>
           <ProgressBar value={task.progress} status={task.status} />
         </div>
-        {canUpdateProgress && task.status !== 'completed' && (
-          <Button size="sm" variant="outline" onClick={() => onUpdateProgress(task)}>
-            <PlusCircle className="size-4" /> Update Progress
-          </Button>
+        {(hasLembarPO || (canUpdateProgress && task.status !== 'completed')) && (
+          <div className="flex flex-wrap gap-2">
+            {hasLembarPO && (
+              <Button size="sm" variant="outline" onClick={() => onViewLembarPO(task)}>
+                <FileText className="size-4" /> Lihat PO
+              </Button>
+            )}
+            {canUpdateProgress && task.status !== 'completed' && (
+              <Button size="sm" variant="outline" onClick={() => onUpdateProgress(task)}>
+                <PlusCircle className="size-4" /> Update Progress
+              </Button>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -183,12 +196,20 @@ export default function Tasks() {
   const { user } = useAuth()
   const isFinishing = user?.divisi === 'Finishing'
   const [progressTask, setProgressTask] = React.useState<Task | null>(null)
+  const [lembarPOTask, setLembarPOTask] = React.useState<Task | null>(null)
   const [sortField, setSortField] = React.useState<SortField>('deadline')
   const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks-available'],
     queryFn: taskApi.listAvailableTasks,
+  })
+
+  // One request for the whole page — which order_ids have a Lembar PO —
+  // instead of one lookup per card, so buttons don't pop in individually.
+  const { data: orderIdsWithLembarPO } = useQuery({
+    queryKey: ['lembar-po-order-ids'],
+    queryFn: lembarPOApi.listOrderIdsWithLembarPO,
   })
 
   const sortedTasks = React.useMemo(() => {
@@ -242,12 +263,19 @@ export default function Tasks() {
               task={task}
               canUpdateProgress={isFinishing}
               onUpdateProgress={setProgressTask}
+              hasLembarPO={!!orderIdsWithLembarPO?.has(task.order_id)}
+              onViewLembarPO={setLembarPOTask}
             />
           ))
         )}
       </div>
 
       <UpdateProgressDialog task={progressTask} onOpenChange={(open) => !open && setProgressTask(null)} />
+      <LembarPOPreviewDialog
+        orderId={lembarPOTask?.order_id ?? null}
+        open={!!lembarPOTask}
+        onOpenChange={(open) => !open && setLembarPOTask(null)}
+      />
     </div>
   )
 }

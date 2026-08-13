@@ -29,6 +29,14 @@ export async function getLembarPOByOrder(orderId: string) {
   return res.data.data
 }
 
+// Set of order_ids that have a Lembar PO — one request to decide button
+// visibility across many task cards at once (Tugas page), instead of one
+// lookup per card.
+export async function listOrderIdsWithLembarPO() {
+  const res = await api.get<ApiResponse<string[]>>('/lembar-po/order-ids')
+  return new Set(res.data.data)
+}
+
 export async function createLembarPO(data: LembarPOInput) {
   const res = await api.post<ApiResponse<LembarPO>>('/lembar-po', data)
   return res.data.data
