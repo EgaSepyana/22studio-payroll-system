@@ -7,9 +7,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 const router = Router();
 router.use(requireAuth);
-router.use(requireRole('admin'));
 
-router.post('/design', upload.single('file'), uploadController.uploadDesign);
-router.post('/cms-image', upload.single('file'), uploadController.uploadCmsImage);
+// Order design uploads are a Produksi action; the CMS image upload is
+// landing-page content management and stays admin-only.
+router.post('/design', requireRole('admin', 'admin_produksi'), upload.single('file'), uploadController.uploadDesign);
+router.post('/cms-image', requireRole('admin'), upload.single('file'), uploadController.uploadCmsImage);
 
 export default router;

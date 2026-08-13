@@ -88,7 +88,8 @@ export async function remove(req, res, next) {
 export async function addProgress(req, res, next) {
   try {
     const { quantity, employee_id } = progressSchema.parse(req.body);
-    const employeeId = req.user.role === 'admin' ? employee_id : req.user.employee_id;
+    const employeeId =
+      req.user.role === 'admin' || req.user.role === 'admin_produksi' ? employee_id : req.user.employee_id;
     if (!employeeId) throw new Error('employee_id is required');
     ok(res, await taskService.addTaskProgress(req.params.id, employeeId, quantity));
   } catch (err) {

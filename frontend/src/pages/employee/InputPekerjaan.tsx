@@ -5,12 +5,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { ProgressBar } from '@/components/ProgressBar'
+import { LembarPOPreviewDialog } from '@/components/LembarPOPreviewDialog'
 import {
   Select,
   SelectContent,
@@ -37,6 +38,7 @@ import {
 import * as workLogApi from '@/services/workLogApi'
 import * as taskApi from '@/services/taskApi'
 import * as articleApi from '@/services/articleApi'
+import * as lembarPOApi from '@/services/lembarPOApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
 
@@ -73,6 +75,17 @@ export default function InputPekerjaan() {
 
   const taskId = form.watch('task_id')
   const selectedTask = activeTasks.find((t) => t.id === taskId)
+  const [lembarPOOpen, setLembarPOOpen] = React.useState(false)
+
+  // Existence-only check so the button can stay hidden when the order has no
+  // Lembar PO yet — shares its cache with the dialog's own query (same key),
+  // so opening the dialog after this resolves is instant, no second fetch.
+  const { data: lembarPO } = useQuery({
+    queryKey: ['lembar-po-by-order', selectedTask?.order_id],
+    queryFn: () => lembarPOApi.getLembarPOByOrder(selectedTask!.order_id),
+    enabled: !!selectedTask?.order_id,
+    retry: false,
+  })
   const availableArticles = React.useMemo(
     () =>
       articles?.filter(
@@ -197,6 +210,17 @@ export default function InputPekerjaan() {
                   <span className="font-medium">{selectedTask.remaining_qty} / {selectedTask.target_qty}</span>
                 </div>
                 <ProgressBar value={selectedTask.progress} status={selectedTask.status} className="mt-1" />
+                {lembarPO && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 self-start"
+                    onClick={() => setLembarPOOpen(true)}
+                  >
+                    <FileText className="size-4" /> Lihat Lembar PO
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
@@ -307,6 +331,12 @@ export default function InputPekerjaan() {
           </Button>
         </form>
       </Form>
+
+      <LembarPOPreviewDialog
+        orderId={selectedTask?.order_id ?? null}
+        open={lembarPOOpen}
+        onOpenChange={setLembarPOOpen}
+      />
     </div>
   )
 }

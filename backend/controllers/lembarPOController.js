@@ -47,6 +47,17 @@ export async function detail(req, res, next) {
   }
 }
 
+// Employee-facing "Lihat Lembar PO": looked up by order_id (from the task
+// they selected), returning the same full order/items/sizes shape the PDF
+// export uses so the frontend can render an equivalent preview.
+export async function detailByOrder(req, res, next) {
+  try {
+    ok(res, await lembarPOService.getLembarPOForOrder(req.params.orderId));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function update(req, res, next) {
   try {
     ok(res, await lembarPOService.updateLembarPO(req.params.id, updateSchema.parse(req.body)));
