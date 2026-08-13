@@ -7,9 +7,10 @@ router.use(requireAuth);
 
 router.post('/', requireRole('admin', 'admin_produksi'), lembarPOController.create);
 router.get('/', requireRole('admin', 'admin_produksi'), lembarPOController.list);
-// Employee read-only lookup by order_id — must come before '/:id' so it
-// doesn't get swallowed by that param route.
+// Employee read-only routes — must come before '/:id' so they don't get
+// swallowed by that param route.
 router.get('/by-order/:orderId', requireRole('admin', 'admin_produksi', 'employee'), lembarPOController.detailByOrder);
+router.get('/order-ids', requireRole('admin', 'admin_produksi', 'employee'), lembarPOController.orderIdsWithLembarPO);
 router.get('/:id', requireRole('admin', 'admin_produksi'), lembarPOController.detail);
 router.get('/:id/pdf', requireRole('admin', 'admin_produksi'), lembarPOController.pdf);
 router.put('/:id', requireRole('admin', 'admin_produksi'), lembarPOController.update);

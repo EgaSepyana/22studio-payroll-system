@@ -58,6 +58,17 @@ export async function detailByOrder(req, res, next) {
   }
 }
 
+// Lightweight existence check for the Tugas page's task cards — returns
+// which order_ids have a Lembar PO so the "Lihat PO" button can show/hide
+// per card from one request instead of one lookup per task.
+export async function orderIdsWithLembarPO(req, res, next) {
+  try {
+    ok(res, await lembarPOService.listOrderIdsWithLembarPO());
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function update(req, res, next) {
   try {
     ok(res, await lembarPOService.updateLembarPO(req.params.id, updateSchema.parse(req.body)));
