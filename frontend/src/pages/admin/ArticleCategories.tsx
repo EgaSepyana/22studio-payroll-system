@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -35,7 +37,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
   DropdownMenu,
@@ -183,6 +184,7 @@ export default function ArticleCategories() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<ArticleCategory | undefined>(undefined)
+  const [deletingCategory, setDeletingCategory] = React.useState<ArticleCategory | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['article-categories'],
@@ -193,10 +195,30 @@ export default function ArticleCategories() {
     mutationFn: articleCategoryApi.deleteArticleCategory,
     onSuccess: () => {
       toast.success('Kategori dihapus')
+      setDeletingCategory(null)
       queryClient.invalidateQueries({ queryKey: ['article-categories'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((category) => ({
+        category,
+        actions: [
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditing(category)
+              setDialogOpen(true)
+            },
+          },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingCategory(category) },
+        ] satisfies RowAction[],
+      })),
+    [data]
+  )
 
   return (
     <div>
@@ -225,73 +247,82 @@ export default function ArticleCategories() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Kategori</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground text-center">
-                      Belum ada data kategori.
-                    </TableCell>
+                    <TableHead>Nama Kategori</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((category) => (
-                  <TableRow key={category.id}>
-                    <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-muted-foreground text-center">
+                        Belum ada data kategori.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ category, actions }) => (
+                    <TableRow key={category.id}>
+                      <TableCell className="font-medium">{category.name}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {category.customer_names.filter(Boolean).join(', ') || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Belum ada data kategori.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ category, actions }) => (
+                  <MobileCard key={category.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <p className="font-medium">{category.name}</p>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Customer">
                       {category.customer_names.filter(Boolean).join(', ') || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditing(category)
-                          setDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="text-destructive size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Hapus Kategori?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Kategori "{category.name}" akan dihapus permanen.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-white hover:bg-destructive/90"
-                              onClick={() => deleteMutation.mutate(category.id)}
-                            >
-                              Hapus
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <CategoryFormDialog category={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+
+      <AlertDialog open={!!deletingCategory} onOpenChange={(open) => !open && setDeletingCategory(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Kategori?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kategori "{deletingCategory?.name}" akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => deletingCategory && deleteMutation.mutate(deletingCategory.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

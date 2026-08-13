@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -170,6 +172,18 @@ export default function SuratJalanDetailPage() {
     }
   }
 
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data?.items || []).map((item) => ({
+        item,
+        actions: [
+          { label: 'Edit', icon: Pencil, onClick: () => setEditingItem(item) },
+          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingItem(item) },
+        ] satisfies RowAction[],
+      })),
+    [data]
+  )
+
   if (isLoading || !data) {
     return (
       <div className="flex flex-col gap-4">
@@ -236,7 +250,7 @@ export default function SuratJalanDetailPage() {
           </div>
 
           <div className="rounded-md border">
-            <Table>
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Item</TableHead>
@@ -252,7 +266,7 @@ export default function SuratJalanDetailPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {data.items.map((item) =>
+                {rowsWithActions.map(({ item, actions }) =>
                   editingItem?.id === item.id ? (
                     <TableRow key={item.id}>
                       <TableCell colSpan={3}>
@@ -269,12 +283,7 @@ export default function SuratJalanDetailPage() {
                       <TableCell>{item.nama_item}</TableCell>
                       <TableCell>{item.qty}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => setEditingItem(item)}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeletingItem(item)}>
-                          <Trash2 className="text-destructive size-4" />
-                        </Button>
+                        <RowActionsMenu actions={actions} />
                       </TableCell>
                     </TableRow>
                   )
@@ -292,6 +301,41 @@ export default function SuratJalanDetailPage() {
                 )}
               </TableBody>
             </Table>
+
+            {data.items.length === 0 && !showAddForm && (
+              <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">Belum ada item.</p>
+            )}
+            <MobileCardList className="p-3">
+              {rowsWithActions.map(({ item, actions }) =>
+                editingItem?.id === item.id ? (
+                  <MobileCard key={item.id}>
+                    <ItemInlineForm
+                      initial={{ nama_item: item.nama_item, qty: String(item.qty) }}
+                      pending={updateMutation.isPending}
+                      onSubmit={(input) => updateMutation.mutate({ itemId: item.id, input })}
+                      onCancel={() => setEditingItem(null)}
+                    />
+                  </MobileCard>
+                ) : (
+                  <MobileCard key={item.id}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{item.nama_item}</p>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Qty">{item.qty}</MobileCardRow>
+                  </MobileCard>
+                )
+              )}
+              {showAddForm && (
+                <MobileCard>
+                  <ItemInlineForm
+                    pending={addMutation.isPending}
+                    onSubmit={(input) => addMutation.mutate(input)}
+                    onCancel={() => setShowAddForm(false)}
+                  />
+                </MobileCard>
+              )}
+            </MobileCardList>
           </div>
         </CardContent>
       </Card>

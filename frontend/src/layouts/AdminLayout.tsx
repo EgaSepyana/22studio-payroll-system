@@ -168,6 +168,8 @@ function UserMenu() {
 }
 
 export default function AdminLayout() {
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false)
+
   return (
     <div className="bg-background flex min-h-dvh">
       <aside className="border-sidebar-border bg-sidebar sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r lg:flex">
@@ -184,19 +186,21 @@ export default function AdminLayout() {
 
       <div className="flex min-h-dvh flex-1 flex-col">
         <header className="bg-background/95 sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-4 backdrop-blur supports-backdrop-filter:bg-background/80 lg:px-8">
-          <Sheet>
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden">
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="w-64 gap-0 p-0">
               <SheetTitle className="sr-only">Menu</SheetTitle>
-              <div className="flex h-16 items-center gap-2 px-5">
+              <div className="flex h-16 shrink-0 items-center gap-2 px-5">
                 <img src="/logo.svg" alt="22Studio" className="size-8 shrink-0 rounded-md object-cover" />
                 <span className="font-heading text-base font-semibold">22Studio Payroll</span>
               </div>
-              <NavList />
+              <div className="flex-1 overflow-y-auto py-2">
+                <NavList onNavigate={() => setMobileNavOpen(false)} />
+              </div>
             </SheetContent>
           </Sheet>
           <div className="flex-1" />

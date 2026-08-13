@@ -1,12 +1,14 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { X, Plus, Loader2, FileSpreadsheet, FileDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { WorkStatusBadge } from '@/components/WorkStatusBadge'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Select,
   SelectContent,
@@ -36,12 +38,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -209,6 +205,27 @@ export default function WorkLogs() {
 
   const totalQty = data?.reduce((s, l) => s + l.quantity, 0) || 0
   const totalAmount = data?.reduce((s, l) => s + l.total, 0) || 0
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (data || []).map((log) => ({
+        log,
+        actions: log.payroll_id
+          ? []
+          : ([
+              {
+                label: 'Edit',
+                icon: Pencil,
+                onClick: () => {
+                  setEditingLog(log)
+                  setIsFormOpen(true)
+                },
+              },
+              { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingLog(log) },
+            ] satisfies RowAction[]),
+      })),
+    [data]
+  )
 
   return (
     <div>
@@ -463,82 +480,101 @@ export default function WorkLogs() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Karyawan</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Artikel</TableHead>
-                  <TableHead>Harga</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Keterangan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={10} className="text-muted-foreground text-center">
-                      Tidak ada data pekerjaan.
-                    </TableCell>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Karyawan</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Artikel</TableHead>
+                    <TableHead>Harga</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {data?.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>{formatDate(log.work_date)}</TableCell>
-                    <TableCell className="font-medium">{log.employee_name}</TableCell>
-                    <TableCell>{log.customer_name}</TableCell>
-                    <TableCell>{log.article_name}</TableCell>
-                    <TableCell>{formatCurrency(log.price)}</TableCell>
-                    <TableCell>{log.quantity}</TableCell>
-                    <TableCell className="font-semibold">{formatCurrency(log.total)}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-40 truncate">
-                      {log.notes || '-'}
-                    </TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-muted-foreground text-center">
+                        Tidak ada data pekerjaan.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ log, actions }) => (
+                    <TableRow key={log.id}>
+                      <TableCell>{formatDate(log.work_date)}</TableCell>
+                      <TableCell className="font-medium">{log.employee_name}</TableCell>
+                      <TableCell>{log.customer_name}</TableCell>
+                      <TableCell>{log.article_name}</TableCell>
+                      <TableCell>{formatCurrency(log.price)}</TableCell>
+                      <TableCell>{log.quantity}</TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(log.total)}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-40 truncate">
+                        {log.notes || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <WorkStatusBadge status={log.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {data && data.length > 0 && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell colSpan={5}>Total</TableCell>
+                      <TableCell>{totalQty}</TableCell>
+                      <TableCell>{formatCurrency(totalAmount)}</TableCell>
+                      <TableCell />
+                      <TableCell />
+                      <TableCell />
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Tidak ada data pekerjaan.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ log, actions }) => (
+                  <MobileCard key={log.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{log.employee_name}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {formatDate(log.work_date)} · {log.customer_name}
+                        </p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Artikel">{log.article_name}</MobileCardRow>
+                    <MobileCardRow label="Harga x Qty">
+                      {formatCurrency(log.price)} × {log.quantity}
+                    </MobileCardRow>
+                    <MobileCardRow label="Total">
+                      <span className="font-semibold">{formatCurrency(log.total)}</span>
+                    </MobileCardRow>
+                    {log.notes && <MobileCardRow label="Keterangan">{log.notes}</MobileCardRow>}
+                    <MobileCardRow label="Status">
                       <WorkStatusBadge status={log.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!log.payroll_id && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingLog(log)
-                                setIsFormOpen(true)
-                              }}
-                            >
-                              <Pencil className="size-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem variant="destructive" onClick={() => setDeletingLog(log)}>
-                              <Trash2 className="size-4" /> Hapus
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
                 {data && data.length > 0 && (
-                  <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell colSpan={5}>Total</TableCell>
-                    <TableCell>{totalQty}</TableCell>
-                    <TableCell>{formatCurrency(totalAmount)}</TableCell>
-                    <TableCell />
-                    <TableCell />
-                    <TableCell />
-                  </TableRow>
+                  <div className="bg-muted/50 flex items-center justify-between rounded-lg border p-3 text-sm font-semibold">
+                    <span>Total ({totalQty} qty)</span>
+                    <span>{formatCurrency(totalAmount)}</span>
+                  </div>
                 )}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

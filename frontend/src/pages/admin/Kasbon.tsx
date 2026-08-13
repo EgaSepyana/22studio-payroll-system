@@ -5,9 +5,10 @@ import { Eye, Check, X as XIcon, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CashAdvanceStatusBadge } from '@/components/CashAdvanceStatusBadge'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Select,
   SelectContent,
@@ -39,14 +40,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useFilterStore } from '@/stores/filterStore'
 import * as cashAdvanceApi from '@/services/cashAdvanceApi'
 import * as employeeApi from '@/services/employeeApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime, CASH_ADVANCE_STATUS_OPTIONS } from '@/utils/format'
-import type { CashAdvanceStatus, Divisi } from '@/types'
+import type { CashAdvance, CashAdvanceStatus, Divisi } from '@/types'
 
 const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
@@ -113,6 +113,8 @@ export default function Kasbon() {
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
   const [detailId, setDetailId] = React.useState<string | null>(null)
+  const [approvingKasbon, setApprovingKasbon] = React.useState<CashAdvance | null>(null)
+  const [rejectingKasbon, setRejectingKasbon] = React.useState<CashAdvance | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
 
@@ -138,6 +140,7 @@ export default function Kasbon() {
     mutationFn: cashAdvanceApi.approveCashAdvance,
     onSuccess: () => {
       toast.success('Kasbon disetujui')
+      setApprovingKasbon(null)
       queryClient.invalidateQueries({ queryKey: ['kasbon'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -147,10 +150,28 @@ export default function Kasbon() {
     mutationFn: cashAdvanceApi.rejectCashAdvance,
     onSuccess: () => {
       toast.success('Kasbon ditolak')
+      setRejectingKasbon(null)
       queryClient.invalidateQueries({ queryKey: ['kasbon'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  const rowsWithActions = React.useMemo(
+    () =>
+      (filtered || []).map((row) => ({
+        row,
+        actions: [
+          { label: 'Detail', icon: Eye, onClick: () => setDetailId(row.id) },
+          ...(row.status === 'pending'
+            ? [
+                { label: 'Approve', icon: Check, onClick: () => setApprovingKasbon(row) },
+                { label: 'Reject', icon: XIcon, variant: 'destructive' as const, onClick: () => setRejectingKasbon(row) },
+              ]
+            : []),
+        ] satisfies RowAction[],
+      })),
+    [filtered]
+  )
 
   return (
     <div>
@@ -220,108 +241,129 @@ export default function Kasbon() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Karyawan</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Nominal</TableHead>
-                  <TableHead>Alasan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground text-center">
-                      Tidak ada pengajuan kasbon.
-                    </TableCell>
+                    <TableHead>Karyawan</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Nominal</TableHead>
+                    <TableHead>Alasan</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {filtered?.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.employee_name}</TableCell>
-                    <TableCell>{formatDate(row.requested_at)}</TableCell>
-                    <TableCell>
+                </TableHeader>
+                <TableBody>
+                  {filtered?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-muted-foreground text-center">
+                        Tidak ada pengajuan kasbon.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ row, actions }) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="font-medium">{row.employee_name}</TableCell>
+                      <TableCell>{formatDate(row.requested_at)}</TableCell>
+                      <TableCell>
+                        {formatCurrency(row.amount)}
+                        {row.status === 'approved' && row.paid_amount > 0 && (
+                          <span className="text-muted-foreground block text-xs">
+                            Sisa {formatCurrency(row.outstanding)}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground max-w-48 truncate">{row.reason || '-'}</TableCell>
+                      <TableCell>
+                        <CashAdvanceStatusBadge status={row.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {filtered?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">
+                  Tidak ada pengajuan kasbon.
+                </p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ row, actions }) => (
+                  <MobileCard key={row.id}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{row.employee_name}</p>
+                        <p className="text-muted-foreground text-xs">{formatDate(row.requested_at)}</p>
+                      </div>
+                      <RowActionsMenu actions={actions} />
+                    </div>
+                    <MobileCardRow label="Nominal">
                       {formatCurrency(row.amount)}
                       {row.status === 'approved' && row.paid_amount > 0 && (
                         <span className="text-muted-foreground block text-xs">
                           Sisa {formatCurrency(row.outstanding)}
                         </span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground max-w-48 truncate">{row.reason || '-'}</TableCell>
-                    <TableCell>
+                    </MobileCardRow>
+                    <MobileCardRow label="Alasan">{row.reason || '-'}</MobileCardRow>
+                    <MobileCardRow label="Status">
                       <CashAdvanceStatusBadge status={row.status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => setDetailId(row.id)}>
-                        <Eye className="size-4" />
-                      </Button>
-                      {row.status === 'pending' && (
-                        <>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <Check className="text-success size-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Approve Kasbon?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Kasbon {row.employee_name} sebesar {formatCurrency(row.amount)} akan disetujui dan
-                                  otomatis menjadi potongan pada payroll berikutnya.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => approveMutation.mutate(row.id)}>
-                                  {approveMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                                  Approve
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <XIcon className="text-destructive size-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Reject Kasbon?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Kasbon {row.employee_name} sebesar {formatCurrency(row.amount)} akan ditolak dan
-                                  tidak akan mempengaruhi payroll.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Batal</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-white hover:bg-destructive/90"
-                                  onClick={() => rejectMutation.mutate(row.id)}
-                                >
-                                  {rejectMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-                                  Reject
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>
 
       <KasbonDetailDialog id={detailId} onOpenChange={(open) => !open && setDetailId(null)} />
+
+      <AlertDialog open={!!approvingKasbon} onOpenChange={(open) => !open && setApprovingKasbon(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Kasbon?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kasbon {approvingKasbon?.employee_name} sebesar{' '}
+              {approvingKasbon ? formatCurrency(approvingKasbon.amount) : ''} akan disetujui dan otomatis menjadi
+              potongan pada payroll berikutnya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => approvingKasbon && approveMutation.mutate(approvingKasbon.id)}>
+              {approveMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!rejectingKasbon} onOpenChange={(open) => !open && setRejectingKasbon(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Kasbon?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kasbon {rejectingKasbon?.employee_name} sebesar{' '}
+              {rejectingKasbon ? formatCurrency(rejectingKasbon.amount) : ''} akan ditolak dan tidak akan
+              mempengaruhi payroll.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => rejectingKasbon && rejectMutation.mutate(rejectingKasbon.id)}
+            >
+              {rejectMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Pencil, Trash2, Loader2, MoreHorizontal, ArrowUp, ArrowDown, Eye } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Loader2, ArrowUp, ArrowDown, Eye } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -40,12 +42,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -446,6 +442,25 @@ export default function TaskDetailPage() {
     return sortDir === 'asc' ? sorted : sorted.reverse()
   }, [data, sortField, sortDir])
 
+  const rowsWithActions = React.useMemo(
+    () =>
+      sortedTasks.map((task) => ({
+        task,
+        actions: [
+          { label: 'Detail Pekerjaan', icon: Eye, onClick: () => setViewingTask(task) },
+          { label: 'Edit', icon: Pencil, onClick: () => setEditingTask(task) },
+          {
+            label: 'Hapus',
+            icon: Trash2,
+            variant: 'destructive',
+            disabled: task.completed_qty > 0,
+            onClick: () => setDeletingTask(task),
+          },
+        ] satisfies RowAction[],
+      })),
+    [sortedTasks]
+  )
+
   const deleteTaskMutation = useMutation({
     mutationFn: (taskId: string) => taskApi.deleteTask(taskId),
     onSuccess: () => {
@@ -534,7 +549,7 @@ export default function TaskDetailPage() {
           )}
 
           <div className="rounded-md border">
-            <Table>
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Divisi</TableHead>
@@ -554,7 +569,7 @@ export default function TaskDetailPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {sortedTasks.map((task) => (
+                {rowsWithActions.map(({ task, actions }) => (
                   <TableRow key={task.id}>
                     <TableCell><Badge variant="outline">{task.divisi}</Badge></TableCell>
                     <TableCell className="max-w-40 truncate">{task.description || '-'}</TableCell>
@@ -565,33 +580,39 @@ export default function TaskDetailPage() {
                     <TableCell className="text-xs">{task.assigned_to_name || '-'}</TableCell>
                     <TableCell><OrderTaskStatusBadge status={task.status} /></TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setViewingTask(task)}>
-                            <Eye className="size-4" /> Detail Pekerjaan
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setEditingTask(task)}>
-                            <Pencil className="size-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            disabled={task.completed_qty > 0}
-                            onClick={() => setDeletingTask(task)}
-                          >
-                            <Trash2 className="size-4" /> Hapus
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <RowActionsMenu actions={actions} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+
+            {data.tasks.length === 0 && (
+              <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">Belum ada task.</p>
+            )}
+            <MobileCardList className="p-3">
+              {rowsWithActions.map(({ task, actions }) => (
+                <MobileCard key={task.id}>
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <Badge variant="outline">{task.divisi}</Badge>
+                      <p className="mt-1 font-medium">{task.description || '-'}</p>
+                    </div>
+                    <RowActionsMenu actions={actions} />
+                  </div>
+                  <MobileCardRow label="Qty">
+                    {task.completed_qty}/{task.target_qty}
+                  </MobileCardRow>
+                  <MobileCardRow label="Progress">
+                    <ProgressBar value={task.progress} status={task.status} className="w-20" />
+                  </MobileCardRow>
+                  <MobileCardRow label="Karyawan">{task.assigned_to_name || '-'}</MobileCardRow>
+                  <MobileCardRow label="Status">
+                    <OrderTaskStatusBadge status={task.status} />
+                  </MobileCardRow>
+                </MobileCard>
+              ))}
+            </MobileCardList>
           </div>
         </CardContent>
       </Card>

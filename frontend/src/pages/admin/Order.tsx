@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
+import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
 import {
   Table,
   TableBody,
@@ -548,6 +550,39 @@ export default function OrderPage() {
     return sortDir === 'asc' ? sorted : sorted.reverse()
   }, [data, statusFilter, jenisCategoryFilter, search, sortField, sortDir])
 
+  const rowsWithActions = React.useMemo(
+    () =>
+      sortedData.map((order) => ({
+        order,
+        actions: [
+          { label: 'Lihat', icon: Eye, onClick: () => navigate(`/admin/order/${order.id}`) },
+          { label: 'Follow Up WA', icon: MessageCircle, onClick: () => setFollowUpOrder(order) },
+          {
+            label: 'Lacak Order',
+            icon: SquareArrowOutUpRight,
+            onClick: () => handleOpenTrackingLink(order),
+            loading: trackingLinkPendingId === order.id,
+          },
+          {
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+              setEditingItem(order)
+              setFormOpen(true)
+            },
+          },
+          {
+            label: 'Hapus',
+            icon: Trash2,
+            variant: 'destructive',
+            disabled: order.task_count > 0,
+            onClick: () => setDeletingItem(order),
+          },
+        ] satisfies RowAction[],
+      })),
+    [sortedData, trackingLinkPendingId]
+  )
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orderApi.deleteOrder(id),
     onSuccess: () => {
@@ -682,86 +717,86 @@ export default function OrderPage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Order</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Jenis Category</TableHead>
-                  <TableHead>Deadline</TableHead>
-                  <TableHead>Total Rincian</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.length === 0 && (
+            <>
+              <Table className="hidden md:table">
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground text-center">
-                      Belum ada order.
-                    </TableCell>
+                    <TableHead>Nama Order</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Jenis Category</TableHead>
+                    <TableHead>Deadline</TableHead>
+                    <TableHead>Total Rincian</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
-                )}
-                {sortedData.map((order) => (
-                  <TableRow key={order.id} className="cursor-pointer" onClick={() => navigate(`/admin/order/${order.id}`)}>
-                    <TableCell className="font-medium">{order.order_name}</TableCell>
-                    <TableCell>{order.customer_name}</TableCell>
-                    <TableCell className="max-w-40 truncate">{order.jenis_category || '-'}</TableCell>
-                    <TableCell>{order.deadline ? formatDate(order.deadline) : '-'}</TableCell>
-                    <TableCell>
-                      {formatCurrency(order.sisa_pembayaran)}
-                      {order.total_dp > 0 && (
-                        <span className="text-muted-foreground block text-xs">
-                          -{formatCurrency(order.total_dp)} DP
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" onClick={() => navigate(`/admin/order/${order.id}`)} title="Lihat">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setFollowUpOrder(order)} title="Follow Up WA">
-                        <MessageCircle className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={trackingLinkPendingId === order.id}
-                        onClick={() => handleOpenTrackingLink(order)}
-                        title="Lacak Order"
-                      >
-                        {trackingLinkPendingId === order.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <SquareArrowOutUpRight className="size-4" />
+                </TableHeader>
+                <TableBody>
+                  {data?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-muted-foreground text-center">
+                        Belum ada order.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rowsWithActions.map(({ order, actions }) => (
+                    <TableRow key={order.id} className="cursor-pointer" onClick={() => navigate(`/admin/order/${order.id}`)}>
+                      <TableCell className="font-medium">{order.order_name}</TableCell>
+                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell className="max-w-40 truncate">{order.jenis_category || '-'}</TableCell>
+                      <TableCell>{order.deadline ? formatDate(order.deadline) : '-'}</TableCell>
+                      <TableCell>
+                        {formatCurrency(order.sisa_pembayaran)}
+                        {order.total_dp > 0 && (
+                          <span className="text-muted-foreground block text-xs">
+                            -{formatCurrency(order.total_dp)} DP
+                          </span>
                         )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingItem(order)
-                          setFormOpen(true)
-                        }}
-                        title="Edit"
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={order.task_count > 0}
-                        onClick={() => setDeletingItem(order)}
-                        title="Hapus"
-                      >
-                        <Trash2 className="text-destructive size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <RowActionsMenu actions={actions} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {data?.length === 0 && (
+                <p className="text-muted-foreground px-4 py-6 text-center text-sm md:hidden">Belum ada order.</p>
+              )}
+              <MobileCardList className="p-4">
+                {rowsWithActions.map(({ order, actions }) => (
+                  <MobileCard key={order.id} onClick={() => navigate(`/admin/order/${order.id}`)}>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{order.order_name}</p>
+                        <p className="text-muted-foreground text-xs">{order.customer_name}</p>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <RowActionsMenu actions={actions} />
+                      </div>
+                    </div>
+                    <MobileCardRow label="Jenis Category">{order.jenis_category || '-'}</MobileCardRow>
+                    <MobileCardRow label="Deadline">
+                      {order.deadline ? formatDate(order.deadline) : '-'}
+                    </MobileCardRow>
+                    <MobileCardRow label="Total Rincian">
+                      <div>
+                        {formatCurrency(order.sisa_pembayaran)}
+                        {order.total_dp > 0 && (
+                          <span className="text-muted-foreground block text-xs">
+                            -{formatCurrency(order.total_dp)} DP
+                          </span>
+                        )}
+                      </div>
+                    </MobileCardRow>
+                    <MobileCardRow label="Status">
+                      <OrderTaskStatusBadge status={order.status} />
+                    </MobileCardRow>
+                  </MobileCard>
                 ))}
-              </TableBody>
-            </Table>
+              </MobileCardList>
+            </>
           )}
         </CardContent>
       </Card>

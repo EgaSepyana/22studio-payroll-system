@@ -54,6 +54,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
+import { RowActionsMenu } from '@/components/RowActionsMenu'
 import { Textarea } from '@/components/ui/textarea'
 import * as orderApi from '@/services/orderApi'
 import { getErrorMessage } from '@/services/api'
@@ -909,12 +910,17 @@ export default function OrderDetailPage() {
                           <TableCell>{item.qty}</TableCell>
                           <TableCell>{formatCurrency(item.total)}</TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" onClick={() => setEditingItem(item)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => setDeletingItem(item)}>
-                              <Trash2 className="text-destructive size-4" />
-                            </Button>
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'Edit', icon: Pencil, onClick: () => setEditingItem(item) },
+                                {
+                                  label: 'Hapus',
+                                  icon: Trash2,
+                                  variant: 'destructive',
+                                  onClick: () => setDeletingItem(item),
+                                },
+                              ]}
+                            />
                           </TableCell>
                         </TableRow>
                       )}
@@ -943,20 +949,21 @@ export default function OrderDetailPage() {
                                     <span className="w-32">{formatCurrency(size.harga)}</span>
                                     <span className="w-24">{size.qty}</span>
                                     <span className="flex-1">{formatCurrency(size.total)}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setEditingSize({ itemId: item.id, size })}
-                                    >
-                                      <Pencil className="size-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setDeletingSize({ itemId: item.id, size })}
-                                    >
-                                      <Trash2 className="text-destructive size-4" />
-                                    </Button>
+                                    <RowActionsMenu
+                                      actions={[
+                                        {
+                                          label: 'Edit',
+                                          icon: Pencil,
+                                          onClick: () => setEditingSize({ itemId: item.id, size }),
+                                        },
+                                        {
+                                          label: 'Hapus',
+                                          icon: Trash2,
+                                          variant: 'destructive',
+                                          onClick: () => setDeletingSize({ itemId: item.id, size }),
+                                        },
+                                      ]}
+                                    />
                                   </div>
                                 )
                               )}
@@ -1031,19 +1038,19 @@ export default function OrderDetailPage() {
                     <TableCell>{formatDate(dp.dp_at)}</TableCell>
                     <TableCell>{formatCurrency(dp.total_dp)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setEditingDP(dp)
-                          setDpDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeletingDP(dp)}>
-                        <Trash2 className="text-destructive size-4" />
-                      </Button>
+                      <RowActionsMenu
+                        actions={[
+                          {
+                            label: 'Edit',
+                            icon: Pencil,
+                            onClick: () => {
+                              setEditingDP(dp)
+                              setDpDialogOpen(true)
+                            },
+                          },
+                          { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingDP(dp) },
+                        ]}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
