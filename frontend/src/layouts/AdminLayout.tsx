@@ -92,9 +92,14 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 ]
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useAuth()
+  // admin_produksi only ever sees the Produksi group — every other group
+  // (Master Data, Penggajian, Report, Pengaturan) is admin-only.
+  const groups = user?.role === 'admin_produksi' ? NAV_GROUPS.filter((g) => g.label === 'Produksi') : NAV_GROUPS
+
   return (
     <nav className="flex flex-col gap-4 px-3">
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
           <p className="text-sidebar-foreground/50 px-3 text-xs font-semibold tracking-wide uppercase">
             {group.label}
@@ -145,7 +150,9 @@ function UserMenu() {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>
             <p className="font-medium">{user?.name}</p>
-            <p className="text-muted-foreground text-xs font-normal">Administrator</p>
+            <p className="text-muted-foreground text-xs font-normal">
+              {user?.role === 'admin_produksi' ? 'Admin Produksi' : 'Administrator'}
+            </p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setChangePasswordOpen(true)}>

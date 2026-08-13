@@ -42,6 +42,17 @@ async function getRowOrThrow(id) {
   return row;
 }
 
+// At most one LembarPO per order (enforced in createLembarPO/updateLembarPO,
+// not at the sheet level) — used by the employee-facing "Lihat Lembar PO"
+// button, which only knows the order_id from the task it selected, not a
+// LembarPO id.
+async function getRowByOrderIdOrThrow(orderId) {
+  const rows = await LembarPORepo.getAll();
+  const row = rows.find((r) => String(r.order_id) === String(orderId));
+  if (!row) throw new ApiError(404, 'Lembar PO untuk order ini belum dibuat');
+  return row;
+}
+
 export async function getLembarPODetail(id) {
   const row = await getRowOrThrow(id);
   const [orders, customers] = await Promise.all([OrdersRepo.getAll(), CustomersRepo.getAll()]);
@@ -111,15 +122,27 @@ export async function deleteLembarPO(id) {
   await LembarPORepo.deleteById(id);
 }
 
-// Assembles everything the PDF template needs: the Lembar PO fields, the
-// order's header info (reusing the same idempotent invoice_no as the Order
-// Invoice print, since both documents reference the same order), and the
-// "Ukuran per Tipe" breakdown — one row per order item, its sizes bucketed
-// into the fixed columns (see ORDER_ITEM_FIXED_SIZES) with anything else
-// summed into CUSTOM, plus a grand-total row.
+// Assembles everything the PDF template (and the employee-facing preview
+// modal) needs: the Lembar PO fields, the order's header info (reusing the
+// same idempotent invoice_no as the Order Invoice print, since both
+// documents reference the same order) with its items/sizes for the
+// "Ukuran per Tipe" breakdown.
+async function assembleForPrint(lembarPO) {
+  const orderInvoice = await orderService.getOrderInvoice(lembarPO.order_id);
+  return { ...lembarPO, order: orderInvoice };
+}
+
 export async function getLembarPOForPrint(id) {
   const lembarPO = await getLembarPODetail(id);
-  const orderInvoice = await orderService.getOrderInvoice(lembarPO.order_id);
+  return assembleForPrint(lembarPO);
+}
 
-  return { ...lembarPO, order: orderInvoice };
+// Same assembled shape as getLembarPOForPrint, looked up by order_id instead
+// of the LembarPO's own id — the employee task-input flow only knows the
+// order_id (from the selected task), not a LembarPO id.
+export async function getLembarPOForOrder(orderId) {
+  const row = await getRowByOrderIdOrThrow(orderId);
+  const [orders, customers] = await Promise.all([OrdersRepo.getAll(), CustomersRepo.getAll()]);
+  const lembarPO = enrichLembarPO(row, { orders, customers });
+  return assembleForPrint(lembarPO);
 }

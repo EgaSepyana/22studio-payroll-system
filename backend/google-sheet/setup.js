@@ -80,6 +80,26 @@ async function seedAdmin() {
   console.log('Seeded admin user -> username: admin / password: admin123');
 }
 
+// Standalone Produksi-scoped admin account, same shape as seedAdmin() —
+// not tied to an Employees row. Grants full CRUD on Order/Task/Surat Jalan/
+// Lembar PO/Kalender Produksi only (see requireRole('admin', 'admin_produksi')
+// across those route files), nothing else.
+async function seedAdminProduksi() {
+  const existingUsers = await UsersRepo.getAll({ fresh: true });
+  if (existingUsers.some((u) => u.username === 'admin_produksi')) {
+    console.log('admin_produksi user already exists, skipping seed.');
+    return;
+  }
+  const passwordHash = await bcrypt.hash('admin123', 10);
+  await UsersRepo.insert({
+    username: 'admin_produksi',
+    password: passwordHash,
+    role: 'admin_produksi',
+    employee_id: '',
+  });
+  console.log('Seeded admin_produksi user -> username: admin_produksi / password: admin123');
+}
+
 async function seedWATemplates() {
   const existing = await WATemplatesRepo.getAll({ fresh: true });
   const existingKeys = new Set(existing.map((t) => t.template_key));
@@ -146,6 +166,7 @@ async function seedCmsContent() {
 async function main() {
   await ensureSheets();
   await seedAdmin();
+  await seedAdminProduksi();
   await seedWATemplates();
   await seedCmsContent();
   console.log('Google Sheets setup complete.');

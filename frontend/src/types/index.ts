@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'employee'
+export type Role = 'admin' | 'employee' | 'admin_produksi'
 export type Status = 'active' | 'inactive'
 export type PaymentStatus = 'unpaid' | 'paid'
 export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
@@ -340,6 +340,12 @@ export interface LembarPO {
   pola_potong: string
   hangtag: boolean
   created_at: string
+}
+
+// Full print/preview shape — same data the PDF export renders, used by both
+// the admin PDF/print flow and the employee-facing "Lihat Lembar PO" modal.
+export interface LembarPODetail extends LembarPO {
+  order: OrderDetail & { invoice_no: string }
 }
 
 export type WATemplateKey =

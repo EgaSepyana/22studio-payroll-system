@@ -42,7 +42,9 @@ export async function login(username, password) {
       username: user.username,
       role: user.role,
       employee_id: user.employee_id || null,
-      name: profile?.name || (user.role === 'admin' ? 'Admin' : user.username),
+      name:
+        profile?.name ||
+        (user.role === 'admin' ? 'Admin' : user.role === 'admin_produksi' ? 'Admin Produksi' : user.username),
       phone: profile?.phone || null,
       divisi: profile?.divisi || null,
     },

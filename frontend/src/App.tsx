@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import { RequireAuth } from '@/components/RequireAuth'
+import { RequireAuth, homeRouteForRole } from '@/components/RequireAuth'
 import AdminLayout from '@/layouts/AdminLayout'
 import EmployeeLayout from '@/layouts/EmployeeLayout'
 import Login from '@/pages/auth/Login'
@@ -40,7 +40,7 @@ import EmployeeSuratJalanDetail from '@/pages/employee/SuratJalanDetail'
 function HomeRedirect() {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  return <Navigate to={user.role === 'admin' ? '/admin' : '/app'} replace />
+  return <Navigate to={homeRouteForRole(user.role)} replace />
 }
 
 export default function App() {
@@ -50,18 +50,9 @@ export default function App() {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/login" element={<Login />} />
 
-        <Route element={<RequireAuth allow="admin" />}>
+        <Route element={<RequireAuth allow={['admin', 'admin_produksi']} />}>
           <Route element={<AdminLayout />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/employees" element={<AdminEmployees />} />
-            <Route path="/admin/customers" element={<AdminCustomers />} />
-            <Route path="/admin/articles" element={<AdminArticles />} />
-            <Route path="/admin/article-categories" element={<AdminArticleCategories />} />
-            <Route path="/admin/worklogs" element={<AdminWorkLogs />} />
-            <Route path="/admin/payroll" element={<AdminPayroll />} />
-            <Route path="/admin/reports" element={<AdminReports />} />
-            <Route path="/admin/kasbon" element={<AdminKasbon />} />
-            <Route path="/admin/attendance" element={<AdminAttendance />} />
+            {/* Produksi routes: both admin and admin_produksi can reach these. */}
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/orders/:id" element={<AdminTaskDetail />} />
             <Route path="/admin/order" element={<AdminOrder />} />
@@ -70,8 +61,24 @@ export default function App() {
             <Route path="/admin/surat-jalan/:id" element={<AdminSuratJalanDetail />} />
             <Route path="/admin/kalender-produksi" element={<AdminKalenderProduksi />} />
             <Route path="/admin/lembar-po" element={<AdminLembarPO />} />
-            <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
-            <Route path="/admin/cms" element={<AdminCmsLandingPage />} />
+
+            {/* Everything else: admin only — admin_produksi lands here via
+                RequireAuth's mismatch redirect if it tries to navigate in
+                directly (e.g. typing /admin/payroll in the address bar). */}
+            <Route element={<RequireAuth allow="admin" />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/employees" element={<AdminEmployees />} />
+              <Route path="/admin/customers" element={<AdminCustomers />} />
+              <Route path="/admin/articles" element={<AdminArticles />} />
+              <Route path="/admin/article-categories" element={<AdminArticleCategories />} />
+              <Route path="/admin/worklogs" element={<AdminWorkLogs />} />
+              <Route path="/admin/payroll" element={<AdminPayroll />} />
+              <Route path="/admin/reports" element={<AdminReports />} />
+              <Route path="/admin/kasbon" element={<AdminKasbon />} />
+              <Route path="/admin/attendance" element={<AdminAttendance />} />
+              <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
+              <Route path="/admin/cms" element={<AdminCmsLandingPage />} />
+            </Route>
           </Route>
         </Route>
 

@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, LembarPO } from '@/types'
+import type { ApiResponse, LembarPO, LembarPODetail } from '@/types'
 
 export interface LembarPOInput {
   order_id: string
@@ -18,6 +18,14 @@ export async function listLembarPO() {
 
 export async function getLembarPODetail(id: string) {
   const res = await api.get<ApiResponse<LembarPO>>(`/lembar-po/${id}`)
+  return res.data.data
+}
+
+// Employee-facing lookup by order_id — throws (404) if the order has no
+// Lembar PO yet; callers decide how to surface that (see useQuery `enabled`
+// pattern in the "Lihat Lembar PO" button).
+export async function getLembarPOByOrder(orderId: string) {
+  const res = await api.get<ApiResponse<LembarPODetail>>(`/lembar-po/by-order/${orderId}`)
   return res.data.data
 }
 
