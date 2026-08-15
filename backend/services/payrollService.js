@@ -20,6 +20,38 @@ function isFinishingEmployee(employee) {
   return employee?.divisi === FINISHING_DIVISION;
 }
 
+const OVERTIME_THRESHOLD_HOURS = 8;
+
+// Finishing division pay: the first 8 hours of a calendar day (summed across
+// every Attendance row for that employee/date — same day-granularity as
+// kasbon deduction and total_salary elsewhere in this file) are paid at
+// hourly_rate; anything beyond that is overtime, paid at
+// upah_lembur_per_jam instead. A missing overtime rate means no employee
+// action has priced it yet — those hours simply don't add pay rather than
+// silently falling back to the normal rate (which would understate real
+// overtime worked, or double-count it if someone later fills the rate in
+// and re-reconciles).
+export function computeAttendancePay(hours, hourlyRate, overtimeRate) {
+  const normalHours = Math.min(hours, OVERTIME_THRESHOLD_HOURS);
+  const overtimeHours = Math.max(0, hours - OVERTIME_THRESHOLD_HOURS);
+  return normalHours * hourlyRate + overtimeHours * Number(overtimeRate || 0);
+}
+
+// Per-row pay breakdown for display (getPayrollDetail's line items) — an
+// employee/day normally has exactly one Attendance row, but a manual
+// correction can leave more than one. The 8h threshold is a whole-day
+// concept, so each row's share of normal-vs-overtime pay depends on the
+// cumulative hours already "used up" by earlier rows that same day, not on
+// that row's hours in isolation — otherwise two 5h rows on the same day
+// would each show as fully "normal" (10h total, no overtime) when the day
+// actually crossed the 8h threshold. Summing every row's returned total
+// always equals computeAttendancePay(day's total hours, ...).
+function computeAttendanceRowPay(hoursBeforeThisRow, rowHours, hourlyRate, overtimeRate) {
+  const payThroughEnd = computeAttendancePay(hoursBeforeThisRow + rowHours, hourlyRate, overtimeRate);
+  const payThroughStart = computeAttendancePay(hoursBeforeThisRow, hourlyRate, overtimeRate);
+  return payThroughEnd - payThroughStart;
+}
+
 // A kasbon can now be paid off across several partial payroll payments —
 // paid_amount tracks how much of it has already been deducted, so
 // "outstanding" (not the original amount) is what's left to collect.
@@ -232,10 +264,12 @@ async function reconcileDaily(employee, payrollRows, cashAdvances, sourceRows, m
 
 async function reconcileAttendanceDaily(employee, payrollRows, cashAdvances, attendance, matchesPeriod) {
   const hourlyRate = Number(employee.hourly_rate || 0);
+  const overtimeRate = Number(employee.upah_lembur_per_jam || 0);
   return reconcileDaily(employee, payrollRows, cashAdvances, attendance.filter((a) => a.check_out), matchesPeriod, {
     paySource: 'attendance',
     dateOf: (a) => a.date,
-    totalForRows: (rows) => rows.reduce((sum, a) => sum + Number(a.hours || 0), 0) * hourlyRate,
+    totalForRows: (rows) =>
+      computeAttendancePay(rows.reduce((sum, a) => sum + Number(a.hours || 0), 0), hourlyRate, overtimeRate),
   });
 }
 
@@ -400,7 +434,11 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
     : [];
 
   const finalTotal = usesAttendance
-    ? unassignedAttendance.reduce((sum, a) => sum + Number(a.hours || 0), 0) * Number(employee?.hourly_rate || 0)
+    ? computeAttendancePay(
+        unassignedAttendance.reduce((sum, a) => sum + Number(a.hours || 0), 0),
+        Number(employee?.hourly_rate || 0),
+        Number(employee?.upah_lembur_per_jam || 0)
+      )
     : unassignedLogs.reduce((sum, l) => sum + Number(l.total), 0);
 
   // A row the admin saw with a real, non-zero total that suddenly has zero
@@ -579,12 +617,13 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
     let finalTotal;
     if (usesAttendance) {
       const hourlyRate = Number(employee?.hourly_rate || 0);
+      const overtimeRate = Number(employee?.upah_lembur_per_jam || 0);
       const unassignedAttendance = attendance.filter(
         (a) =>
           String(a.employee_id) === String(row.employee_id) && !a.payroll_id && a.check_out && a.date === row.pay_date
       );
       const hours = unassignedAttendance.reduce((sum, a) => sum + Number(a.hours || 0), 0);
-      finalTotal = hours * hourlyRate;
+      finalTotal = computeAttendancePay(hours, hourlyRate, overtimeRate);
       entries.push(
         ...unassignedAttendance.map((a) => ({ repo: AttendanceRepo, existingRow: a, patch: { payroll_id: row.id } }))
       );
@@ -706,11 +745,21 @@ export async function getPayrollDetail(payrollId) {
   });
 
   const items = usesAttendance
-    ? filtered.map((a) => ({
-        ...clean(a),
-        hours: Number(a.hours || 0),
-        total: Number(a.hours || 0) * Number(employee?.hourly_rate || 0),
-      }))
+    ? (() => {
+        const hourlyRate = Number(employee?.hourly_rate || 0);
+        const overtimeRate = Number(employee?.upah_lembur_per_jam || 0);
+        let cumulativeHours = 0;
+        // filtered is always a single calendar day for attendance rows (see
+        // usesDailyPayDate above — Finishing pay is always daily-granular),
+        // so summing hours in order and computing each row's marginal share
+        // of the day's normal/overtime split is safe here.
+        return filtered.map((a) => {
+          const hours = Number(a.hours || 0);
+          const total = computeAttendanceRowPay(cumulativeHours, hours, hourlyRate, overtimeRate);
+          cumulativeHours += hours;
+          return { ...clean(a), hours, total };
+        });
+      })()
     : filtered.map((l) => {
         const customer = customers.find((c) => String(c.id) === String(l.customer_id));
         const article = articles.find((a) => String(a.id) === String(l.article_id));
@@ -778,13 +827,19 @@ export async function listPaidPayrollForExport(filters = {}) {
     let items;
     if (usesAttendance) {
       const hourlyRate = Number(employee?.hourly_rate || 0);
+      const overtimeRate = Number(employee?.upah_lembur_per_jam || 0);
+      let cumulativeHours = 0;
+      // Same single-day marginal-share reasoning as getPayrollDetail — every
+      // row here shares this one Payroll row's id, and a Payroll row is
+      // always one calendar day for attendance pay.
       items = attendance
         .filter((a) => String(a.employee_id) === String(row.employee_id) && String(a.payroll_id) === String(row.id))
-        .map((a) => ({
-          ...clean(a),
-          hours: Number(a.hours || 0),
-          total: Number(a.hours || 0) * hourlyRate,
-        }));
+        .map((a) => {
+          const hours = Number(a.hours || 0);
+          const total = computeAttendanceRowPay(cumulativeHours, hours, hourlyRate, overtimeRate);
+          cumulativeHours += hours;
+          return { ...clean(a), hours, total };
+        });
     } else {
       items = workLogs
         .filter((l) => String(l.employee_id) === String(row.employee_id) && String(l.payroll_id) === String(row.id))

@@ -68,6 +68,7 @@ const createSchema = z.object({
   status: z.enum(['active', 'inactive']),
   divisi: z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing']),
   hourly_rate: z.coerce.number().nonnegative().optional(),
+  upah_lembur_per_jam: z.coerce.number().nonnegative().optional(),
 })
 
 const editSchema = createSchema.extend({
@@ -99,6 +100,7 @@ function EmployeeFormDialog({
       status: employee?.status || 'active',
       divisi: employee?.divisi || 'Jahit',
       hourly_rate: employee?.hourly_rate ?? undefined,
+      upah_lembur_per_jam: employee?.upah_lembur_per_jam ?? undefined,
     },
   })
 
@@ -114,6 +116,7 @@ function EmployeeFormDialog({
         status: employee?.status || 'active',
         divisi: employee?.divisi || 'Jahit',
         hourly_rate: employee?.hourly_rate ?? undefined,
+      upah_lembur_per_jam: employee?.upah_lembur_per_jam ?? undefined,
       })
     }
   }, [open, employee, form])
@@ -248,25 +251,47 @@ function EmployeeFormDialog({
               />
             </div>
             {divisi === 'Finishing' && (
-              <FormField
-                control={form.control}
-                name="hourly_rate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Upah per Jam (Rp)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        {...field}
-                        value={(field.value ?? '') as string | number}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="hourly_rate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Upah per Jam (Rp)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="0"
+                          {...field}
+                          value={(field.value ?? '') as string | number}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="upah_lembur_per_jam"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Upah Lembur per Jam (Rp)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="0"
+                          {...field}
+                          value={(field.value ?? '') as string | number}
+                        />
+                      </FormControl>
+                      <p className="text-muted-foreground text-xs">Berlaku untuk jam kerja di atas 8 jam/hari.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             )}
             <DialogFooter>
               <Button type="submit" disabled={mutation.isPending}>
