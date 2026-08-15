@@ -8,9 +8,27 @@ import {
   FINISHING_DIVISION,
 } from '../google-sheet/models.js';
 import { batchGetAll } from '../google-sheet/SheetRepository.js';
+import { computeAttendancePay } from './payrollService.js';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+// The 8h overtime threshold is per calendar day (see payrollService.js), so
+// a monthly total can't just sum every record's hours and multiply once —
+// that would apply the threshold to the whole month instead of each day.
+// Group by date first, run each day through the same pay math payroll
+// itself uses, then sum the days.
+function sumAttendancePayByDay(records, hourlyRate, overtimeRate) {
+  const hoursByDate = new Map();
+  for (const a of records) {
+    hoursByDate.set(a.date, (hoursByDate.get(a.date) || 0) + Number(a.hours || 0));
+  }
+  let total = 0;
+  for (const hours of hoursByDate.values()) {
+    total += computeAttendancePay(hours, hourlyRate, overtimeRate);
+  }
+  return total;
 }
 
 export async function getAdminDashboard() {
@@ -101,13 +119,14 @@ export async function getEmployeeDashboard(employeeId) {
     });
 
     const hourlyRate = Number(employee.hourly_rate || 0);
+    const overtimeRate = Number(employee.upah_lembur_per_jam || 0);
     const hoursToday = todayRecords.reduce((s, a) => s + Number(a.hours || 0), 0);
     const hoursThisMonth = monthRecords.reduce((s, a) => s + Number(a.hours || 0), 0);
 
     return {
       pay_source: 'attendance',
-      income_today: hoursToday * hourlyRate,
-      income_this_month: hoursThisMonth * hourlyRate,
+      income_today: computeAttendancePay(hoursToday, hourlyRate, overtimeRate),
+      income_this_month: sumAttendancePayByDay(monthRecords, hourlyRate, overtimeRate),
       hours_today: hoursToday,
       hours_this_month: hoursThisMonth,
       work_count_this_month: monthRecords.length,

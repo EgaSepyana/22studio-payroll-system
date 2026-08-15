@@ -11,6 +11,7 @@ const createSchema = z.object({
   password: z.string().min(6),
   divisi: z.enum(DIVISIONS).optional(),
   hourly_rate: z.coerce.number().nonnegative().optional(),
+  upah_lembur_per_jam: z.coerce.number().nonnegative().optional(),
 });
 
 const updateSchema = z.object({
@@ -21,6 +22,7 @@ const updateSchema = z.object({
   password: z.string().min(6).optional(),
   divisi: z.enum(DIVISIONS).optional(),
   hourly_rate: z.coerce.number().nonnegative().optional(),
+  upah_lembur_per_jam: z.coerce.number().nonnegative().optional(),
 });
 
 export async function list(req, res, next) {

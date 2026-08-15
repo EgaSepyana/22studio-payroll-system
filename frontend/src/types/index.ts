@@ -54,6 +54,8 @@ export interface Employee {
   username: string | null
   divisi: Divisi | ''
   hourly_rate: number | null
+  /** Rate for hours beyond 8 in a single day — Finishing division only. */
+  upah_lembur_per_jam: number | null
 }
 
 export interface Customer {

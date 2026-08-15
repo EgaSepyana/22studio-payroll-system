@@ -206,7 +206,7 @@ export const CUSTOMER_CATEGORIES = [
 
 export const SHEET_SCHEMAS = {
   Users: ['id', 'username', 'password', 'role', 'employee_id'],
-  Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate'],
+  Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate', 'upah_lembur_per_jam'],
   Customers: ['id', 'name', 'pic', 'alamat', 'no_hp', 'category'],
   Articles: ['id', 'category_id', 'article_name', 'price', 'status', 'divisi'],
   WorkLogs: [

@@ -9,6 +9,7 @@ export interface EmployeeInput {
   password?: string
   divisi?: Divisi
   hourly_rate?: number
+  upah_lembur_per_jam?: number
 }
 
 export async function listEmployees() {
