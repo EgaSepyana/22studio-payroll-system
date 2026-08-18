@@ -28,25 +28,42 @@ export function formatCurrency(n) {
   return `Rp${Number(n).toLocaleString('id-ID')}`;
 }
 
+// The frontend formats dates/times with the browser's local timezone, which
+// for every real user of this app is WIB (Asia/Jakarta) — that's implicit
+// there since it runs client-side. These PDF exports run in Node on the
+// server, which has no such guarantee (a UTC-default deployment is 7 hours
+// behind WIB, e.g. an 08:00 check-in printing as 01:00) — pin the timezone
+// explicitly so exports always match what admins already see on screen,
+// regardless of what timezone the server process happens to run in.
+const WIB_TIMEZONE = 'Asia/Jakarta';
+
 export function formatDate(dateStr) {
   if (!dateStr) return '-';
-  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }).format(
-    new Date(dateStr)
-  );
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: WIB_TIMEZONE,
+  }).format(new Date(dateStr));
 }
 
 export function formatTime(dateStr) {
   if (!dateStr) return '-';
-  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date(dateStr));
+  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: WIB_TIMEZONE }).format(
+    new Date(dateStr)
+  );
 }
 
 // DD/MM/YYYY — short numeric form used by the invoice template, distinct
 // from formatDate's long "13 Juli 2026" form used elsewhere.
 export function formatDateShort(dateStr) {
   if (!dateStr) return '-';
-  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(
-    new Date(dateStr)
-  );
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: WIB_TIMEZONE,
+  }).format(new Date(dateStr));
 }
 
 const PDF_ROW_MIN_HEIGHT = 20;
