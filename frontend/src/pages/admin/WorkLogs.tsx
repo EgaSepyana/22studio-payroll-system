@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
@@ -486,6 +487,7 @@ export default function WorkLogs() {
                   <TableRow>
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Karyawan</TableHead>
+                    <TableHead>Task</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Artikel</TableHead>
                     <TableHead>Harga</TableHead>
@@ -499,7 +501,7 @@ export default function WorkLogs() {
                 <TableBody>
                   {data?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-muted-foreground text-center">
+                      <TableCell colSpan={11} className="text-muted-foreground text-center">
                         Tidak ada data pekerjaan.
                       </TableCell>
                     </TableRow>
@@ -508,6 +510,19 @@ export default function WorkLogs() {
                     <TableRow key={log.id}>
                       <TableCell>{formatDate(log.work_date)}</TableCell>
                       <TableCell className="font-medium">{log.employee_name}</TableCell>
+                      <TableCell className="max-w-40 truncate">
+                        {log.order_id ? (
+                          <Link
+                            to={`/admin/orders/${log.order_id}`}
+                            className="text-primary hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {log.order_name || '-'}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>{log.customer_name}</TableCell>
                       <TableCell>{log.article_name}</TableCell>
                       <TableCell>{formatCurrency(log.price)}</TableCell>
@@ -526,7 +541,7 @@ export default function WorkLogs() {
                   ))}
                   {data && data.length > 0 && (
                     <TableRow className="bg-muted/50 font-semibold">
-                      <TableCell colSpan={5}>Total</TableCell>
+                      <TableCell colSpan={6}>Total</TableCell>
                       <TableCell>{totalQty}</TableCell>
                       <TableCell>{formatCurrency(totalAmount)}</TableCell>
                       <TableCell />
@@ -554,6 +569,19 @@ export default function WorkLogs() {
                       </div>
                       <RowActionsMenu actions={actions} />
                     </div>
+                    <MobileCardRow label="Task">
+                      {log.order_id ? (
+                        <Link
+                          to={`/admin/orders/${log.order_id}`}
+                          className="text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {log.order_name || '-'}
+                        </Link>
+                      ) : (
+                        '-'
+                      )}
+                    </MobileCardRow>
                     <MobileCardRow label="Artikel">{log.article_name}</MobileCardRow>
                     <MobileCardRow label="Harga x Qty">
                       {formatCurrency(log.price)} × {log.quantity}

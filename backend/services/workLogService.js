@@ -17,11 +17,13 @@ function clean(record) {
 }
 
 async function enrich(log) {
-  const [employee, customer, article] = await Promise.all([
+  const [employee, customer, article, task] = await Promise.all([
     EmployeesRepo.getById(log.employee_id),
     CustomersRepo.getById(log.customer_id),
     ArticlesRepo.getById(log.article_id),
+    log.task_id ? TasksRepo.getById(log.task_id) : null,
   ]);
+  const order = task ? await OrdersRepo.getById(task.order_id) : null;
   return {
     ...clean(log),
     quantity: Number(log.quantity),
@@ -30,6 +32,8 @@ async function enrich(log) {
     employee_name: employee?.name || null,
     customer_name: customer?.name || null,
     article_name: article?.article_name || null,
+    order_id: order?.id || null,
+    order_name: order?.order_name || null,
   };
 }
 

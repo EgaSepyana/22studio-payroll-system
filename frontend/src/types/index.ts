@@ -107,6 +107,9 @@ export interface WorkLog {
   employee_name: string | null
   customer_name: string | null
   article_name: string | null
+  /** Via task_id -> Tasks.order_id -> Orders. Null if task_id is missing/stale. */
+  order_id: string | null
+  order_name: string | null
 }
 
 export interface OrderItemSize {
