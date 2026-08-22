@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock, ListTodo, Truck } from 'lucide-react'
+import { LayoutDashboard, History, Wallet, HandCoins, User, LogOut, KeyRound, Clock, ListTodo, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -15,10 +15,12 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
 
+// No standalone "Input" tab — piece-rate employees now reach Input
+// Pekerjaan by tapping a task on the Tugas page or the Beranda "Tugas
+// Terbaru" list (the task carries over pre-selected), not via direct nav.
 const PIECE_RATE_NAV_ITEMS = [
   { to: '/app', label: 'Beranda', icon: LayoutDashboard, end: true },
   { to: '/app/tasks', label: 'Tugas', icon: ListTodo },
-  { to: '/app/input', label: 'Input', icon: PlusCircle },
   { to: '/app/riwayat-pekerjaan', label: 'Riwayat', icon: History },
   { to: '/app/riwayat-gaji', label: 'Gaji', icon: Wallet },
   { to: '/app/kasbon', label: 'Kasbon', icon: HandCoins },
