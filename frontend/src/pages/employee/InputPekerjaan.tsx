@@ -57,9 +57,9 @@ export default function InputPekerjaan() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
-  // Arriving from the Tugas page with a task pre-selected (card click) locks
-  // the combobox — the employee already chose the task there, re-picking it
-  // here would be redundant and risks silently switching to a different task.
+  // Arriving from the Tugas page or Beranda with a task pre-selected (card
+  // click) pre-fills the field — the combobox stays fully editable so the
+  // employee can still pick a different task without any extra step.
   const presetTaskId = searchParams.get('task_id')
 
   const { data: divisiTasks } = useQuery({ queryKey: ['tasks-available'], queryFn: taskApi.listAvailableTasks })
@@ -81,30 +81,22 @@ export default function InputPekerjaan() {
   // The preset task_id may arrive before activeTasks has loaded (or before
   // it's known to actually belong to this employee's divisi) — sync it in
   // once the list is available instead of only trusting the initial
-  // defaultValues snapshot.
+  // defaultValues snapshot. Only fires once per preset (guarded by the ref)
+  // so it never overwrites a task the employee freely picks afterward.
+  const appliedPresetTaskId = React.useRef<string | null>(null)
   React.useEffect(() => {
-    if (presetTaskId && activeTasks.some((t) => t.id === presetTaskId)) {
+    if (
+      presetTaskId &&
+      presetTaskId !== appliedPresetTaskId.current &&
+      activeTasks.some((t) => t.id === presetTaskId)
+    ) {
       form.setValue('task_id', presetTaskId)
+      appliedPresetTaskId.current = presetTaskId
     }
   }, [presetTaskId, activeTasks, form])
 
-  // "Ganti task" clears the ?task_id= param via a same-route navigation
-  // (/app/input?task_id=X -> /app/input), which doesn't remount the
-  // component — react-hook-form's task_id would otherwise keep holding the
-  // old preset value. Only reacts to the param itself disappearing, not to
-  // every render, so it never clobbers a task the employee picked manually.
-  const prevPresetTaskId = React.useRef(presetTaskId)
-  React.useEffect(() => {
-    if (prevPresetTaskId.current && !presetTaskId) {
-      form.setValue('task_id', '')
-      form.setValue('article_id', '')
-    }
-    prevPresetTaskId.current = presetTaskId
-  }, [presetTaskId, form])
-
   const taskId = form.watch('task_id')
   const selectedTask = activeTasks.find((t) => t.id === taskId)
-  const taskLockedFromPreset = !!presetTaskId && selectedTask?.id === presetTaskId
   const [lembarPOOpen, setLembarPOOpen] = React.useState(false)
 
   // Existence-only check so the button can stay hidden when the order has no
@@ -206,7 +198,7 @@ export default function InputPekerjaan() {
                     field.onChange(t ? t.id : '')
                     form.setValue('article_id', '')
                   }}
-                  disabled={activeTasks.length === 0 || taskLockedFromPreset}
+                  disabled={activeTasks.length === 0}
                 >
                   <FormControl>
                     <ComboboxInput placeholder="Cari task..." className="h-12 w-full text-base" />
@@ -223,18 +215,6 @@ export default function InputPekerjaan() {
                     </ComboboxList>
                   </ComboboxContent>
                 </Combobox>
-                {taskLockedFromPreset && (
-                  <p className="text-muted-foreground text-xs">
-                    Task dipilih dari halaman Tugas.{' '}
-                    <button
-                      type="button"
-                      className="text-primary underline"
-                      onClick={() => navigate('/app/input', { replace: true })}
-                    >
-                      Ganti task
-                    </button>
-                  </p>
-                )}
                 <FormMessage />
               </FormItem>
             )}
