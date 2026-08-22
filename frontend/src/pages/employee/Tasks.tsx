@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { PlusCircle, Loader2, ArrowUp, ArrowDown, FileText } from 'lucide-react'
+import { PlusCircle, Loader2, ArrowUp, ArrowDown, FileText, Search } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,7 @@ import { formatDate } from '@/utils/format'
 import type { Task, TaskStatus } from '@/types'
 
 const URGENT_THRESHOLD_DAYS = 3
+const ALL_CUSTOMERS = 'all'
 
 type SortField = 'deadline' | 'status' | 'progress' | 'order_name'
 type SortDirection = 'asc' | 'desc'
@@ -79,15 +81,20 @@ function DeadlineBadge({ deadline }: { deadline: string }) {
   )
 }
 
-function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onViewLembarPO }: {
+function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onViewLembarPO, onOpenInInput }: {
   task: Task
   canUpdateProgress: boolean
   onUpdateProgress: (task: Task) => void
   hasLembarPO: boolean
   onViewLembarPO: (task: Task) => void
+  onOpenInInput: ((task: Task) => void) | null
 }) {
+  const clickable = !!onOpenInInput
   return (
-    <Card className="shadow-sm">
+    <Card
+      className={clickable ? 'shadow-sm cursor-pointer transition-colors hover:bg-muted/40' : 'shadow-sm'}
+      onClick={clickable ? () => onOpenInInput(task) : undefined}
+    >
       <CardContent className="flex flex-col gap-3 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -110,7 +117,7 @@ function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onVi
           <ProgressBar value={task.progress} status={task.status} />
         </div>
         {(hasLembarPO || (canUpdateProgress && task.status !== 'completed')) && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
             {hasLembarPO && (
               <Button size="sm" variant="outline" onClick={() => onViewLembarPO(task)}>
                 <FileText className="size-4" /> Lihat PO
@@ -194,11 +201,14 @@ function UpdateProgressDialog({ task, onOpenChange }: { task: Task | null; onOpe
 
 export default function Tasks() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const isFinishing = user?.divisi === 'Finishing'
   const [progressTask, setProgressTask] = React.useState<Task | null>(null)
   const [lembarPOTask, setLembarPOTask] = React.useState<Task | null>(null)
   const [sortField, setSortField] = React.useState<SortField>('deadline')
   const [sortDir, setSortDir] = React.useState<SortDirection>('asc')
+  const [search, setSearch] = React.useState('')
+  const [customerFilter, setCustomerFilter] = React.useState(ALL_CUSTOMERS)
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks-available'],
@@ -212,11 +222,41 @@ export default function Tasks() {
     queryFn: lembarPOApi.listOrderIdsWithLembarPO,
   })
 
-  const sortedTasks = React.useMemo(() => {
+  // Customer options come from the task list itself (already divisi-scoped
+  // server-side) — no extra request needed just to populate this filter.
+  const customerOptions = React.useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const t of tasks || []) {
+      if (t.customer_id && t.customer_name && !seen.has(t.customer_id)) {
+        seen.set(t.customer_id, t.customer_name)
+      }
+    }
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [tasks])
+
+  const filteredTasks = React.useMemo(() => {
     if (!tasks) return []
-    const sorted = [...tasks].sort((a, b) => compareTasks(a, b, sortField))
+    const query = search.trim().toLowerCase()
+    return tasks.filter((t) => {
+      if (customerFilter !== ALL_CUSTOMERS && t.customer_id !== customerFilter) return false
+      if (query) {
+        const haystack = `${t.order_name || ''} ${t.description || ''}`.toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+      return true
+    })
+  }, [tasks, search, customerFilter])
+
+  const sortedTasks = React.useMemo(() => {
+    const sorted = [...filteredTasks].sort((a, b) => compareTasks(a, b, sortField))
     return sortDir === 'asc' ? sorted : sorted.reverse()
-  }, [tasks, sortField, sortDir])
+  }, [filteredTasks, sortField, sortDir])
+
+  // Finishing works entirely in-place (Update Progress dialog, no work log)
+  // — Input Pekerjaan doesn't apply to them, so their cards stay non-clickable.
+  const openInInput = isFinishing
+    ? null
+    : (task: Task) => navigate(`/app/input?task_id=${task.id}`)
 
   return (
     <div className="flex flex-col gap-4">
@@ -230,25 +270,49 @@ export default function Tasks() {
       </div>
 
       {tasks && tasks.length > 0 && (
-        <div className="flex items-center gap-2">
-          <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
-            <SelectTrigger className="h-10 flex-1 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {SORT_FIELD_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>Urutkan: {opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 shrink-0"
-            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
-          >
-            {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
-          </Button>
-        </div>
+        <>
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              placeholder="Cari nama order atau deskripsi..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 pl-9 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="h-10 flex-1 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CUSTOMERS}>Semua Customer</SelectItem>
+                {customerOptions.map(([id, name]) => (
+                  <SelectItem key={id} value={id}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
+              <SelectTrigger className="h-10 flex-1 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SORT_FIELD_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>Urutkan: {opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortDir === 'asc' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />}
+            </Button>
+          </div>
+        </>
       )}
 
       <div className="flex flex-col gap-3">
@@ -256,6 +320,8 @@ export default function Tasks() {
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
         ) : tasks?.length === 0 ? (
           <p className="text-muted-foreground py-10 text-center text-sm">Belum ada tugas untuk divisimu.</p>
+        ) : sortedTasks.length === 0 ? (
+          <p className="text-muted-foreground py-10 text-center text-sm">Tidak ada tugas yang cocok dengan pencarian.</p>
         ) : (
           sortedTasks.map((task) => (
             <TaskCard
@@ -265,6 +331,7 @@ export default function Tasks() {
               onUpdateProgress={setProgressTask}
               hasLembarPO={!!orderIdsWithLembarPO?.has(task.order_id)}
               onViewLembarPO={setLembarPOTask}
+              onOpenInInput={openInInput}
             />
           ))
         )}
