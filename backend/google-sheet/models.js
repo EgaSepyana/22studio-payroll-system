@@ -20,6 +20,25 @@ export const ORDER_STATUSES = [
 ];
 export const TASK_STATUSES = ['open', 'in_progress', 'completed'];
 
+// Owner (Keuangan) module — the `type` values OwnerCategories rows can take.
+// One flexible table (see SHEET_SCHEMAS.OwnerCategories) replaces the
+// legacy app's per-module fixed-length category lists; every financial
+// module's category dropdown filters this same sheet by its own type.
+export const OWNER_CATEGORY_TYPES = [
+  'income',
+  'expense',
+  'asset',
+  'inventory',
+  'liability',
+];
+
+// The COGS bucket a Liability's auto-synced entry falls into, driven by an
+// explicit field on its category (see SHEET_SCHEMAS.OwnerCategories'
+// cogs_bucket column) instead of owner.md §4.7's fragile match against the
+// literal category names "Supplier debt"/"Labor wages" — same fix pattern as
+// is_sales_category for Income.
+export const OWNER_COGS_BUCKETS = ['fabric_purchase', 'production_cost', 'generic'];
+
 // Fixed divisi -> production sub-stage label, used to build the "Proses
 // <label> Selesai" timeline note when a division's task completes.
 export const DIVISI_SUBSTAGE_LABELS = {
@@ -317,6 +336,217 @@ export const SHEET_SCHEMAS = {
   CmsSteps: ['id', 'stage', 'title', 'description', 'sort_order'],
   StatsBand: ['id', 'value', 'prefix', 'suffix', 'label', 'sort_order'],
   Faqs: ['id', 'question', 'answer', 'sort_order'],
+
+  // Owner (Keuangan) module — master data feeding every financial module's
+  // dropdowns. One flexible table per concern instead of the legacy app's
+  // fixed-length column-range lists (see owner.md §6.10/§9) — `type`
+  // distinguishes which module/purpose a row belongs to (e.g. 'income',
+  // 'expense', 'asset', 'inventory', 'liability'), `is_active` lets an entry
+  // be retired without deleting it out from under historical records that
+  // still reference it by name.
+  // `is_sales_category` only means something for type 'income' rows — an
+  // explicit flag instead of owner.md §4.2's fragile client-side string
+  // match against literal category names ("PENJUALAN"/"PENDAPATAN LAINNYA")
+  // for the Income page's sales-vs-other summary split.
+  // `cogs_bucket` only means something for type 'liability' rows — see
+  // OWNER_COGS_BUCKETS.
+  OwnerCategories: ['id', 'type', 'name', 'is_active', 'is_sales_category', 'cogs_bucket', 'created_at'],
+  OwnerLocations: ['id', 'name', 'is_active', 'created_at'],
+
+  // Cash accounts (kas/bank) — referenced by nearly every money-moving Owner
+  // module (owner.md §5's `cash_accounts`). Balance is never stored here;
+  // it's always derived from the ledger (transfers/reconciliations now,
+  // income/expenses once those modules exist).
+  OwnerCashAccounts: ['id', 'name', 'is_active', 'created_at'],
+  // Mutasi Kas: moves value between two of the business's own accounts —
+  // net zero on total cash, but shifts each account's derived balance.
+  OwnerCashTransfers: [
+    'id',
+    'date',
+    'from_account_id',
+    'to_account_id',
+    'amount',
+    'description',
+    'created_at',
+  ],
+  // Penyesuaian Kas: reconciles the ledger-derived "system" balance against a
+  // physically-counted "actual" balance. system_balance/difference/status are
+  // computed server-side at save time (owner.md §4.4's explicit correctness
+  // fix over the original) and stored as a snapshot for history, not
+  // recomputed live on every read.
+  OwnerCashReconciliations: [
+    'id',
+    'date',
+    'account_id',
+    'system_balance',
+    'actual_balance',
+    'difference',
+    'status',
+    'description',
+    'created_at',
+  ],
+
+  // Pemasukan (owner.md §4.2) — miscellaneous income not otherwise captured
+  // by the inventory-sale flow. Increases its account_id's derived balance.
+  OwnerIncome: ['id', 'date', 'category_id', 'account_id', 'description', 'amount', 'created_at'],
+  // Pengeluaran (owner.md §4.3) — order_id is optional; when set, this
+  // expense counts against that order's per-invoice profitability estimate.
+  // Decreases its account_id's derived balance.
+  OwnerExpenses: ['id', 'date', 'category_id', 'account_id', 'order_id', 'description', 'amount', 'created_at'],
+
+  // Kewajiban (owner.md §4.7) — money the business owes. amount_paid/status
+  // are maintained here as a materialized running total (owner.md's own
+  // "keep a materialized current-balance table" note in §3), kept in sync by
+  // every LiabilityPayments write rather than re-summed on every read.
+  OwnerLiabilities: [
+    'id',
+    'code',
+    'date',
+    'due_date',
+    'creditor_name',
+    'creditor_address',
+    'category_id',
+    'qty',
+    'unit_price',
+    'value',
+    'amount_paid',
+    'status',
+    'description',
+    'cogs_entry_id',
+    'created_at',
+    'updated_at',
+    // 'manual' (Kewajiban page — a real incurred cost, syncs a COGS entry)
+    // or 'funding' (auto-created by Asset/Inventory's Payable funding
+    // source — the cost isn't recognized yet since the purchased goods
+    // still sit as an unconsumed asset; no COGS entry until they're later
+    // sold/consumed). Determines whether create/edit sync a COGS entry.
+    // Appended at the end, not inserted mid-schema, so any existing sheet
+    // rows don't have every later column silently shift by one.
+    'source',
+  ],
+  // Deleting a row here must reverse its parent liability's
+  // amount_paid/status — the one exception to "ledgers are append-only" this
+  // module has (owner.md §4.7's explicit "proper compensating transaction").
+  OwnerLiabilityPayments: [
+    'id',
+    'liability_id',
+    'date',
+    'amount',
+    'account_id',
+    'description',
+    'created_at',
+  ],
+  // Auto-synced 1:1 with a Liability (owner.md §6.7) — created alongside it,
+  // recalculated on edit, deleted with it. Feeds the future Laba Rugi P&L's
+  // COGS section; never written to directly by any UI.
+  OwnerCogsEntries: [
+    'id',
+    'source',
+    'source_ref',
+    'date',
+    'bucket',
+    'amount',
+    'description',
+    'created_at',
+    'updated_at',
+  ],
+
+  // Modal (owner.md §5 capital_entries) — created whenever an Asset or
+  // Inventory purchase is funded by "Capital" instead of Cash/Payable.
+  // asset_or_stock_ref + ref_type point back at whichever ledger row it
+  // funded, for traceability only — never read to compute a balance.
+  OwnerCapitalEntries: [
+    'id',
+    'code',
+    'date',
+    'source_name',
+    'description',
+    'amount',
+    'entry_type',
+    'ref_type',
+    'ref_id',
+    'created_at',
+  ],
+
+  // Aset (owner.md §4.5) — ledger model only, per the plan's explicit
+  // decision: identity/master record here, purchases/sales as
+  // OwnerFixedAssetTransactions rows; current qty/value = sum of those rows.
+  // Depreciation is out of scope for this phase (owner.md itself calls it
+  // out as a separate feature, not part of this ledger).
+  OwnerFixedAssets: ['id', 'code', 'date', 'name', 'category_id', 'location_id', 'description', 'created_at'],
+  OwnerFixedAssetTransactions: [
+    'id',
+    'asset_id',
+    'date',
+    'type', // opening | purchase | sale
+    'qty',
+    'unit_price',
+    'total_value',
+    'funding_source', // cash | payable | capital — purchase only
+    'account_id',
+    'liability_id',
+    'capital_entry_id',
+    'description',
+    'created_at',
+  ],
+
+  // Stok Persediaan (owner.md §4.6) — same ledger shape as Fixed Assets,
+  // plus exit_type/sale_method for stock_out and linked_transaction_id for
+  // production conversions (raw material -> finished goods, one atomic op
+  // writing two linked rows).
+  OwnerInventoryItems: [
+    'id',
+    'code',
+    'date',
+    'name',
+    'category_id',
+    'location_id',
+    'item_type', // raw_material | finished_good
+    'description',
+    'created_at',
+  ],
+  OwnerInventoryTransactions: [
+    'id',
+    'item_id',
+    'date',
+    'type', // opening | stock_in | stock_out
+    'qty',
+    'unit_price',
+    'total_value',
+    'funding_source', // cash | payable | capital — opening/stock_in only
+    'account_id',
+    'liability_id',
+    'capital_entry_id',
+    'exit_type', // production | sold | damaged — stock_out only
+    'sale_method', // cash | credit — exit_type sold only
+    'linked_transaction_id',
+    'description',
+    'created_at',
+  ],
+  // Piutang (owner.md §5 receivables) — created when finished goods are sold
+  // on credit (exit_type sold, sale_method credit) instead of posting to
+  // Income immediately.
+  OwnerReceivables: [
+    'id',
+    'date',
+    'source', // always 'inventory_sale' for now
+    'source_ref',
+    'amount',
+    'description',
+    'created_at',
+  ],
+  // Penyesuaian Ekuitas (owner.md §5 equity_adjustments) — created when
+  // stock is marked damaged/lost (a direct equity write-down, not a normal
+  // expense — owner.md's explicit distinction).
+  OwnerEquityAdjustments: [
+    'id',
+    'date',
+    'account', // always 'retained_earnings' for now
+    'amount', // signed; negative for a write-down
+    'source_ref',
+    'description',
+    'created_at',
+  ],
 };
 
 export const UsersRepo = new SheetRepository('Users', SHEET_SCHEMAS.Users);
@@ -352,6 +582,38 @@ export const CmsProjectsRepo = new SheetRepository('CmsProjects', SHEET_SCHEMAS.
 export const CmsStepsRepo = new SheetRepository('CmsSteps', SHEET_SCHEMAS.CmsSteps);
 export const StatsBandRepo = new SheetRepository('StatsBand', SHEET_SCHEMAS.StatsBand);
 export const FaqsRepo = new SheetRepository('Faqs', SHEET_SCHEMAS.Faqs);
+export const OwnerCategoriesRepo = new SheetRepository('OwnerCategories', SHEET_SCHEMAS.OwnerCategories);
+export const OwnerLocationsRepo = new SheetRepository('OwnerLocations', SHEET_SCHEMAS.OwnerLocations);
+export const OwnerCashAccountsRepo = new SheetRepository('OwnerCashAccounts', SHEET_SCHEMAS.OwnerCashAccounts);
+export const OwnerCashTransfersRepo = new SheetRepository('OwnerCashTransfers', SHEET_SCHEMAS.OwnerCashTransfers);
+export const OwnerCashReconciliationsRepo = new SheetRepository(
+  'OwnerCashReconciliations',
+  SHEET_SCHEMAS.OwnerCashReconciliations
+);
+export const OwnerIncomeRepo = new SheetRepository('OwnerIncome', SHEET_SCHEMAS.OwnerIncome);
+export const OwnerExpensesRepo = new SheetRepository('OwnerExpenses', SHEET_SCHEMAS.OwnerExpenses);
+export const OwnerLiabilitiesRepo = new SheetRepository('OwnerLiabilities', SHEET_SCHEMAS.OwnerLiabilities);
+export const OwnerLiabilityPaymentsRepo = new SheetRepository(
+  'OwnerLiabilityPayments',
+  SHEET_SCHEMAS.OwnerLiabilityPayments
+);
+export const OwnerCogsEntriesRepo = new SheetRepository('OwnerCogsEntries', SHEET_SCHEMAS.OwnerCogsEntries);
+export const OwnerCapitalEntriesRepo = new SheetRepository('OwnerCapitalEntries', SHEET_SCHEMAS.OwnerCapitalEntries);
+export const OwnerFixedAssetsRepo = new SheetRepository('OwnerFixedAssets', SHEET_SCHEMAS.OwnerFixedAssets);
+export const OwnerFixedAssetTransactionsRepo = new SheetRepository(
+  'OwnerFixedAssetTransactions',
+  SHEET_SCHEMAS.OwnerFixedAssetTransactions
+);
+export const OwnerInventoryItemsRepo = new SheetRepository('OwnerInventoryItems', SHEET_SCHEMAS.OwnerInventoryItems);
+export const OwnerInventoryTransactionsRepo = new SheetRepository(
+  'OwnerInventoryTransactions',
+  SHEET_SCHEMAS.OwnerInventoryTransactions
+);
+export const OwnerReceivablesRepo = new SheetRepository('OwnerReceivables', SHEET_SCHEMAS.OwnerReceivables);
+export const OwnerEquityAdjustmentsRepo = new SheetRepository(
+  'OwnerEquityAdjustments',
+  SHEET_SCHEMAS.OwnerEquityAdjustments
+);
 
 // Seed data for the landing-page CMS — the exact current values from the
 // external site's content.js, so the sheets start already representing the

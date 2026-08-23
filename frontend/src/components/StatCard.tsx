@@ -12,7 +12,7 @@ export function StatCard({
   label: string
   value: ReactNode
   icon: LucideIcon
-  accent?: 'primary' | 'success' | 'warning'
+  accent?: 'primary' | 'success' | 'warning' | 'destructive'
 }) {
   return (
     <Card className="shadow-sm">
@@ -22,6 +22,7 @@ export function StatCard({
             'flex size-9 shrink-0 items-center justify-center rounded-lg',
             accent === 'success' && 'bg-success/10 text-success',
             accent === 'warning' && 'bg-warning/10 text-warning',
+            accent === 'destructive' && 'bg-destructive/10 text-destructive',
             (!accent || accent === 'primary') && 'bg-primary/10 text-primary'
           )}
         >

@@ -100,6 +100,26 @@ async function seedAdminProduksi() {
   console.log('Seeded admin_produksi user -> username: admin_produksi / password: admin123');
 }
 
+// Standalone Finance-scoped account, same shape as seedAdmin()/
+// seedAdminProduksi() — not tied to an Employees row. Superset of admin:
+// full access to everything admin can do PLUS the owner-only Keuangan
+// (Finance) module (see requireRole('owner') on the owner routes).
+async function seedOwner() {
+  const existingUsers = await UsersRepo.getAll({ fresh: true });
+  if (existingUsers.some((u) => u.username === 'owner')) {
+    console.log('owner user already exists, skipping seed.');
+    return;
+  }
+  const passwordHash = await bcrypt.hash('owner123', 10);
+  await UsersRepo.insert({
+    username: 'owner',
+    password: passwordHash,
+    role: 'owner',
+    employee_id: '',
+  });
+  console.log('Seeded owner user -> username: owner / password: owner123');
+}
+
 async function seedWATemplates() {
   const existing = await WATemplatesRepo.getAll({ fresh: true });
   const existingKeys = new Set(existing.map((t) => t.template_key));
@@ -167,6 +187,7 @@ async function main() {
   await ensureSheets();
   await seedAdmin();
   await seedAdminProduksi();
+  await seedOwner();
   await seedWATemplates();
   await seedCmsContent();
   console.log('Google Sheets setup complete.');

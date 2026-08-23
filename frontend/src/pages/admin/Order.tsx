@@ -60,15 +60,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Checkbox } from '@/components/ui/checkbox'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import { useFilterStore } from '@/stores/filterStore'
 import * as orderApi from '@/services/orderApi'
 import * as customerApi from '@/services/customerApi'
+import * as taskApi from '@/services/taskApi'
 import * as uploadApi from '@/services/uploadApi'
 import * as settingsApi from '@/services/settingsApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate } from '@/utils/format'
-import type { Order, OrderFrom, OrderJenisCategory, OrderStatus, WATemplateKey } from '@/types'
+import type { Divisi, Order, OrderFrom, OrderJenisCategory, OrderStatus, WATemplateKey } from '@/types'
 
 // Ad-hoc placeholders each template needs filled in fresh at send-time,
 // rather than derived from stored order/customer data — mirrors
@@ -131,6 +133,7 @@ const ORDER_JENIS_CATEGORIES: OrderJenisCategory[] = [
   'SERAGAM SEKOLAH',
 ]
 const ORDER_FROM_OPTIONS: OrderFrom[] = ['SHOPEE', 'TIKTOK', 'WHATSAPP', 'WORKSHOP']
+const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
 
 const schema = z.object({
   customer_id: z.string().min(1, 'Customer wajib dipilih'),
@@ -141,6 +144,15 @@ const schema = z.object({
   order_from: z.string().optional(),
   broker: z.string().optional(),
   desain_fix_url: z.string().optional(),
+  // Task sub-form: optional, only meaningful on create (see mutationFn) —
+  // same "one divisi checked = one task" fan-out CreateTaskDialog uses in
+  // TaskDetail.tsx, just filled in up front instead of as a separate step.
+  task_divisi: z.array(z.enum(['Jahit', 'Sablon', 'Cutting', 'Finishing'])).optional(),
+  task_description: z.string().optional(),
+  task_target_qty: z.coerce.number().positive('Target qty harus lebih dari 0').optional(),
+}).refine((v) => !v.task_divisi?.length || v.task_target_qty !== undefined, {
+  message: 'Target qty wajib diisi jika divisi task dipilih',
+  path: ['task_target_qty'],
 })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -172,6 +184,9 @@ function OrderFormDialog({
       order_from: order?.order_from || '',
       broker: order?.broker || '',
       desain_fix_url: order?.desain_fix_url || '',
+      task_divisi: [],
+      task_description: '',
+      task_target_qty: undefined,
     },
   })
 
@@ -186,24 +201,52 @@ function OrderFormDialog({
         order_from: order?.order_from || '',
         broker: order?.broker || '',
         desain_fix_url: order?.desain_fix_url || '',
+        task_divisi: [],
+        task_description: '',
+        task_target_qty: undefined,
       })
     }
   }, [open, order, form])
 
   const mutation = useMutation({
-    mutationFn: (values: FormValues) => {
+    mutationFn: async (values: FormValues) => {
       // Empty-string optionals must not be sent — the backend enum schemas
       // reject '' (only a real category/order_from value or omission).
+      const { task_divisi, task_description, task_target_qty, ...orderValues } = values
       const payload = {
-        ...values,
-        jenis_category: values.jenis_category || undefined,
-        order_from: values.order_from || undefined,
-        desain_fix_url: values.desain_fix_url || undefined,
+        ...orderValues,
+        jenis_category: orderValues.jenis_category || undefined,
+        order_from: orderValues.order_from || undefined,
+        desain_fix_url: orderValues.desain_fix_url || undefined,
       } as orderApi.OrderInput
-      return isEdit ? orderApi.updateOrder(order.id, payload) : orderApi.createOrder(payload)
+      const result = isEdit ? await orderApi.updateOrder(order.id, payload) : await orderApi.createOrder(payload)
+
+      // Task sub-form only applies on create — there's no atomic
+      // order+tasks endpoint, so this fans out the same way
+      // CreateTaskDialog does, just immediately after the order exists
+      // instead of as a separate later step.
+      let tasksCreated = 0
+      if (!isEdit && task_divisi && task_divisi.length > 0) {
+        for (const divisi of task_divisi) {
+          await taskApi.createTask({
+            order_id: result.id,
+            divisi,
+            description: task_description,
+            target_qty: task_target_qty!,
+          })
+          tasksCreated += 1
+        }
+      }
+      return { result, tasksCreated }
     },
-    onSuccess: (result) => {
-      toast.success(isEdit ? 'Order berhasil diperbarui' : 'Order berhasil ditambahkan')
+    onSuccess: ({ result, tasksCreated }) => {
+      toast.success(
+        isEdit
+          ? 'Order berhasil diperbarui'
+          : tasksCreated > 0
+            ? `Order ditambahkan beserta ${tasksCreated} task`
+            : 'Order berhasil ditambahkan'
+      )
       queryClient.invalidateQueries({ queryKey: ['order-list'] })
       onOpenChange(false)
       if (!isEdit) navigate(`/admin/order/${result.id}`)
@@ -213,7 +256,7 @@ function OrderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Order' : 'Tambah Order'}</DialogTitle>
         </DialogHeader>
@@ -308,6 +351,66 @@ function OrderFormDialog({
                 </FormItem>
               )}
             />
+            {!isEdit && (
+              <div className="flex flex-col gap-4 rounded-md border p-3">
+                <p className="text-sm font-medium">Task Produksi (opsional)</p>
+                <FormField
+                  control={form.control}
+                  name="task_divisi"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Divisi</FormLabel>
+                      <div className="flex flex-col gap-2">
+                        {DIVISIONS.map((d) => {
+                          const checked = field.value?.includes(d) ?? false
+                          return (
+                            <label key={d} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) => {
+                                  const current = field.value || []
+                                  field.onChange(v ? [...current, d] : current.filter((x) => x !== d))
+                                }}
+                              />
+                              {d}
+                            </label>
+                          )
+                        })}
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        Pilih divisi untuk otomatis membuat task begitu order tersimpan. Pilih lebih dari satu untuk
+                        membuat task yang sama di setiap divisi sekaligus.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="task_description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Deskripsi Task (opsional)</FormLabel>
+                      <FormControl><Textarea placeholder="Contoh: Jahit badan & lengan" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="task_target_qty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Target Quantity</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} {...field} value={(field.value ?? '') as string | number} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
             <FormField
               control={form.control}
               name="desain_fix_url"
@@ -381,7 +484,7 @@ function OrderFormDialog({
                 </FormItem>
               )}
             />
-            <DialogFooter>
+            <DialogFooter className="sticky bottom-0">
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
                 Simpan

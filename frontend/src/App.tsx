@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { RequireAuth, homeRouteForRole } from '@/components/RequireAuth'
 import AdminLayout from '@/layouts/AdminLayout'
+import OwnerLayout from '@/layouts/OwnerLayout'
 import EmployeeLayout from '@/layouts/EmployeeLayout'
 import Login from '@/pages/auth/Login'
 
@@ -25,6 +26,17 @@ import AdminKalenderProduksi from '@/pages/admin/KalenderProduksi'
 import AdminLembarPO from '@/pages/admin/LembarPO'
 import AdminPengaturanAplikasi from '@/pages/admin/PengaturanAplikasi'
 import AdminCmsLandingPage from '@/pages/admin/cms/CmsLandingPage'
+
+import OwnerDashboard from '@/pages/owner/Dashboard'
+import OwnerSettings from '@/pages/owner/Settings'
+import OwnerCash from '@/pages/owner/Cash'
+import OwnerIncome from '@/pages/owner/Income'
+import OwnerExpenses from '@/pages/owner/Expenses'
+import OwnerLiabilities from '@/pages/owner/Liabilities'
+import OwnerAssets from '@/pages/owner/Assets'
+import OwnerInventory from '@/pages/owner/Inventory'
+import OwnerProfitLoss from '@/pages/owner/ProfitLoss'
+import OwnerBalanceSheet from '@/pages/owner/BalanceSheet'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -50,9 +62,9 @@ export default function App() {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/login" element={<Login />} />
 
-        <Route element={<RequireAuth allow={['admin', 'admin_produksi']} />}>
+        <Route element={<RequireAuth allow={['admin', 'admin_produksi', 'owner']} />}>
           <Route element={<AdminLayout />}>
-            {/* Produksi routes: both admin and admin_produksi can reach these. */}
+            {/* Produksi routes: admin, admin_produksi, and owner can all reach these. */}
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/orders/:id" element={<AdminTaskDetail />} />
             <Route path="/admin/order" element={<AdminOrder />} />
@@ -62,10 +74,11 @@ export default function App() {
             <Route path="/admin/kalender-produksi" element={<AdminKalenderProduksi />} />
             <Route path="/admin/lembar-po" element={<AdminLembarPO />} />
 
-            {/* Everything else: admin only — admin_produksi lands here via
-                RequireAuth's mismatch redirect if it tries to navigate in
-                directly (e.g. typing /admin/payroll in the address bar). */}
-            <Route element={<RequireAuth allow="admin" />}>
+            {/* Everything else: admin + owner (owner is a superset of admin) —
+                admin_produksi lands here via RequireAuth's mismatch redirect
+                if it tries to navigate in directly (e.g. typing
+                /admin/payroll in the address bar). */}
+            <Route element={<RequireAuth allow={['admin', 'owner']} />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/employees" element={<AdminEmployees />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
@@ -79,6 +92,24 @@ export default function App() {
               <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
               <Route path="/admin/cms" element={<AdminCmsLandingPage />} />
             </Route>
+          </Route>
+        </Route>
+
+        {/* Keuangan (Finance): owner's own app, separate from AdminLayout —
+            owner still reaches /admin via the RequireAuth block above (its
+            own layout/nav) for operational access; each links to the other. */}
+        <Route element={<RequireAuth allow="owner" />}>
+          <Route element={<OwnerLayout />}>
+            <Route path="/owner" element={<OwnerDashboard />} />
+            <Route path="/owner/kas" element={<OwnerCash />} />
+            <Route path="/owner/pemasukan" element={<OwnerIncome />} />
+            <Route path="/owner/pengeluaran" element={<OwnerExpenses />} />
+            <Route path="/owner/kewajiban" element={<OwnerLiabilities />} />
+            <Route path="/owner/aset" element={<OwnerAssets />} />
+            <Route path="/owner/stok" element={<OwnerInventory />} />
+            <Route path="/owner/laba-rugi" element={<OwnerProfitLoss />} />
+            <Route path="/owner/neraca" element={<OwnerBalanceSheet />} />
+            <Route path="/owner/pengaturan" element={<OwnerSettings />} />
           </Route>
         </Route>
 

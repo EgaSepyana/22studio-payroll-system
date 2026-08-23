@@ -6,9 +6,9 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/', customerController.list);
-router.post('/', requireRole('admin'), customerController.create);
-router.put('/:id', requireRole('admin'), customerController.update);
-router.put('/:id/categories', requireRole('admin'), customerController.setCategories);
-router.delete('/:id', requireRole('admin'), customerController.remove);
+router.post('/', requireRole('admin', 'owner'), customerController.create);
+router.put('/:id', requireRole('admin', 'owner'), customerController.update);
+router.put('/:id/categories', requireRole('admin', 'owner'), customerController.setCategories);
+router.delete('/:id', requireRole('admin', 'owner'), customerController.remove);
 
 export default router;

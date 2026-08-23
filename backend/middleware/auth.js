@@ -27,13 +27,15 @@ export function requireRole(...roles) {
 
 // Gates a route to specific employee divisions (e.g. only Finishing may
 // create Surat Jalan). Admin always bypasses — this only ever narrows what
-// an *employee* token can do, never what admin can do. admin_produksi is a
-// standalone account with no divisi (like admin), so it bypasses too —
-// otherwise it would fail this check on every Surat Jalan route despite
-// having full Produksi access everywhere else.
+// an *employee* token can do, never what admin can do. admin_produksi and
+// owner are both standalone accounts with no divisi (like admin), so they
+// bypass too — otherwise they'd fail this check on every Surat Jalan route
+// despite having full Produksi access everywhere else.
+const DIVISI_BYPASS_ROLES = new Set(['admin', 'admin_produksi', 'owner']);
+
 export function requireDivisi(...divisions) {
   return (req, res, next) => {
-    if (req.user?.role === 'admin' || req.user?.role === 'admin_produksi') return next();
+    if (DIVISI_BYPASS_ROLES.has(req.user?.role)) return next();
     if (!req.user || !divisions.includes(req.user.divisi)) {
       return next(new ApiError(403, 'Forbidden'));
     }
