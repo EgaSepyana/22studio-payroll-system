@@ -7,6 +7,7 @@ import type { Role } from '@/types'
 export function homeRouteForRole(role: Role): string {
   if (role === 'admin') return '/admin'
   if (role === 'admin_produksi') return '/admin/order'
+  if (role === 'owner') return '/owner'
   return '/app'
 }
 

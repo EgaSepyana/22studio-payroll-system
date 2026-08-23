@@ -2,7 +2,7 @@ import { EmployeesRepo } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 
 export async function getProfile(user) {
-  if (user.role === 'admin' || user.role === 'admin_produksi') {
+  if (user.role === 'admin' || user.role === 'admin_produksi' || user.role === 'owner') {
     return { username: user.username, role: user.role };
   }
   const employee = await EmployeesRepo.getById(user.employee_id);

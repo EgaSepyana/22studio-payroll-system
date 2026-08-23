@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'employee' | 'admin_produksi'
+export type Role = 'admin' | 'employee' | 'admin_produksi' | 'owner'
 export type Status = 'active' | 'inactive'
 export type PaymentStatus = 'unpaid' | 'paid'
 export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
@@ -476,4 +476,331 @@ export interface CmsContactInfo {
   email: string
   hours: string[]
   map_embed: string
+}
+
+// --- Owner (Keuangan) module ---
+
+export type OwnerCategoryType = 'income' | 'expense' | 'asset' | 'inventory' | 'liability'
+
+export type OwnerCogsBucket = 'fabric_purchase' | 'production_cost' | 'generic'
+
+export interface OwnerCategory {
+  id: string
+  type: OwnerCategoryType
+  name: string
+  is_active: boolean
+  /** Only meaningful for type 'income' — drives the Pemasukan page's sales-vs-other summary split. */
+  is_sales_category: boolean
+  /** Only meaningful for type 'liability' — the COGS bucket its auto-synced entry falls into. */
+  cogs_bucket: OwnerCogsBucket | null
+  created_at: string
+}
+
+export interface OwnerLocation {
+  id: string
+  name: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface OwnerBusinessSettings {
+  name: string
+  address: string
+  phone: string
+  monthly_revenue_target: string
+  daily_target: string
+  monthly_target: string
+  notes: string
+  logo_url: string
+  owner_name: string
+  admin_name: string
+}
+
+export interface OwnerIncome {
+  id: string
+  date: string
+  category_id: string
+  account_id: string
+  description: string
+  amount: number
+  created_at: string
+  category_name: string | null
+  is_sales_category: boolean
+  account_name: string | null
+}
+
+export interface OwnerExpense {
+  id: string
+  date: string
+  category_id: string
+  account_id: string
+  order_id: string
+  description: string
+  amount: number
+  created_at: string
+  category_name: string | null
+  account_name: string | null
+  order_name: string | null
+  customer_name: string | null
+  invoice_no: string | null
+}
+
+export interface OwnerExpensePickerOrder {
+  id: string
+  invoice_no: string
+  order_name: string
+  customer_name: string | null
+  items_total: number
+}
+
+export interface OwnerOrderProfitability {
+  order_id: string
+  invoice_no: string
+  order_name: string
+  customer_name: string | null
+  invoice_total: number
+  total_expenses: number
+  estimated_profit: number
+}
+
+export interface OwnerCashAccount {
+  id: string
+  name: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface OwnerCashAccountBalance {
+  id: string
+  name: string
+  balance: number
+}
+
+export interface OwnerCashBalances {
+  accounts: OwnerCashAccountBalance[]
+  total: number
+}
+
+export interface OwnerCashTransfer {
+  id: string
+  date: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+  description: string
+  created_at: string
+  from_account_name: string | null
+  to_account_name: string | null
+}
+
+export type OwnerCashReconciliationStatus = 'over' | 'short' | 'matched'
+
+export interface OwnerCashReconciliation {
+  id: string
+  date: string
+  account_id: string
+  system_balance: number
+  actual_balance: number
+  difference: number
+  status: OwnerCashReconciliationStatus
+  description: string
+  created_at: string
+  account_name: string | null
+}
+
+export type OwnerLiabilityStatus = 'unpaid' | 'partial' | 'paid'
+
+export interface OwnerLiability {
+  id: string
+  code: string
+  date: string
+  due_date: string
+  creditor_name: string
+  creditor_address: string
+  category_id: string
+  qty: number
+  unit_price: number
+  value: number
+  amount_paid: number
+  remaining: number
+  status: OwnerLiabilityStatus
+  description: string
+  cogs_entry_id: string
+  created_at: string
+  updated_at: string
+  category_name: string | null
+}
+
+export interface OwnerLiabilityPayment {
+  id: string
+  liability_id: string
+  date: string
+  amount: number
+  account_id: string
+  description: string
+  created_at: string
+  account_name: string | null
+}
+
+export interface OwnerLiabilityDetail extends OwnerLiability {
+  payments: OwnerLiabilityPayment[]
+}
+
+export type OwnerFundingSource = 'cash' | 'payable' | 'capital'
+
+export interface OwnerFundingInput {
+  funding_source: OwnerFundingSource
+  account_id?: string
+  creditor_name?: string
+  creditor_address?: string
+  due_date?: string
+  capital_source_name?: string
+  capital_note?: string
+}
+
+// --- Aset (Fixed Assets) ---
+
+export interface OwnerFixedAsset {
+  id: string
+  code: string
+  date: string
+  name: string
+  category_id: string
+  location_id: string
+  description: string
+  created_at: string
+  category_name: string | null
+  location_name: string | null
+  qty: number
+  value: number
+  unit_price: number
+}
+
+export interface OwnerFixedAssetTransaction {
+  id: string
+  asset_id: string
+  date: string
+  type: 'opening' | 'purchase' | 'sale'
+  qty: number
+  unit_price: number
+  total_value: number
+  funding_source: OwnerFundingSource | ''
+  account_id: string
+  liability_id: string
+  capital_entry_id: string
+  description: string
+  created_at: string
+}
+
+export interface OwnerFixedAssetDetail extends OwnerFixedAsset {
+  transactions: OwnerFixedAssetTransaction[]
+}
+
+// --- Stok Persediaan (Inventory) ---
+
+export type OwnerInventoryItemType = 'raw_material' | 'finished_good'
+export type OwnerInventoryExitType = 'production' | 'sold' | 'damaged'
+export type OwnerInventorySaleMethod = 'cash' | 'credit'
+
+export interface OwnerInventoryItem {
+  id: string
+  code: string
+  date: string
+  name: string
+  category_id: string
+  location_id: string
+  item_type: OwnerInventoryItemType
+  description: string
+  created_at: string
+  category_name: string | null
+  location_name: string | null
+  qty: number
+  value: number
+  unit_price: number
+}
+
+export interface OwnerInventoryTransaction {
+  id: string
+  item_id: string
+  date: string
+  type: 'opening' | 'stock_in' | 'stock_out'
+  qty: number
+  unit_price: number
+  total_value: number
+  funding_source: OwnerFundingSource | ''
+  account_id: string
+  liability_id: string
+  capital_entry_id: string
+  exit_type: OwnerInventoryExitType | ''
+  sale_method: OwnerInventorySaleMethod | ''
+  linked_transaction_id: string
+  description: string
+  created_at: string
+}
+
+export interface OwnerInventoryItemDetail extends OwnerInventoryItem {
+  transactions: OwnerInventoryTransaction[]
+}
+
+// --- Dashboard ---
+
+export interface OwnerDashboardRecentOrder {
+  id: string
+  order_name: string
+  customer_name: string | null
+  item_count: number
+  items_total: number
+  created_at: string
+}
+
+export interface OwnerDashboardTrendPoint {
+  label: string
+  revenue: number
+  expense: number
+}
+
+export interface OwnerDashboard {
+  revenue: number
+  expense: number
+  gross_profit: number
+  cash_accounts: OwnerCashAccountBalance[]
+  total_cash: number
+  unpaid_receivables: number
+  recent_orders: OwnerDashboardRecentOrder[]
+  monthly_trend: OwnerDashboardTrendPoint[]
+}
+
+// --- Laba Rugi (P&L) / Neraca (Balance Sheet) ---
+
+export interface OwnerReportRow {
+  label: string
+  total: number
+}
+
+export interface OwnerProfitLoss {
+  month: string
+  revenue: { rows: OwnerReportRow[]; total: number }
+  cogs: { rows: OwnerReportRow[]; total: number }
+  gross_profit: number
+  expenses: { rows: OwnerReportRow[]; total: number }
+  net_profit: number
+}
+
+export interface OwnerBalanceSheet {
+  assets: {
+    cash: { rows: OwnerReportRow[]; total: number }
+    inventory: { total: number }
+    fixed_assets: { total: number }
+    receivables: { total: number }
+    total: number
+  }
+  liabilities: { total: number }
+  equity: {
+    capital: number
+    retained_earnings: number
+    total: number
+  }
+  total_liabilities_and_equity: number
+  discrepancy: number
+  is_balanced: boolean
 }

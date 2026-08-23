@@ -27,7 +27,8 @@ const filterSchema = z.object({
 export async function create(req, res, next) {
   try {
     const data = createSchema.parse(req.body);
-    const employeeId = req.user.role === 'admin' ? req.body.employee_id : req.user.employee_id;
+    const employeeId =
+      req.user.role === 'admin' || req.user.role === 'owner' ? req.body.employee_id : req.user.employee_id;
     if (!employeeId) throw new Error('employee_id is required');
     created(res, await workLogService.createWorkLog(employeeId, data));
   } catch (err) {

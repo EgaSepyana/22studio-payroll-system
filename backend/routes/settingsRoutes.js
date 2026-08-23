@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
-router.use(requireRole('admin'));
+router.use(requireRole('admin', 'owner'));
 
 router.get('/bank-account', settingsController.getBankAccount);
 router.put('/bank-account', settingsController.updateBankAccount);

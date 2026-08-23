@@ -6,10 +6,10 @@ const router = Router();
 router.use(requireAuth);
 
 router.post('/', requireRole('employee'), cashAdvanceController.create);
-router.get('/', requireRole('admin'), cashAdvanceController.listAll);
+router.get('/', requireRole('admin', 'owner'), cashAdvanceController.listAll);
 router.get('/mine', requireRole('employee'), cashAdvanceController.listMine);
-router.get('/:id', requireRole('admin'), cashAdvanceController.detail);
-router.patch('/:id/approve', requireRole('admin'), cashAdvanceController.approve);
-router.patch('/:id/reject', requireRole('admin'), cashAdvanceController.reject);
+router.get('/:id', requireRole('admin', 'owner'), cashAdvanceController.detail);
+router.patch('/:id/approve', requireRole('admin', 'owner'), cashAdvanceController.approve);
+router.patch('/:id/reject', requireRole('admin', 'owner'), cashAdvanceController.reject);
 
 export default router;

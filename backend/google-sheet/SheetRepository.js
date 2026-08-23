@@ -159,7 +159,14 @@ export class SheetRepository {
   async insert(data) {
     return withLock(this.sheetName, async () => {
       const sheets = await getSheetsClient();
-      const id = data.id ?? (await this.nextId());
+      // Stringified immediately: nextId() returns a number, but every other
+      // read path (rowToObject, used by every real getAll() fetch) stores
+      // ids as strings. Without this, a create's response/write-through
+      // cache entry carries a numeric id for up to the 30s cache TTL, while
+      // a fresh fetch after that window returns it as a string — the same
+      // "every sheet-sourced field is a string" contract rowToObject
+      // documents, silently violated for one specific window.
+      const id = data.id !== undefined ? data.id : String(await this.nextId());
       const record = { ...data, id };
       const row = this.objectToRow(record);
       const res = await sheets.spreadsheets.values.append({

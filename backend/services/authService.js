@@ -4,6 +4,15 @@ import { UsersRepo, EmployeesRepo } from '../google-sheet/models.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
 
+// Display name for standalone (non-Employee-linked) roles — employee-linked
+// users always get their real name from the Employees row instead (see
+// login() below), this only ever applies to admin/admin_produksi/owner.
+const STANDALONE_ROLE_NAMES = {
+  admin: 'Admin',
+  admin_produksi: 'Admin Produksi',
+  owner: 'Owner',
+};
+
 function signToken(user, profile) {
   return jwt.sign(
     {
@@ -42,9 +51,7 @@ export async function login(username, password) {
       username: user.username,
       role: user.role,
       employee_id: user.employee_id || null,
-      name:
-        profile?.name ||
-        (user.role === 'admin' ? 'Admin' : user.role === 'admin_produksi' ? 'Admin Produksi' : user.username),
+      name: profile?.name || STANDALONE_ROLE_NAMES[user.role] || user.username,
       phone: profile?.phone || null,
       divisi: profile?.divisi || null,
     },

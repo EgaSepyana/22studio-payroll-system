@@ -21,6 +21,15 @@ import lembarPORoutes from './routes/lembarPORoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import cmsRoutes from './routes/cmsRoutes.js';
+import ownerSettingsRoutes from './routes/ownerSettingsRoutes.js';
+import ownerCashRoutes from './routes/ownerCashRoutes.js';
+import ownerIncomeRoutes from './routes/ownerIncomeRoutes.js';
+import ownerExpenseRoutes from './routes/ownerExpenseRoutes.js';
+import ownerLiabilityRoutes from './routes/ownerLiabilityRoutes.js';
+import ownerDashboardRoutes from './routes/ownerDashboardRoutes.js';
+import ownerAssetRoutes from './routes/ownerAssetRoutes.js';
+import ownerInventoryRoutes from './routes/ownerInventoryRoutes.js';
+import ownerReportRoutes from './routes/ownerReportRoutes.js';
 import publicOrderRoutes from './routes/publicOrderRoutes.js';
 import publicCmsRoutes from './routes/publicCmsRoutes.js';
 import shortLinkRoutes from './routes/shortLinkRoutes.js';
@@ -53,6 +62,15 @@ app.use('/api/lembar-po', lembarPORoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/owner/dashboard', ownerDashboardRoutes);
+app.use('/api/owner/settings', ownerSettingsRoutes);
+app.use('/api/owner/cash', ownerCashRoutes);
+app.use('/api/owner/income', ownerIncomeRoutes);
+app.use('/api/owner/expenses', ownerExpenseRoutes);
+app.use('/api/owner/liabilities', ownerLiabilityRoutes);
+app.use('/api/owner/assets', ownerAssetRoutes);
+app.use('/api/owner/inventory', ownerInventoryRoutes);
+app.use('/api/owner/reports', ownerReportRoutes);
 // Mounted at distinct sub-paths (not both at /api/public) so each router's
 // own rate limiter only ever applies to its own requests — two routers
 // sharing one prefix would otherwise both run their middleware for every

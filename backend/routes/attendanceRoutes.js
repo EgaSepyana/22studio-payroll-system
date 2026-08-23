@@ -10,9 +10,9 @@ router.patch('/check-out', requireRole('employee'), attendanceController.checkOu
 router.get('/today', requireRole('employee'), attendanceController.today);
 router.get('/mine', requireRole('employee'), attendanceController.mine);
 
-router.get('/', requireRole('admin'), attendanceController.list);
-router.post('/', requireRole('admin'), attendanceController.create);
-router.put('/:id', requireRole('admin'), attendanceController.update);
-router.delete('/:id', requireRole('admin'), attendanceController.remove);
+router.get('/', requireRole('admin', 'owner'), attendanceController.list);
+router.post('/', requireRole('admin', 'owner'), attendanceController.create);
+router.put('/:id', requireRole('admin', 'owner'), attendanceController.update);
+router.delete('/:id', requireRole('admin', 'owner'), attendanceController.remove);
 
 export default router;

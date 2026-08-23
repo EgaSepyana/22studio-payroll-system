@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -21,10 +21,12 @@ import {
   Settings,
   Tags,
   Globe,
+  Landmark,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import type { Role } from '@/types'
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import {
@@ -45,7 +47,19 @@ interface NavItem {
   end?: boolean
 }
 
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+interface NavGroup {
+  label: string
+  items: NavItem[]
+  // Roles allowed to see this group. Omitted = the pre-owner default
+  // (admin + owner, since owner is a superset of admin) — every existing
+  // group keeps working unchanged. admin_produksi and owner-only groups
+  // opt in explicitly.
+  roles?: Role[]
+}
+
+const DEFAULT_GROUP_ROLES: Role[] = ['admin', 'owner']
+
+const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Utama',
     items: [{ to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true }],
@@ -61,6 +75,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Produksi',
+    roles: ['admin', 'admin_produksi', 'owner'],
     items: [
       { to: '/admin/order', label: 'Order', icon: ShoppingCart },
       { to: '/admin/orders', label: 'Task', icon: ListTodo },
@@ -93,9 +108,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth()
-  // admin_produksi only ever sees the Produksi group — every other group
-  // (Master Data, Penggajian, Report, Pengaturan) is admin-only.
-  const groups = user?.role === 'admin_produksi' ? NAV_GROUPS.filter((g) => g.label === 'Produksi') : NAV_GROUPS
+  const groups = user ? NAV_GROUPS.filter((g) => (g.roles || DEFAULT_GROUP_ROLES).includes(user.role)) : []
 
   return (
     <nav className="flex flex-col gap-4 px-3">
@@ -129,6 +142,27 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+const ROLE_LABELS: Partial<Record<Role, string>> = {
+  admin_produksi: 'Admin Produksi',
+  owner: 'Owner',
+}
+
+// Owner reaches /admin for operational access but the Keuangan module lives
+// in its own OwnerLayout at /owner — this is the way back, symmetric to
+// OwnerLayout's own link into /admin.
+function OwnerReturnLink() {
+  const { user } = useAuth()
+  if (user?.role !== 'owner') return null
+
+  return (
+    <Button variant="outline" size="sm" asChild>
+      <Link to="/owner">
+        <Landmark className="size-4" /> <span className="hidden sm:inline">Buka Keuangan</span>
+      </Link>
+    </Button>
+  )
+}
+
 function UserMenu() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -151,7 +185,7 @@ function UserMenu() {
           <DropdownMenuLabel>
             <p className="font-medium">{user?.name}</p>
             <p className="text-muted-foreground text-xs font-normal">
-              {user?.role === 'admin_produksi' ? 'Admin Produksi' : 'Administrator'}
+              {(user && ROLE_LABELS[user.role]) || 'Administrator'}
             </p>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -211,6 +245,7 @@ export default function AdminLayout() {
             </SheetContent>
           </Sheet>
           <div className="flex-1" />
+          <OwnerReturnLink />
           <UserMenu />
         </header>
 
