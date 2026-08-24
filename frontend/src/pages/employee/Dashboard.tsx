@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { PlusCircle, Wallet, CalendarDays, ClipboardList, Layers, Clock, Timer, ListTodo, ChevronRight } from 'lucide-react'
+import { Wallet, CalendarDays, ClipboardList, Layers, Clock, Timer, ListTodo, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -47,12 +47,14 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <Button asChild size="lg" className="h-14 w-full text-base">
-        <Link to={isFinishing ? '/app/absensi' : '/app/input'}>
-          {isFinishing ? <Clock className="size-5" /> : <PlusCircle className="size-5" />}
-          {isFinishing ? 'Absen Sekarang' : 'Input Pekerjaan Baru'}
-        </Link>
-      </Button>
+      {isFinishing && (
+        <Button asChild size="lg" className="h-14 w-full text-base">
+          <Link to="/app/absensi">
+            <Clock className="size-5" />
+            Absen Sekarang
+          </Link>
+        </Button>
+      )}
 
       {isLoading || !data ? (
         <div className="grid grid-cols-2 gap-3">
