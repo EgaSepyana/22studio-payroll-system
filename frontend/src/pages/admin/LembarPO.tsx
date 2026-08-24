@@ -57,7 +57,7 @@ import {
 import * as lembarPOApi from '@/services/lembarPOApi'
 import * as orderApi from '@/services/orderApi'
 import { getErrorMessage } from '@/services/api'
-import type { LembarPO } from '@/types'
+import type { LembarPO, OrderStatus } from '@/types'
 
 const schema = z.object({
   order_id: z.string().min(1, 'Order wajib dipilih'),
@@ -88,7 +88,15 @@ function LembarPOFormDialog({
   const usedOrderIds = new Set(
     (existingLembarPO || []).filter((l) => l.id !== lembarPO?.id).map((l) => l.order_id)
   )
-  const availableOrders = (orders || []).filter((o) => !usedOrderIds.has(o.id))
+  const EXCLUDED_STATUSES: OrderStatus[] = ['Done', 'Dikirim', 'Di Ambil Costumer']
+  const availableOrders = (orders || []).filter(
+    (o) =>
+      !usedOrderIds.has(o.id) &&
+      // Keep the order currently linked to this Lembar PO selectable even if
+      // its status has since moved past the cutoff — otherwise editing an
+      // older Lembar PO would show an order_id with no matching option.
+      (!EXCLUDED_STATUSES.includes(o.status) || o.id === lembarPO?.order_id)
+  )
 
   function defaults(): FormInput {
     return {
