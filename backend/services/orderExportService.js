@@ -141,13 +141,16 @@ export function orderInvoiceToPdf(order) {
     doc.fillColor('#000').text(formatCurrency(order.items_total), colX[4], y, { width: colWidths[4], align: 'right' });
     y += 18;
 
-    // DP (down payment) lines only appear when the order actually has any —
-    // orders without DP keep the original plain Subtotal/Total look.
+    // Pembayaran lines (DP and Pelunasan alike) only appear when the order
+    // actually has any — orders without any keep the original plain
+    // Subtotal/Total look. Each row is labeled by its real category so a
+    // Pelunasan payment doesn't print as "DP" on the invoice.
     const hasDP = order.dp && order.dp.length > 0;
     if (hasDP) {
       order.dp.forEach((dpEntry) => {
+        const label = dpEntry.category === 'pelunasan' ? 'Pelunasan' : 'DP';
         doc.fontSize(8.5).font('Helvetica').fillColor(LABEL_COLOR);
-        doc.text(`DP (${formatDateShort(dpEntry.dp_at)})`, summaryLabelX, y, { width: summaryLabelW, align: 'right' });
+        doc.text(`${label} (${formatDateShort(dpEntry.dp_at)})`, summaryLabelX, y, { width: summaryLabelW, align: 'right' });
         doc
           .fillColor('#000')
           .text(`-${formatCurrency(dpEntry.total_dp)}`, colX[4], y, { width: colWidths[4], align: 'right' });

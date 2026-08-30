@@ -327,8 +327,9 @@ export async function orderInvoiceToExcel(order, customer) {
   totalSumCell.fill = TOTAL_FILL;
   borderedCell(totalSumCell, { horizontal: 'left' });
 
-  // Pembayaran DP / Balance — reuses the order's real, already-tracked DP
-  // total and remaining balance instead of a manually-typed number.
+  // Total Pembayaran / Balance — reuses the order's real, already-tracked
+  // payment total (DP + Pelunasan combined) and remaining balance instead
+  // of a manually-typed number.
   const balanceRow = summaryRow + 1;
   const dpRow = summaryRow + 2;
 
@@ -344,7 +345,7 @@ export async function orderInvoiceToExcel(order, customer) {
   balanceValueCell.border = { bottom: { style: 'thin' } };
 
   const dpLabelCell = sheet.getCell(dpRow, COL.harga);
-  dpLabelCell.value = 'Pembayaran DP';
+  dpLabelCell.value = 'Total Pembayaran';
   dpLabelCell.font = { bold: true };
   dpLabelCell.alignment = { horizontal: 'left' };
   dpLabelCell.border = { bottom: { style: 'thin' } };

@@ -6,6 +6,8 @@ import {
   TasksRepo,
   CustomersRepo,
   EmployeesRepo,
+  OwnerCategoriesRepo,
+  OwnerCashAccountsRepo,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
@@ -14,6 +16,29 @@ import { createShortLink } from './shortLinkService.js';
 import { env } from '../config/env.js';
 import { enrichTask } from './taskService.js';
 import * as orderTimelineService from './orderTimelineService.js';
+import * as ownerIncomeService from './ownerIncomeService.js';
+
+// Fixed Owner Keuangan income categories every Order Pembayaran posts
+// into — seeded once at the service layer (not through the owner-only HTTP
+// routes, since this integration writes as the admin/admin_produksi/owner
+// roles that can add Order Pembayaran, not as an owner). Looked up by name
+// each time rather than hardcoding an id, since ids are just sheet row
+// numbers and shouldn't be assumed stable across environments.
+const DP_INCOME_CATEGORY_NAME = 'Order DP';
+const PELUNASAN_INCOME_CATEGORY_NAME = 'Pelunasan Order';
+
+async function getPembayaranIncomeCategoryId(category) {
+  const categories = await OwnerCategoriesRepo.getAll();
+  const wantedName = category === 'pelunasan' ? PELUNASAN_INCOME_CATEGORY_NAME : DP_INCOME_CATEGORY_NAME;
+  const match = categories.find((c) => c.type === 'income' && c.name === wantedName);
+  if (!match) {
+    throw new ApiError(
+      500,
+      `Kategori pemasukan "${wantedName}" belum ada di Pengaturan Keuangan — hubungi owner untuk membuatnya`
+    );
+  }
+  return match.id;
+}
 
 const STATUS_BELUM_PROSES = 'Belum Di Proses';
 const STATUS_DESAIN_FIX = 'Desain Fix';
@@ -69,9 +94,13 @@ function enrichItem(item, sizes) {
 // unrelated to task progress — a record-keeping line-item total, not
 // production tracking.
 //
-// total_dp/sisa_pembayaran are derived the same "compute, don't store" way —
-// summed fresh from OrderDP each time rather than cached on the Orders row,
-// so they can never drift out of sync with the actual DP entries.
+// total_dp/sisa_pembayaran/status_pembayaran are derived the same
+// "compute, don't store" way — summed fresh from OrderDP each time rather
+// than cached on the Orders row, so they can never drift out of sync with
+// the actual payment records. total_dp is a historical field name kept for
+// backward compatibility (WA templates, PDF/Excel exports, the frontend) —
+// it now sums every Pembayaran entry regardless of category (DP or
+// Pelunasan), not just DP ones; see enrichDP for the category itself.
 function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
   const customer = customers.find((c) => String(c.id) === String(order.customer_id));
   const orderTasks = tasks.filter((t) => String(t.order_id) === String(order.id));
@@ -83,6 +112,7 @@ function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
 
   const itemsTotal = orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0);
   const totalDP = orderDP.reduce((sum, d) => sum + Number(d.total_dp), 0);
+  const sisaPembayaran = itemsTotal - totalDP;
 
   return {
     ...clean(order),
@@ -93,12 +123,24 @@ function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
     item_count: orderItems.length,
     items_total: itemsTotal,
     total_dp: totalDP,
-    sisa_pembayaran: itemsTotal - totalDP,
+    sisa_pembayaran: sisaPembayaran,
+    // Lunas once payments cover the full item total (a tiny epsilon guards
+    // against floating-point remainders landing at e.g. -0.00000001 instead
+    // of exactly 0 and reading as "not yet paid off").
+    status_pembayaran: sisaPembayaran <= 0.01 ? 'lunas' : 'belum_lunas',
   };
 }
 
-function enrichDP(dp) {
-  return { ...clean(dp), total_dp: Number(dp.total_dp) };
+// Rows written before the 'category' column existed have no value there —
+// treated as 'dp', since every payment entry before this change was a down
+// payment (Pelunasan didn't exist as a concept yet).
+function enrichDP(dp, accountsById) {
+  return {
+    ...clean(dp),
+    total_dp: Number(dp.total_dp),
+    category: dp.category || 'dp',
+    account_name: accountsById?.get(String(dp.account_id))?.name || null,
+  };
 }
 
 function todayYYYYMMDD() {
@@ -183,7 +225,13 @@ export async function listOrders(filters = {}) {
 
   filtered = [...filtered].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
-  return filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes, dp }));
+  let enriched = filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes, dp }));
+  // status_pembayaran is derived, not a raw column — filtered post-enrichment.
+  if (filters.status_pembayaran) {
+    enriched = enriched.filter((o) => o.status_pembayaran === filters.status_pembayaran);
+  }
+
+  return enriched;
 }
 
 async function getHeaderOrThrow(orderId) {
@@ -204,6 +252,9 @@ export async function getOrderDetail(orderId) {
     OrderDPRepo.getAll(),
   ]);
 
+  const cashAccounts = await OwnerCashAccountsRepo.getAll();
+  const accountsById = new Map(cashAccounts.map((a) => [String(a.id), a]));
+
   const enriched = enrichOrder(order, { tasks, customers, items, sizes, dp });
   const orderTasks = tasks
     .filter((t) => String(t.order_id) === String(orderId))
@@ -215,7 +266,7 @@ export async function getOrderDetail(orderId) {
     .sort((a, b) => Number(a.id) - Number(b.id));
   const orderDP = dp
     .filter((d) => String(d.order_id) === String(orderId))
-    .map(enrichDP)
+    .map((d) => enrichDP(d, accountsById))
     .sort((a, b) => (a.dp_at < b.dp_at ? 1 : -1));
 
   return { ...enriched, tasks: orderTasks, items: orderItems, dp: orderDP };
@@ -448,20 +499,39 @@ export async function deleteOrderItemSize(orderId, itemId, sizeId) {
   await OrderItemSizesRepo.deleteById(sizeId);
 }
 
-function validateDPInput({ dp_at, total_dp }) {
+export const DP_CATEGORIES = ['dp', 'pelunasan'];
+
+// account_id is required for a NEW payment (every payment must land in a
+// real Owner Keuangan cash account so the Income side of this integration
+// has somewhere to post to) but optional on edit — `requireAccount` lets
+// updateOrderDP skip re-validating it when the caller isn't changing it.
+async function validateDPInput({ dp_at, total_dp, category, account_id }, { requireAccount }) {
   const dpAt = String(dp_at || '').trim();
-  if (!dpAt) throw new ApiError(400, 'Tanggal DP wajib diisi');
+  if (!dpAt) throw new ApiError(400, 'Tanggal pembayaran wajib diisi');
   const totalDPNum = Number(total_dp);
-  if (!(totalDPNum > 0)) throw new ApiError(400, 'Nominal DP harus lebih dari 0');
-  return { dp_at: dpAt, total_dp: totalDPNum };
+  if (!(totalDPNum > 0)) throw new ApiError(400, 'Nominal pembayaran harus lebih dari 0');
+  const normalizedCategory = category || 'dp';
+  if (!DP_CATEGORIES.includes(normalizedCategory)) throw new ApiError(400, 'Kategori pembayaran tidak valid');
+
+  let accountId = account_id;
+  if (accountId !== undefined) {
+    const accounts = await OwnerCashAccountsRepo.getAll();
+    if (!accounts.some((a) => String(a.id) === String(accountId))) {
+      throw new ApiError(400, 'Akun kas tidak valid');
+    }
+  } else if (requireAccount) {
+    throw new ApiError(400, 'Akun kas wajib dipilih');
+  }
+
+  return { dp_at: dpAt, total_dp: totalDPNum, category: normalizedCategory, account_id: accountId };
 }
 
-// Cumulative DP can never exceed the order's own item total — otherwise
-// "sisa pembayaran" (items_total - total_dp) would go negative, which makes
-// no sense on an invoice. Checked against the freshest items/sizes/DP state
-// every time, same "re-derive right before writing" pattern used elsewhere
-// for money-sensitive checks.
-async function assertDPWithinItemsTotal(orderId, additionalAmount, excludingDpId) {
+// Shared by the cumulative-payment cap check and the "Pelunasan defaults to
+// the exact remainder" preview — both need the same fresh
+// items_total/payments-so-far snapshot, re-derived every time rather than
+// trusting anything the client sent (same "re-derive right before writing"
+// pattern used elsewhere for money-sensitive checks).
+async function getPaymentSnapshot(orderId, excludingDpId) {
   const [items, sizes, dp] = await Promise.all([
     OrderItemsRepo.getAll(),
     OrderItemSizesRepo.getAll(),
@@ -472,46 +542,124 @@ async function assertDPWithinItemsTotal(orderId, additionalAmount, excludingDpId
   const orderSizes = sizes.filter((s) => orderItemIds.has(String(s.order_item_id)));
   const itemsTotal = orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0);
 
-  const existingDPTotal = dp
+  const existingTotal = dp
     .filter((d) => String(d.order_id) === String(orderId) && String(d.id) !== String(excludingDpId))
     .reduce((sum, d) => sum + Number(d.total_dp), 0);
 
-  if (existingDPTotal + additionalAmount > itemsTotal) {
-    const remaining = Math.max(0, itemsTotal - existingDPTotal);
-    throw new ApiError(400, `Total DP tidak boleh melebihi total rincian order (sisa maksimal ${remaining})`);
+  return { itemsTotal, existingTotal, remaining: Math.max(0, itemsTotal - existingTotal) };
+}
+
+// Cumulative Pembayaran (DP + Pelunasan combined) can never exceed the
+// order's own item total — otherwise "sisa pembayaran" would go negative,
+// which makes no sense on an invoice. Pelunasan's default value (the exact
+// remainder) naturally satisfies this; a manually-typed override can still
+// violate it, so it's enforced here regardless of category.
+async function assertDPWithinItemsTotal(orderId, additionalAmount, excludingDpId) {
+  const { itemsTotal, existingTotal, remaining } = await getPaymentSnapshot(orderId, excludingDpId);
+  if (existingTotal + additionalAmount > itemsTotal) {
+    throw new ApiError(400, `Total pembayaran tidak boleh melebihi total rincian order (sisa maksimal ${remaining})`);
   }
+}
+
+// What a new Pelunasan entry should default to: items_total minus every
+// Pembayaran already recorded (DP or Pelunasan alike) — the exact
+// outstanding balance at this moment. Read-only preview so the frontend can
+// pre-fill the amount field; the real save still re-derives and enforces
+// this via assertDPWithinItemsTotal, never trusting the previewed number.
+export async function previewPelunasanAmount(orderId) {
+  await getHeaderOrThrow(orderId);
+  const { remaining } = await getPaymentSnapshot(orderId, null);
+  return { total_dp: remaining };
+}
+
+// Every Order Pembayaran (DP or Pelunasan) is also real business income —
+// this posts the matching OwnerIncome entry so it shows up in Owner
+// Keuangan's cash balances and Pemasukan reports, not just on the order
+// itself. Kept as its own function since both addOrderDP and updateOrderDP
+// need it (create on add, or re-create after an edit swapped category/
+// account in a way the existing linked row can't just be patched into —
+// see updateOrderDP for why edits patch in place instead where possible).
+async function createLinkedIncome(orderId, { dp_at, total_dp, category, account_id }) {
+  const order = await OrdersRepo.getById(orderId);
+  const categoryId = await getPembayaranIncomeCategoryId(category);
+  const label = category === 'pelunasan' ? 'Pelunasan' : 'DP';
+  const income = await ownerIncomeService.createIncome({
+    date: dp_at,
+    category_id: categoryId,
+    account_id,
+    amount: total_dp,
+    description: `${label} Order — ${order?.order_name || `#${orderId}`} (${order?.invoice_no || ''})`.trim(),
+  });
+  return income.id;
 }
 
 export async function addOrderDP(orderId, input) {
   await getHeaderOrThrow(orderId);
-  const normalized = validateDPInput(input);
+  const normalized = await validateDPInput(input, { requireAccount: true });
   await assertDPWithinItemsTotal(orderId, normalized.total_dp, null);
-  const dp = await OrderDPRepo.insert({ order_id: orderId, ...normalized });
-  return enrichDP(dp);
+
+  // Income is posted before the OrderDP row is written — if it throws (e.g.
+  // the category was somehow deleted from Owner Keuangan), no half-written
+  // payment is left behind for the order to show.
+  const incomeId = await createLinkedIncome(orderId, normalized);
+  const dp = await OrderDPRepo.insert({ order_id: orderId, ...normalized, income_id: incomeId });
+  const accounts = await OwnerCashAccountsRepo.getAll();
+  return enrichDP(dp, new Map(accounts.map((a) => [String(a.id), a])));
 }
 
 async function getOwnDPOrThrow(orderId, dpId) {
   const existing = await OrderDPRepo.getById(dpId);
   if (!existing || String(existing.order_id) !== String(orderId)) {
-    throw new ApiError(404, 'DP tidak ditemukan');
+    throw new ApiError(404, 'Pembayaran tidak ditemukan');
   }
   return existing;
 }
 
 export async function updateOrderDP(orderId, dpId, input) {
   const existing = await getOwnDPOrThrow(orderId, dpId);
-  const normalized = validateDPInput({
-    dp_at: input.dp_at ?? existing.dp_at,
-    total_dp: input.total_dp ?? existing.total_dp,
-  });
+  const normalized = await validateDPInput(
+    {
+      dp_at: input.dp_at ?? existing.dp_at,
+      total_dp: input.total_dp ?? existing.total_dp,
+      category: input.category ?? existing.category ?? 'dp',
+      account_id: input.account_id ?? existing.account_id,
+    },
+    { requireAccount: false }
+  );
   await assertDPWithinItemsTotal(orderId, normalized.total_dp, dpId);
+
+  // Rows written before this integration existed (or before account_id was
+  // required) may have no linked income yet — back-fill one instead of
+  // trying to "update" a row that was never created, so every payment ends
+  // up represented in Owner Keuangan exactly once, going forward.
+  if (existing.income_id) {
+    await ownerIncomeService.updateIncome(existing.income_id, {
+      date: normalized.dp_at,
+      category_id: await getPembayaranIncomeCategoryId(normalized.category),
+      account_id: normalized.account_id,
+      amount: normalized.total_dp,
+    });
+  } else if (normalized.account_id) {
+    normalized.income_id = await createLinkedIncome(orderId, normalized);
+  }
+
   const updated = await OrderDPRepo.updateById(dpId, normalized);
-  return enrichDP(updated);
+  const accounts = await OwnerCashAccountsRepo.getAll();
+  return enrichDP(updated, new Map(accounts.map((a) => [String(a.id), a])));
 }
 
 export async function deleteOrderDP(orderId, dpId) {
-  await getOwnDPOrThrow(orderId, dpId);
+  const existing = await getOwnDPOrThrow(orderId, dpId);
   await OrderDPRepo.deleteById(dpId);
+  // Reverse the linked Income row too — otherwise a deleted/mistaken
+  // payment would permanently overstate Owner Keuangan's books, exactly
+  // the drift the OrderDP<->OwnerIncome link exists to prevent.
+  if (existing.income_id) {
+    await ownerIncomeService.deleteIncome(existing.income_id).catch(() => {
+      // Already gone (e.g. deleted directly from the Owner Pemasukan page)
+      // — the payment itself still deletes successfully either way.
+    });
+  }
 }
 
 // The "Tambah Item" quick-entry template: one submit creates the item plus

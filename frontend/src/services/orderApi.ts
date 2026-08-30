@@ -4,9 +4,11 @@ import type {
   Order,
   OrderDetail,
   OrderDP,
+  OrderDPCategory,
   OrderFrom,
   OrderItem,
   OrderJenisCategory,
+  OrderPaymentStatus,
   OrderShippingInfo,
   OrderStatus,
   OrderTimelineEntry,
@@ -33,6 +35,7 @@ export interface OrderUpdateInput extends Partial<OrderInput> {
 export interface OrderFilters {
   customer_id?: string
   status?: OrderStatus
+  status_pembayaran?: OrderPaymentStatus
 }
 
 export interface OrderItemInput {
@@ -55,6 +58,8 @@ export interface OrderItemTemplateInput {
 export interface OrderDPInput {
   dp_at: string
   total_dp: number
+  category?: OrderDPCategory
+  account_id: string
 }
 
 export async function createOrder(data: OrderInput) {
@@ -117,6 +122,14 @@ export async function updateOrderItemSize(
 
 export async function deleteOrderItemSize(orderId: string, itemId: string, sizeId: string) {
   await api.delete(`/orders/${orderId}/items/${itemId}/sizes/${sizeId}`)
+}
+
+// The exact outstanding balance right now (items_total minus every
+// Pembayaran already recorded) — used to pre-fill Pelunasan's amount field.
+// Always re-verified server-side at save, never trusted as the final value.
+export async function previewPelunasanAmount(orderId: string) {
+  const res = await api.get<ApiResponse<{ total_dp: number }>>(`/orders/${orderId}/dp/preview-pelunasan`)
+  return res.data.data
 }
 
 export async function addOrderDP(orderId: string, data: OrderDPInput) {

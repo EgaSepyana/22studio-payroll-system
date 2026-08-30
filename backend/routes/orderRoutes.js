@@ -22,6 +22,7 @@ router.post('/:id/items/:itemId/sizes', requireRole('admin', 'admin_produksi', '
 router.put('/:id/items/:itemId/sizes/:sizeId', requireRole('admin', 'admin_produksi', 'owner'), orderController.updateSize);
 router.delete('/:id/items/:itemId/sizes/:sizeId', requireRole('admin', 'admin_produksi', 'owner'), orderController.removeSize);
 
+router.get('/:id/dp/preview-pelunasan', requireRole('admin', 'admin_produksi', 'owner'), orderController.previewPelunasan);
 router.post('/:id/dp', requireRole('admin', 'admin_produksi', 'owner'), orderController.addDP);
 router.put('/:id/dp/:dpId', requireRole('admin', 'admin_produksi', 'owner'), orderController.updateDP);
 router.delete('/:id/dp/:dpId', requireRole('admin', 'admin_produksi', 'owner'), orderController.removeDP);

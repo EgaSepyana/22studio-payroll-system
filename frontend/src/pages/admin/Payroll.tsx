@@ -53,6 +53,7 @@ import {
 import { useFilterStore } from '@/stores/filterStore'
 import * as payrollApi from '@/services/payrollApi'
 import * as employeeApi from '@/services/employeeApi'
+import * as cashAccountLookupApi from '@/services/cashAccountLookupApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime, todayISO, MONTH_NAMES } from '@/utils/format'
 import type { PayrollExportFilters } from '@/services/payrollApi'
@@ -196,13 +197,20 @@ export default function Payroll() {
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
   const [payingRow, setPayingRow] = React.useState<PayrollRow | null>(null)
   const [kasbonInput, setKasbonInput] = React.useState('')
+  const [payAccountId, setPayAccountId] = React.useState('')
+  const [rangePayAccountId, setRangePayAccountId] = React.useState('')
 
   function openPayDialog(row: PayrollRow) {
     setPayingRow(row)
     setKasbonInput(row.kasbon_deduction > 0 ? String(row.kasbon_deduction) : '')
+    setPayAccountId('')
   }
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
+  const { data: cashAccounts } = useQuery({
+    queryKey: ['cash-accounts'],
+    queryFn: cashAccountLookupApi.listActiveCashAccounts,
+  })
 
   const isRangeMode = viewMode === 'range'
 
@@ -267,8 +275,8 @@ export default function Payroll() {
   const payRangeInFlightRef = React.useRef(false)
 
   const payMutation = useMutation({
-    mutationFn: (vars: { id: string; kasbonDeduction?: number }) =>
-      payrollApi.markPayrollPaid(vars.id, vars.kasbonDeduction),
+    mutationFn: (vars: { id: string; accountId: string; kasbonDeduction?: number }) =>
+      payrollApi.markPayrollPaid(vars.id, vars.accountId, vars.kasbonDeduction),
     onSuccess: () => {
       toast.success('Payroll ditandai sudah dibayar')
       setPayingRow(null)
@@ -288,9 +296,10 @@ export default function Payroll() {
   })
 
   const payRangeMutation = useMutation({
-    mutationFn: () => payrollApi.markRangePaid(rangeFilters),
+    mutationFn: (accountId: string) => payrollApi.markRangePaid({ ...rangeFilters, account_id: accountId }),
     onSuccess: () => {
       toast.success('Semua payroll pada rentang tanggal ini ditandai sudah dibayar')
+      setRangePayAccountId('')
       queryClient.invalidateQueries({ queryKey: ['payroll-range'] })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -481,7 +490,7 @@ export default function Payroll() {
               </div>
             </div>
             {rangeTotals.unpaidCount > 0 && (
-              <AlertDialog>
+              <AlertDialog onOpenChange={(open) => open && setRangePayAccountId('')}>
                 <AlertDialogTrigger asChild>
                   <Button disabled={payRangeMutation.isPending}>
                     {payRangeMutation.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -496,14 +505,34 @@ export default function Payroll() {
                       {formatDate(dateTo)} akan ditandai sudah dibayar sekaligus. Tindakan ini tidak dapat dibatalkan.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-medium">Akun Kas</label>
+                    <Select value={rangePayAccountId} onValueChange={setRangePayAccountId}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Pilih akun kas" /></SelectTrigger>
+                      <SelectContent>
+                        {cashAccounts?.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-muted-foreground text-xs">
+                      Total gaji bersih yang dibayarkan akan otomatis tercatat sebagai pengeluaran "Gaji Karyawan" di
+                      Keuangan Owner.
+                    </p>
+                  </div>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Batal</AlertDialogCancel>
                     <AlertDialogAction
                       disabled={payRangeMutation.isPending}
-                      onClick={() => {
+                      onClick={(e) => {
+                        if (!rangePayAccountId) {
+                          e.preventDefault()
+                          toast.error('Akun kas wajib dipilih')
+                          return
+                        }
                         if (payRangeInFlightRef.current) return
                         payRangeInFlightRef.current = true
-                        payRangeMutation.mutate()
+                        payRangeMutation.mutate(rangePayAccountId)
                       }}
                     >
                       {payRangeMutation.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -707,16 +736,36 @@ export default function Payroll() {
               </p>
             </div>
           )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Akun Kas</label>
+            <Select value={payAccountId} onValueChange={setPayAccountId}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih akun kas" /></SelectTrigger>
+              <SelectContent>
+                {cashAccounts?.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              Gaji bersih yang dibayarkan akan otomatis tercatat sebagai pengeluaran "Gaji Karyawan" di Keuangan
+              Owner.
+            </p>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction
               disabled={payMutation.isPending}
-              onClick={() => {
+              onClick={(e) => {
                 if (!payingRow || payInFlightRef.current) return
+                if (!payAccountId) {
+                  e.preventDefault()
+                  toast.error('Akun kas wajib dipilih')
+                  return
+                }
                 payInFlightRef.current = true
                 const hasKasbon = payingRow.kasbon_deduction > 0
                 const kasbonDeduction = hasKasbon ? Number(kasbonInput || 0) : undefined
-                payMutation.mutate({ id: payingRow.id, kasbonDeduction })
+                payMutation.mutate({ id: payingRow.id, accountId: payAccountId, kasbonDeduction })
               }}
             >
               {payMutation.isPending && <Loader2 className="size-4 animate-spin" />}
