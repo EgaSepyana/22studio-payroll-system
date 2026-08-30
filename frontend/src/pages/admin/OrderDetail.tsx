@@ -53,13 +53,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import { RowActionsMenu } from '@/components/RowActionsMenu'
 import { Textarea } from '@/components/ui/textarea'
 import * as orderApi from '@/services/orderApi'
+import * as cashAccountLookupApi from '@/services/cashAccountLookupApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
-import type { OrderDP, OrderItem, OrderItemSize, OrderStatus, OrderTimelineEntry } from '@/types'
+import type { OrderDP, OrderDPCategory, OrderItem, OrderItemSize, OrderStatus, OrderTimelineEntry } from '@/types'
 
 const FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
 const SIZE_SELECT_OPTIONS = [...FIXED_SIZES, 'Custom']
@@ -362,53 +364,98 @@ function AddItemTemplateDialog({
   )
 }
 
+const DP_CATEGORY_OPTIONS: { value: OrderDPCategory; label: string }[] = [
+  { value: 'dp', label: 'DP' },
+  { value: 'pelunasan', label: 'Pelunasan' },
+]
+
 function DPFormDialog({
+  orderId,
   dp,
   open,
   pending,
   onOpenChange,
   onSubmit,
 }: {
+  orderId: string
   dp?: OrderDP
   open: boolean
   pending: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (data: { dp_at: string; total_dp: number }) => void
+  onSubmit: (data: { dp_at: string; total_dp: number; category: OrderDPCategory; account_id: string }) => void
 }) {
+  const isEdit = !!dp
   const [dpAt, setDpAt] = React.useState('')
   const [totalDp, setTotalDp] = React.useState('')
+  const [category, setCategory] = React.useState<OrderDPCategory>('dp')
+  const [accountId, setAccountId] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
+
+  const { data: cashAccounts } = useQuery({
+    queryKey: ['cash-accounts'],
+    queryFn: cashAccountLookupApi.listActiveCashAccounts,
+  })
+
+  // Pelunasan defaults to the exact outstanding balance (Total Item minus
+  // every Pembayaran so far) — fetched fresh every time the dialog opens or
+  // the category switches to Pelunasan, never cached across the save. The
+  // backend re-derives and enforces this again at save time regardless.
+  const { data: preview, isFetching: previewLoading } = useQuery({
+    queryKey: ['order-dp-preview-pelunasan', orderId],
+    queryFn: () => orderApi.previewPelunasanAmount(orderId),
+    enabled: open && !isEdit && category === 'pelunasan',
+  })
 
   React.useEffect(() => {
     if (open) {
       setDpAt(dp?.dp_at || '')
       setTotalDp(dp ? String(dp.total_dp) : '')
+      setCategory(dp?.category || 'dp')
+      setAccountId(dp?.account_id || '')
       setError(null)
     }
   }, [open, dp])
 
+  React.useEffect(() => {
+    if (open && !isEdit && category === 'pelunasan' && preview) {
+      setTotalDp(String(preview.total_dp))
+    }
+  }, [open, isEdit, category, preview])
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const amount = Number(totalDp)
-    if (!dpAt) return setError('Tanggal DP wajib diisi')
-    if (!(amount > 0)) return setError('Nominal DP harus lebih dari 0')
+    if (!dpAt) return setError('Tanggal pembayaran wajib diisi')
+    if (!(amount > 0)) return setError('Nominal pembayaran harus lebih dari 0')
+    if (!accountId) return setError('Akun kas wajib dipilih')
     setError(null)
-    onSubmit({ dp_at: dpAt, total_dp: amount })
+    onSubmit({ dp_at: dpAt, total_dp: amount, category, account_id: accountId })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{dp ? 'Edit DP' : 'Tambah DP'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Pembayaran' : 'Tambah Pembayaran'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Tanggal DP</label>
+            <label className="text-sm font-medium">Kategori</label>
+            <Select value={category} onValueChange={(v) => setCategory(v as OrderDPCategory)}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DP_CATEGORY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Tanggal Pembayaran</label>
             <Input type="date" value={dpAt} onChange={(e) => setDpAt(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Nominal DP</label>
+            <label className="text-sm font-medium">Nominal</label>
             <Input
               type="number"
               min={0}
@@ -416,6 +463,25 @@ function DPFormDialog({
               value={totalDp}
               onChange={(e) => setTotalDp(e.target.value)}
             />
+            {!isEdit && category === 'pelunasan' && (
+              <p className="text-muted-foreground text-xs">
+                {previewLoading ? 'Menghitung sisa pembayaran...' : 'Otomatis diisi sisa pembayaran saat ini — bisa diubah manual.'}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Akun Kas</label>
+            <Select value={accountId} onValueChange={setAccountId}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih akun kas" /></SelectTrigger>
+              <SelectContent>
+                {cashAccounts?.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              Pembayaran ini akan otomatis tercatat sebagai pemasukan di Keuangan Owner.
+            </p>
           </div>
           {error && <p className="text-destructive text-xs">{error}</p>}
           <DialogFooter>
@@ -1004,7 +1070,7 @@ export default function OrderDetailPage() {
       <Card className="mt-4 shadow-sm">
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-heading text-sm font-semibold">Pembayaran (DP)</h3>
+            <h3 className="font-heading text-sm font-semibold">Pembayaran</h3>
             <Button
               size="sm"
               onClick={() => {
@@ -1012,7 +1078,7 @@ export default function OrderDetailPage() {
                 setDpDialogOpen(true)
               }}
             >
-              <Plus className="size-4" /> Tambah DP
+              <Plus className="size-4" /> Tambah Pembayaran
             </Button>
           </div>
 
@@ -1020,7 +1086,9 @@ export default function OrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tanggal DP</TableHead>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Akun Kas</TableHead>
                   <TableHead className="w-40">Nominal</TableHead>
                   <TableHead className="w-24 text-right">Aksi</TableHead>
                 </TableRow>
@@ -1028,14 +1096,20 @@ export default function OrderDetailPage() {
               <TableBody>
                 {data.dp.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground text-center">
-                      Belum ada DP.
+                    <TableCell colSpan={5} className="text-muted-foreground text-center">
+                      Belum ada pembayaran.
                     </TableCell>
                   </TableRow>
                 )}
                 {data.dp.map((dp) => (
                   <TableRow key={dp.id}>
                     <TableCell>{formatDate(dp.dp_at)}</TableCell>
+                    <TableCell>
+                      <Badge variant={dp.category === 'pelunasan' ? 'default' : 'secondary'}>
+                        {dp.category === 'pelunasan' ? 'Pelunasan' : 'DP'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{dp.account_name || '-'}</TableCell>
                     <TableCell>{formatCurrency(dp.total_dp)}</TableCell>
                     <TableCell className="text-right">
                       <RowActionsMenu
@@ -1064,12 +1138,18 @@ export default function OrderDetailPage() {
               <span className="w-32 text-right">{formatCurrency(data.items_total)}</span>
             </div>
             <div className="text-muted-foreground flex gap-2">
-              <span>Total DP</span>
+              <span>Total Pembayaran</span>
               <span className="w-32 text-right">-{formatCurrency(data.total_dp)}</span>
             </div>
             <div className="flex gap-2 font-semibold">
               <span>Sisa Pembayaran</span>
               <span className="w-32 text-right">{formatCurrency(data.sisa_pembayaran)}</span>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-muted-foreground">Status</span>
+              <Badge variant={data.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
+                {data.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
+              </Badge>
             </div>
           </div>
         </CardContent>
@@ -1128,6 +1208,7 @@ export default function OrderDetailPage() {
       </AlertDialog>
 
       <DPFormDialog
+        orderId={id!}
         dp={editingDP}
         open={dpDialogOpen}
         pending={editingDP ? updateDPMutation.isPending : addDPMutation.isPending}
@@ -1143,9 +1224,10 @@ export default function OrderDetailPage() {
       <AlertDialog open={!!deletingDP} onOpenChange={(open) => !open && setDeletingDP(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus DP?</AlertDialogTitle>
+            <AlertDialogTitle>Hapus Pembayaran?</AlertDialogTitle>
             <AlertDialogDescription>
-              DP tanggal {deletingDP && formatDate(deletingDP.dp_at)} sebesar{' '}
+              {deletingDP?.category === 'pelunasan' ? 'Pelunasan' : 'DP'} tanggal{' '}
+              {deletingDP && formatDate(deletingDP.dp_at)} sebesar{' '}
               {deletingDP && formatCurrency(deletingDP.total_dp)} akan dihapus permanen.
             </AlertDialogDescription>
           </AlertDialogHeader>

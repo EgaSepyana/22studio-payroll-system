@@ -13,27 +13,33 @@ export function formatCurrency(value: number): string {
 
 export function formatDate(dateStr: string): string {
   if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(dateStr))
+  }).format(date)
 }
 
 export function formatDateTime(dateStr: string): string {
   if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(dateStr))
+  }).format(date)
 }
 
 export function formatTime(dateStr: string): string {
   if (!dateStr) return '-'
-  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date(dateStr))
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
 export const MONTH_NAMES = [

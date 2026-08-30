@@ -29,6 +29,23 @@ export async function listAccounts(req, res, next) {
   }
 }
 
+// Read-only, active-accounts-only view for the admin-facing forms that need
+// to tag a cash account (Order Pembayaran, Payroll mark-as-paid) without
+// exposing full Owner Keuangan cash-account management (create/edit/delete,
+// balances) to those roles — see listAccounts above for the owner-only,
+// full-detail version this intentionally does not replace.
+export async function listActiveAccountsForTagging(req, res, next) {
+  try {
+    const accounts = await ownerCashService.listAccounts();
+    ok(
+      res,
+      accounts.filter((a) => a.is_active).map((a) => ({ id: a.id, name: a.name }))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function createAccount(req, res, next) {
   try {
     created(res, await ownerCashService.createAccount(accountSchema.parse(req.body)));

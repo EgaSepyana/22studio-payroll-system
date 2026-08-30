@@ -35,6 +35,7 @@ const updateSchema = z.object({
 const filterSchema = z.object({
   customer_id: z.string().optional(),
   status: z.enum(ORDER_STATUSES).optional(),
+  status_pembayaran: z.enum(['lunas', 'belum_lunas']).optional(),
 });
 
 const itemSchema = z.object({
@@ -76,6 +77,8 @@ const sizeUpdateSchema = z.object({
 const dpSchema = z.object({
   dp_at: z.string().min(1),
   total_dp: z.coerce.number().positive(),
+  category: z.enum(orderService.DP_CATEGORIES).optional(),
+  account_id: z.string().min(1),
 });
 
 const followUpSchema = z.object({
@@ -86,6 +89,8 @@ const followUpSchema = z.object({
 const dpUpdateSchema = z.object({
   dp_at: z.string().min(1).optional(),
   total_dp: z.coerce.number().positive().optional(),
+  category: z.enum(orderService.DP_CATEGORIES).optional(),
+  account_id: z.string().min(1).optional(),
 });
 
 export async function create(req, res, next) {
@@ -220,6 +225,14 @@ export async function removeSize(req, res, next) {
   try {
     await orderService.deleteOrderItemSize(req.params.id, req.params.itemId, req.params.sizeId);
     ok(res, { message: 'Size dihapus' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function previewPelunasan(req, res, next) {
+  try {
+    ok(res, await orderService.previewPelunasanAmount(req.params.id));
   } catch (err) {
     next(err);
   }

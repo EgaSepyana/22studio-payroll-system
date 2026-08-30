@@ -18,6 +18,10 @@ export interface PayrollRangeFilters {
   divisi?: Divisi
 }
 
+export interface MarkRangePaidInput extends PayrollRangeFilters {
+  account_id: string
+}
+
 export async function listPayroll(month: number, year: number, employeeId?: string, divisi?: Divisi) {
   const res = await api.get<ApiResponse<PayrollRow[]>>('/payroll', {
     params: { month, year, employee_id: employeeId, divisi },
@@ -33,7 +37,7 @@ export async function listPayrollRange(filters: PayrollRangeFilters) {
   return res.data.data
 }
 
-export async function markRangePaid(filters: PayrollRangeFilters) {
+export async function markRangePaid(filters: MarkRangePaidInput) {
   const res = await api.patch<ApiResponse<PayrollRow[]>>('/payroll/range/pay', filters)
   return res.data.data
 }
@@ -69,11 +73,11 @@ export async function getPayrollDetail(id: string) {
   return res.data.data
 }
 
-export async function markPayrollPaid(id: string, kasbonDeduction?: number) {
-  const res = await api.patch<ApiResponse<PayrollRow>>(
-    `/payroll/${id}/pay`,
-    kasbonDeduction !== undefined ? { kasbon_deduction: kasbonDeduction } : undefined
-  )
+export async function markPayrollPaid(id: string, accountId: string, kasbonDeduction?: number) {
+  const res = await api.patch<ApiResponse<PayrollRow>>(`/payroll/${id}/pay`, {
+    account_id: accountId,
+    ...(kasbonDeduction !== undefined ? { kasbon_deduction: kasbonDeduction } : {}),
+  })
   return res.data.data
 }
 

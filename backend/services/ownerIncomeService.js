@@ -56,6 +56,35 @@ export async function createIncome({ date, category_id, account_id, amount, desc
   return enrichIncome(row, categoriesById, accountsById);
 }
 
+// Used by the Pemasukan page's own edit flow (if any) and by
+// orderService.updateOrderDP to keep an Order Pembayaran's linked Income row
+// in sync when the payment's amount/date/category changes after creation.
+export async function updateIncome(id, { date, category_id, account_id, amount, description }) {
+  const existing = await OwnerIncomeRepo.getById(id);
+  if (!existing) throw new ApiError(404, 'Pemasukan tidak ditemukan');
+
+  const { categoriesById, accountsById } = await loadLookups();
+  const patch = {};
+  if (date !== undefined) patch.date = date;
+  if (description !== undefined) patch.description = description;
+  if (category_id !== undefined) {
+    if (!categoriesById.has(String(category_id))) throw new ApiError(400, 'Kategori tidak valid');
+    patch.category_id = category_id;
+  }
+  if (account_id !== undefined) {
+    if (!accountsById.has(String(account_id))) throw new ApiError(400, 'Akun kas tidak valid');
+    patch.account_id = account_id;
+  }
+  if (amount !== undefined) {
+    const amountNum = Number(amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) throw new ApiError(400, 'Jumlah tidak valid');
+    patch.amount = amountNum;
+  }
+
+  const updated = await OwnerIncomeRepo.updateById(id, patch);
+  return enrichIncome(updated, categoriesById, accountsById);
+}
+
 export async function deleteIncome(id) {
   const deleted = await OwnerIncomeRepo.deleteById(id);
   if (!deleted) throw new ApiError(404, 'Pemasukan tidak ditemukan');

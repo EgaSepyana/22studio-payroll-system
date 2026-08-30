@@ -6,7 +6,9 @@ export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
 export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
 export type PaySource = 'worklog' | 'attendance'
 export type OrderStatus = 'Belum Di Proses' | 'Desain Fix' | 'On Progress' | 'Done' | 'Dikirim' | 'Di Ambil Costumer'
+export type OrderPaymentStatus = 'lunas' | 'belum_lunas'
 export type TaskStatus = 'open' | 'in_progress' | 'completed'
+export type OrderDPCategory = 'dp' | 'pelunasan'
 
 export type OrderJenisCategory =
   | 'ATRIBUT SEKOLAH'
@@ -150,10 +152,12 @@ export interface Order {
   progress: number
   item_count: number
   items_total: number
-  /** Never stored — always the sum of this order's DP entries. */
+  /** Never stored — always the sum of this order's Pembayaran entries (DP + Pelunasan combined). */
   total_dp: number
-  /** items_total - total_dp — what's still owed after any down payments. */
+  /** items_total - total_dp — what's still owed after any payments. */
   sisa_pembayaran: number
+  /** Never stored — 'lunas' once sisa_pembayaran reaches (near) zero. */
+  status_pembayaran: OrderPaymentStatus
 }
 
 export interface OrderDP {
@@ -161,6 +165,12 @@ export interface OrderDP {
   order_id: string
   dp_at: string
   total_dp: number
+  category: OrderDPCategory
+  account_id: string
+  /** Never null once created — every new payment auto-posts a matching Owner Income entry. */
+  income_id: string
+  /** Null if account_id is empty (payments recorded before this field existed). */
+  account_name: string | null
 }
 
 export interface OrderDetail extends Order {

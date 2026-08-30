@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Loader2, Eye, X, Upload, ArrowUp, ArrowDown, MessageCircle, ChevronDown, Search, SquareArrowOutUpRight } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -597,9 +598,8 @@ function FollowUpWADialog({ order, onOpenChange }: { order: Order | null; onOpen
 export default function OrderPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { customerFilter, statusFilter, jenisCategoryFilter, search, sortField, sortDir } = useFilterStore(
-    (state) => state.order
-  )
+  const { customerFilter, statusFilter, paymentStatusFilter, jenisCategoryFilter, search, sortField, sortDir } =
+    useFilterStore((state) => state.order)
   const setOrderFilter = useFilterStore((state) => state.setOrder)
   const resetOrderFilter = useFilterStore((state) => state.resetOrder)
   const [formOpen, setFormOpen] = React.useState(false)
@@ -642,6 +642,14 @@ export default function OrderPage() {
     const query = search.trim().toLowerCase()
     const filtered = data.filter((o) => {
       if (!statusFilter.includes(o.status)) return false
+      // paymentStatusFilter may be missing on state persisted before this
+      // filter existed — treat anything but a real category as "semua".
+      if (
+        (paymentStatusFilter === 'lunas' || paymentStatusFilter === 'belum_lunas') &&
+        o.status_pembayaran !== paymentStatusFilter
+      ) {
+        return false
+      }
       if (jenisCategoryFilter !== ALL && o.jenis_category !== jenisCategoryFilter) return false
       if (query) {
         const haystack = `${o.order_name} ${o.customer_name || ''}`.toLowerCase()
@@ -651,7 +659,7 @@ export default function OrderPage() {
     })
     const sorted = [...filtered].sort((a, b) => compareOrders(a, b, sortField))
     return sortDir === 'asc' ? sorted : sorted.reverse()
-  }, [data, statusFilter, jenisCategoryFilter, search, sortField, sortDir])
+  }, [data, statusFilter, paymentStatusFilter, jenisCategoryFilter, search, sortField, sortDir])
 
   const rowsWithActions = React.useMemo(
     () =>
@@ -783,6 +791,20 @@ export default function OrderPage() {
             </DropdownMenu>
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Status Pembayaran</label>
+            <Select
+              value={paymentStatusFilter || ALL}
+              onValueChange={(v) => setOrderFilter({ paymentStatusFilter: v as typeof paymentStatusFilter })}
+            >
+              <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua</SelectItem>
+                <SelectItem value="lunas">Lunas</SelectItem>
+                <SelectItem value="belum_lunas">Belum Lunas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Urutkan</label>
             <div className="flex items-center gap-2">
               <Select value={sortField} onValueChange={(v) => setOrderFilter({ sortField: v as OrderSortField })}>
@@ -829,6 +851,7 @@ export default function OrderPage() {
                     <TableHead>Jenis Category</TableHead>
                     <TableHead>Deadline</TableHead>
                     <TableHead>Total Rincian</TableHead>
+                    <TableHead>Pembayaran</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
@@ -836,7 +859,7 @@ export default function OrderPage() {
                 <TableBody>
                   {data?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-muted-foreground text-center">
+                      <TableCell colSpan={8} className="text-muted-foreground text-center">
                         Belum ada order.
                       </TableCell>
                     </TableRow>
@@ -851,9 +874,14 @@ export default function OrderPage() {
                         {formatCurrency(order.sisa_pembayaran)}
                         {order.total_dp > 0 && (
                           <span className="text-muted-foreground block text-xs">
-                            -{formatCurrency(order.total_dp)} DP
+                            -{formatCurrency(order.total_dp)}
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={order.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
+                          {order.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
+                        </Badge>
                       </TableCell>
                       <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -888,10 +916,15 @@ export default function OrderPage() {
                         {formatCurrency(order.sisa_pembayaran)}
                         {order.total_dp > 0 && (
                           <span className="text-muted-foreground block text-xs">
-                            -{formatCurrency(order.total_dp)} DP
+                            -{formatCurrency(order.total_dp)}
                           </span>
                         )}
                       </div>
+                    </MobileCardRow>
+                    <MobileCardRow label="Pembayaran">
+                      <Badge variant={order.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
+                        {order.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
+                      </Badge>
                     </MobileCardRow>
                     <MobileCardRow label="Status">
                       <OrderTaskStatusBadge status={order.status} />

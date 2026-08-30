@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CashAdvanceStatus, Divisi, OrderStatus, ReportGroupBy } from '@/types'
+import type { CashAdvanceStatus, Divisi, OrderPaymentStatus, OrderStatus, ReportGroupBy } from '@/types'
 
 const ALL = 'all'
 
@@ -13,6 +13,7 @@ type TaskSortField = 'divisi' | 'description' | 'progress' | 'assigned_to_name' 
 interface OrderFilterState {
   customerFilter: string
   statusFilter: OrderStatus[]
+  paymentStatusFilter: OrderPaymentStatus | typeof ALL
   jenisCategoryFilter: string
   search: string
   sortField: OrderSortField
@@ -106,6 +107,7 @@ const DEFAULT_ORDER_STATUS_FILTER = ORDER_STATUSES.filter((s) => s !== 'Done')
 const defaultOrderState: OrderFilterState = {
   customerFilter: ALL,
   statusFilter: DEFAULT_ORDER_STATUS_FILTER,
+  paymentStatusFilter: ALL,
   jenisCategoryFilter: ALL,
   search: '',
   sortField: 'deadline',

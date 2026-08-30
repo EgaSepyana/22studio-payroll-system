@@ -10,6 +10,27 @@ import {
 } from '../google-sheet/models.js';
 import { batchGetAll, batchUpdateRows } from '../google-sheet/SheetRepository.js';
 import { ApiError } from '../utils/response.js';
+import * as ownerExpenseService from './ownerExpenseService.js';
+import { OwnerCategoriesRepo } from '../google-sheet/models.js';
+
+// Fixed Owner Keuangan expense category every payroll payment posts into —
+// looked up by name (not hardcoded id) same reasoning as orderService's
+// Order DP/Pelunasan Order income categories. "Gaji Karyawan" already
+// existed in Owner Keuangan before this integration (unlike Order DP/
+// Pelunasan Order, nothing needed to be seeded for this one).
+const PAYROLL_EXPENSE_CATEGORY_NAME = 'Gaji Karyawan';
+
+async function getPayrollExpenseCategoryId() {
+  const categories = await OwnerCategoriesRepo.getAll();
+  const match = categories.find((c) => c.type === 'expense' && c.name === PAYROLL_EXPENSE_CATEGORY_NAME);
+  if (!match) {
+    throw new ApiError(
+      500,
+      `Kategori pengeluaran "${PAYROLL_EXPENSE_CATEGORY_NAME}" belum ada di Pengaturan Keuangan — hubungi owner untuk membuatnya`
+    );
+  }
+  return match.id;
+}
 
 function clean(record) {
   const { _rowNumber, ...rest } = record;
@@ -381,7 +402,8 @@ export async function getOrGeneratePayrollForRange(dateFrom, dateTo, employeeId,
 // omitted, but an admin may specify less, leaving the remainder "approved"
 // and outstanding for a future payroll to pick up (see
 // allocateKasbonDeduction). Must be between 0 and the total outstanding.
-export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
+export async function markAsPaid(payrollId, adminId, kasbonDeductionInput, accountId) {
+  if (!accountId) throw new ApiError(400, 'Akun kas wajib dipilih');
   const row = await PayrollRepo.getById(payrollId, { fresh: true });
   if (!row) throw new ApiError(404, 'Data payroll tidak ditemukan');
   if (row.payment_status === 'paid') throw new ApiError(400, 'Payroll sudah dibayar');
@@ -486,6 +508,38 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
     throw new ApiError(400, 'Payroll sudah dibayar');
   }
 
+  // Owner expense created BEFORE batchUpdateRows, not after — a second,
+  // separate PayrollRepo.updateById call to stamp expense_id once the
+  // payment write "had landed" was tried first and found (via live testing
+  // of markRangeAsPaid's identical shape, not assumed) to silently revert
+  // the real payment: that second call reads the row through getAll()'s
+  // shared cache, which a fresh re-fetch elsewhere in the same request can
+  // have already replaced with an array batchUpdateRows's write-through
+  // (mutating the OLD row object) never touches — so the "update" reads
+  // stale pre-payment data and writes that back over the real payment.
+  // Folding expense_id into the Payroll patch already going into `entries`
+  // avoids a second write entirely. This does mean an expense can exist for
+  // a payment whose batchUpdateRows write below then fails outright (network
+  // error, etc.) — same risk shape orderService's addOrderDP already accepts
+  // (Income is posted before the OrderDP row is written), not new here.
+  // net_salary (not the gross total_salary) is what actually leaves the cash
+  // account — a kasbon deduction settles the employee's existing debt
+  // internally, it isn't new cash going out, so it must not double-count as
+  // an expense. net_salary can legitimately be 0 (a kasbon fully absorbing
+  // the day's earnings) — createExpense rejects a zero amount, so that case
+  // is skipped rather than forced through.
+  let expenseId = null;
+  if (netSalary > 0) {
+    const expense = await ownerExpenseService.createExpense({
+      date: paidAt.slice(0, 10),
+      category_id: await getPayrollExpenseCategoryId(),
+      account_id: accountId,
+      amount: netSalary,
+      description: `Gaji ${employee?.name || `Karyawan #${row.employee_id}`} — ${row.month}/${row.year}`,
+    });
+    expenseId = expense.id;
+  }
+
   // Every row this action touches — the work logs, the kasbon, and the
   // payroll row itself — gets written in a single Sheets API call instead of
   // one call per row (previously 2 calls *per row* since updateById forced a
@@ -516,6 +570,8 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
         total_salary: finalTotal,
         kasbon_deduction: kasbonDeduction,
         net_salary: netSalary,
+        account_id: accountId,
+        expense_id: expenseId || '',
       },
     },
   ];
@@ -532,7 +588,8 @@ export async function markAsPaid(payrollId, adminId, kasbonDeductionInput) {
 // pattern as markAsPaid) and batches every touched row — work logs or
 // attendance, kasbon, and Payroll, across however many days/employees are in
 // range — into a single Sheets API call.
-export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, adminId) {
+export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, adminId, accountId) {
+  if (!accountId) throw new ApiError(400, 'Akun kas wajib dipilih');
   // reconcileDaily's list view deliberately hides an unpaid row once a paid
   // sibling exists for the same employee/day/source (see reconcileDaily) —
   // right for what an admin should be offered to pay, wrong for cleanup,
@@ -604,6 +661,7 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
   const entries = [];
   const kasbonAlreadyQueued = new Set();
   const kasbonRemainingByEmployee = new Map();
+  const payrollRowInfoById = new Map();
 
   // Process each employee's days oldest-first so a kasbon remainder that one
   // day's earnings couldn't fully cover rolls forward onto their next day,
@@ -688,8 +746,15 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
         total_salary: finalTotal,
         kasbon_deduction: kasbonDeduction,
         net_salary: netSalary,
+        account_id: accountId,
       },
     });
+    // Recorded alongside the entry so the post-write expense pass below
+    // knows exactly which rows actually got paid and for how much (net,
+    // same "money that really left the account" rule as markAsPaid) — built
+    // here rather than re-deriving from `entries` afterward since `employee`
+    // is only in scope inside this loop.
+    payrollRowInfoById.set(String(row.id), { netSalary, employeeName: employee?.name, month: row.month, year: row.year });
   }
 
   // Re-verify every payroll row's status right before writing, not just at
@@ -711,6 +776,41 @@ export async function markRangeAsPaid(dateFrom, dateTo, employeeId, divisi, admi
     if (e.repo === PayrollRepo) return stillUnpaidIds.has(String(e.existingRow.id));
     return stillUnpaidIds.has(String(e.patch.payroll_id));
   });
+
+  // Owner expenses are created BEFORE batchUpdateRows, not after — creating
+  // them after and then writing expense_id in a second, separate
+  // PayrollRepo.updateById call was tried first and found (via live testing,
+  // not assumed) to silently revert the real payment: that second call reads
+  // the row through getAll()'s shared cache, but the freshPayrollRows fetch
+  // above already replaced that cache with a new array whose row objects
+  // batchUpdateRows's write-through (which mutates the OLD `rawRow` object
+  // captured earlier in this function) never touches — so the "update" reads
+  // stale pre-payment data and writes that back over the real payment.
+  // Folding expense_id into the SAME patch already in `safeEntries` avoids a
+  // second write entirely, so this staleness gap can't reopen. This does mean
+  // an expense can exist for a row whose batchUpdateRows write below then
+  // fails outright (network error, etc.) — same risk shape orderService's
+  // addOrderDP already accepts (Income is posted before the OrderDP row is
+  // written), not a new category of risk introduced here.
+  if (stillUnpaidIds.size > 0) {
+    const categoryId = await getPayrollExpenseCategoryId();
+    const payrollEntryById = new Map(
+      safeEntries.filter((e) => e.repo === PayrollRepo).map((e) => [String(e.existingRow.id), e])
+    );
+    for (const payrollId of stillUnpaidIds) {
+      const info = payrollRowInfoById.get(payrollId);
+      const entry = payrollEntryById.get(payrollId);
+      if (!info || !entry || info.netSalary <= 0) continue;
+      const expense = await ownerExpenseService.createExpense({
+        date: paidAt.slice(0, 10),
+        category_id: categoryId,
+        account_id: accountId,
+        amount: info.netSalary,
+        description: `Gaji ${info.employeeName || `Karyawan`} — ${info.month}/${info.year}`,
+      });
+      entry.patch.expense_id = expense.id;
+    }
+  }
 
   await batchUpdateRows(safeEntries);
 

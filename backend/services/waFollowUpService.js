@@ -28,8 +28,13 @@ function formatRincian(items) {
 }
 
 function formatDPHistory(dp) {
-  if (!dp.length) return 'Belum ada riwayat DP.';
-  return dp.map((d) => `- ${formatDate(d.dp_at)}: ${formatCurrency(d.total_dp)}`).join('\n');
+  if (!dp.length) return 'Belum ada riwayat pembayaran.';
+  return dp
+    .map((d) => {
+      const label = d.category === 'pelunasan' ? 'Pelunasan' : 'DP';
+      return `- ${label} ${formatDate(d.dp_at)}: ${formatCurrency(d.total_dp)}`;
+    })
+    .join('\n');
 }
 
 function substitute(content, variables) {

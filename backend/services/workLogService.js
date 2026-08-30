@@ -150,14 +150,34 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     throw new ApiError(400, 'Tidak dapat mengubah pekerjaan yang sudah dibayar');
   }
 
-  const { quantity, work_date, notes, status } = updates;
+  const { quantity, work_date, notes, status, article_id } = updates;
   const targetQty = quantity !== undefined ? Number(quantity) : Number(existing.quantity);
-  const price = Number(existing.price);
   const finalStatus = status || existing.status || DEFAULT_WORK_STATUS;
 
-  // Customer/article are fixed at creation time via the task, so they're
-  // never edited here. Task sync only runs when qty changes — the work
-  // log's status is just a label and never drives task/order completion.
+  // Article can be changed after creation (customer is still fixed — an
+  // edit can only swap to another article already linked to this same
+  // customer, same rule createWorkLog enforces via CustomerArticles, just
+  // checked against the worklog's own stored customer_id instead of
+  // re-walking task -> order since that's already the source of truth).
+  // price/total are re-snapshotted from the new article, same
+  // "frozen at write time" contract createWorkLog establishes — there's no
+  // live recompute-from-Article path anywhere else, so this must happen here.
+  let price = Number(existing.price);
+  let nextArticleId = existing.article_id;
+  if (article_id !== undefined && String(article_id) !== String(existing.article_id)) {
+    const article = await ArticlesRepo.getById(article_id);
+    if (!article) throw new ApiError(400, 'Artikel tidak valid');
+    const customerArticles = await CustomerArticlesRepo.getAll();
+    const isLinked = customerArticles.some(
+      (ca) => String(ca.category_id) === String(article.category_id) && String(ca.customer_id) === String(existing.customer_id)
+    );
+    if (!isLinked) throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
+    price = Number(article.price);
+    nextArticleId = article_id;
+  }
+
+  // Task sync only runs when qty changes — the work log's status is just a
+  // label and never drives task/order completion.
   const qtyChanged = targetQty !== Number(existing.quantity);
   if (qtyChanged) {
     if (!existing.task_id) throw new ApiError(400, 'Data pekerjaan ini tidak terkait task');
@@ -168,6 +188,7 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
   const updated = await WorkLogsRepo.updateById(logId, {
     work_date: work_date || existing.work_date,
     quantity: targetQty,
+    article_id: nextArticleId,
     price,
     total: price * targetQty,
     notes: notes !== undefined ? notes : existing.notes,

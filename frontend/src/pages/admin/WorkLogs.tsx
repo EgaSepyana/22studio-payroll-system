@@ -151,6 +151,7 @@ export default function WorkLogs() {
   const formEmployeeId = form.watch('employee_id')
   const formEmployeeDivisi = employees?.find((e) => e.id === formEmployeeId)?.divisi
   const formTaskId = form.watch('task_id')
+  const formArticleId = form.watch('article_id')
 
   // Work logs are task-scoped now — any employee can log against any
   // not-yet-completed task in their own division (no exclusive assignment).
@@ -164,13 +165,17 @@ export default function WorkLogs() {
     [divisiTasks]
   )
   const selectedFormTask = employeeTasks.find((t) => t.id === formTaskId)
+  // On create, the customer comes from the just-picked task (no worklog
+  // exists yet to read it from). On edit, task_id is hidden/immutable — the
+  // worklog's own stored customer_id is already the same customer the task
+  // would have resolved to, so it's used directly instead of re-deriving a
+  // task selection just to read a field the row already has.
+  const formCustomerId = isEdit ? editingLog?.customer_id : selectedFormTask?.customer_id
   const availableFormArticles = React.useMemo(
-    () =>
-      articles?.filter(
-        (a) => !!selectedFormTask?.customer_id && a.customer_ids.includes(selectedFormTask.customer_id)
-      ) || [],
-    [articles, selectedFormTask]
+    () => articles?.filter((a) => !!formCustomerId && a.customer_ids.includes(formCustomerId)) || [],
+    [articles, formCustomerId]
   )
+  const selectedFormArticle = availableFormArticles.find((a) => a.id === formArticleId)
 
   const saveMutation = useMutation({
     mutationFn: (values: FormValues) =>
@@ -329,31 +334,39 @@ export default function WorkLogs() {
                   </FormItem>
                 )} />
               )}
-              {!isEdit && (
-                <FormField control={form.control} name="article_id" render={({ field }) => (
+              <FormField control={form.control} name="article_id" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Artikel</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={!selectedFormTask}>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={!isEdit && !selectedFormTask}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={!selectedFormTask ? 'Pilih task dahulu' : 'Pilih artikel'} />
+                          <SelectValue placeholder={!isEdit && !selectedFormTask ? 'Pilih task dahulu' : 'Pilih artikel'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {availableFormArticles.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.article_name}</SelectItem>
+                          <SelectItem key={a.id} value={a.id}>{a.article_name} — {formatCurrency(a.price)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {selectedFormTask && availableFormArticles.length === 0 && (
+                    {!isEdit && selectedFormTask && availableFormArticles.length === 0 && (
                       <p className="text-muted-foreground text-xs">
                         Belum ada artikel untuk customer pada task ini.
+                      </p>
+                    )}
+                    {selectedFormArticle && (
+                      <p className="text-muted-foreground text-xs">
+                        Harga: <span className="font-medium">{formatCurrency(selectedFormArticle.price)}</span> / pcs
+                      </p>
+                    )}
+                    {isEdit && (
+                      <p className="text-muted-foreground text-xs">
+                        Mengubah artikel akan memperbarui harga dan total pekerjaan ini.
                       </p>
                     )}
                     <FormMessage />
                   </FormItem>
                 )} />
-              )}
               <FormField control={form.control} name="quantity" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Quantity</FormLabel>

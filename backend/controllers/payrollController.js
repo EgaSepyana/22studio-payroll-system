@@ -29,8 +29,13 @@ const rangeFilterSchema = z.object({
   divisi: z.enum(DIVISIONS).optional(),
 });
 
+const markRangePaidSchema = rangeFilterSchema.extend({
+  account_id: z.string().min(1),
+});
+
 const markPaidSchema = z.object({
   kasbon_deduction: z.coerce.number().min(0).optional(),
+  account_id: z.string().min(1),
 });
 
 export async function list(req, res, next) {
@@ -53,8 +58,8 @@ export async function listRange(req, res, next) {
 
 export async function markRangePaid(req, res, next) {
   try {
-    const { date_from, date_to, employee_id, divisi } = rangeFilterSchema.parse(req.body);
-    ok(res, await payrollService.markRangeAsPaid(date_from, date_to, employee_id, divisi, req.user.id));
+    const { date_from, date_to, employee_id, divisi, account_id } = markRangePaidSchema.parse(req.body);
+    ok(res, await payrollService.markRangeAsPaid(date_from, date_to, employee_id, divisi, req.user.id, account_id));
   } catch (err) {
     next(err);
   }
@@ -91,8 +96,8 @@ export async function detail(req, res, next) {
 
 export async function markPaid(req, res, next) {
   try {
-    const { kasbon_deduction } = markPaidSchema.parse(req.body || {});
-    ok(res, await payrollService.markAsPaid(req.params.id, req.user.id, kasbon_deduction));
+    const { kasbon_deduction, account_id } = markPaidSchema.parse(req.body || {});
+    ok(res, await payrollService.markAsPaid(req.params.id, req.user.id, kasbon_deduction, account_id));
   } catch (err) {
     next(err);
   }

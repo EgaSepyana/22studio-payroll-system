@@ -14,6 +14,17 @@ const createSchema = z.object({
   status: z.enum(WORK_STATUSES).optional(),
 });
 
+// Deliberately its own schema, not createSchema.partial() — task_id can
+// never change after creation (workLogService.updateWorkLog ignores it even
+// if sent), so it's left out here rather than implying it's editable.
+const updateSchema = z.object({
+  article_id: z.union([z.string(), z.number()]).optional(),
+  work_date: z.string().min(1).optional(),
+  quantity: z.coerce.number().positive().optional(),
+  notes: z.string().optional(),
+  status: z.enum(WORK_STATUSES).optional(),
+});
+
 const filterSchema = z.object({
   task_id: z.string().optional(),
   employee_id: z.string().optional(),
@@ -38,7 +49,7 @@ export async function create(req, res, next) {
 
 export async function update(req, res, next) {
   try {
-    const data = createSchema.partial().parse(req.body);
+    const data = updateSchema.parse(req.body);
     ok(res, await workLogService.updateWorkLog(req.params.id, req.user.employee_id, req.user.role, data));
   } catch (err) {
     next(err);

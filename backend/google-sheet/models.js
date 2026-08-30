@@ -255,6 +255,16 @@ export const SHEET_SCHEMAS = {
     'net_salary',
     'pay_source',
     'pay_date',
+    // Appended at the end, not inserted mid-schema — see the OrderDP
+    // comment above for why. account_id is the cash account the salary was
+    // paid from; expense_id links to the OwnerExpense row this payment
+    // auto-created (Gaji Karyawan). Rows paid before this Owner integration
+    // existed have neither — nothing to reconcile since a paid Payroll row
+    // is already immutable (workLogService/payrollService both refuse to
+    // touch a worklog/payroll once paid), so there's no edit-sync concern
+    // here the way there is for OrderDP.
+    'account_id',
+    'expense_id',
   ],
   CashAdvances: [
     'id',
@@ -286,7 +296,20 @@ export const SHEET_SCHEMAS = {
   ],
   OrderItems: ['id', 'order_id', 'nama_item', 'harga', 'qty', 'total', 'warna'],
   OrderItemSizes: ['id', 'order_item_id', 'size', 'harga', 'qty'],
-  OrderDP: ['id', 'order_id', 'dp_at', 'total_dp'],
+  // 'category'/'account_id'/'income_id' appended at the end, not inserted
+  // mid-schema, so existing rows already in the sheet don't have every
+  // later column silently shift by one (see SheetRepository.rowToObject —
+  // columns are read by index). Existing rows have no value in these
+  // columns; the service layer treats a missing category as 'dp' (every
+  // entry before that change was a down payment) and a missing
+  // account_id/income_id as "not linked to a cash account/Owner Income
+  // entry" (rows written before this Owner integration existed).
+  // income_id links to the OwnerIncome row this payment auto-created, kept
+  // in sync on edit/delete — the one exception to "payments are
+  // independent rows" this table has, mirroring OwnerLiabilityPayments'
+  // reversal-on-delete pattern for the same reason (two ledgers, one
+  // source of truth).
+  OrderDP: ['id', 'order_id', 'dp_at', 'total_dp', 'category', 'account_id', 'income_id'],
   Tasks: [
     'id',
     'order_id',
