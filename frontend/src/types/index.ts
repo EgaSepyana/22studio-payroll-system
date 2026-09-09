@@ -1,13 +1,34 @@
 export type Role = 'admin' | 'employee' | 'admin_produksi' | 'owner'
 export type Status = 'active' | 'inactive'
 export type PaymentStatus = 'unpaid' | 'paid'
-export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai'
+// 'pending_audit' is system-derived only (Cutting logs before admin ticks
+// acc_owner) — never a selectable option in the create/edit form (see
+// WORK_STATUS_OPTIONS in utils/format.ts, which deliberately excludes it).
+export type WorkStatus = 'on_progress' | 'selesai' | 'belum_selesai' | 'pending_audit'
 export type CashAdvanceStatus = 'pending' | 'approved' | 'rejected' | 'paid'
+
+// Only one kind exists today (see backend NOTIFICATION_TYPES) — kept as its
+// own union rather than `string` so a switch on `type` stays exhaustive as
+// more kinds are added later.
+export type NotificationType = 'cutting_audit'
+
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  title: string
+  message: string
+  /** Meaning depends on `type` — for 'cutting_audit', the WorkLog id. */
+  related_id: string
+  is_read: boolean
+  created_at: string
+}
 export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
 export type PaySource = 'worklog' | 'attendance'
 export type OrderStatus = 'Belum Di Proses' | 'Desain Fix' | 'On Progress' | 'Done' | 'Dikirim' | 'Di Ambil Costumer'
 export type OrderPaymentStatus = 'lunas' | 'belum_lunas'
-export type TaskStatus = 'open' | 'in_progress' | 'completed'
+// 'pending_audit' only ever applies to Cutting tasks — every other division
+// goes straight from 'in_progress' to 'completed' when qty hits target.
+export type TaskStatus = 'open' | 'in_progress' | 'pending_audit' | 'completed'
 export type OrderDPCategory = 'dp' | 'pelunasan'
 
 export type OrderJenisCategory =
@@ -112,6 +133,16 @@ export interface WorkLog {
   /** Via task_id -> Tasks.order_id -> Orders. Null if task_id is missing/stale. */
   order_id: string | null
   order_name: string | null
+  /** Required for Cutting division work logs; empty for every other division. */
+  laporan_pengerjaan_foto?: string
+  // Cutting-only audit checkboxes — always present (default false)
+  // regardless of division. Ticking acc_owner true on every WorkLog against
+  // a task is what finalizes that task from 'pending_audit' to 'completed'.
+  acc_owner: boolean
+  is_jumlah_size_sesuai: boolean
+  is_size_tertempel: boolean
+  /** Cutting only: the status actually chosen at submit, restored to `status` once acc_owner is true. */
+  original_status?: WorkStatus
 }
 
 export interface OrderItemSize {

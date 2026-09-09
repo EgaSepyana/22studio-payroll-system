@@ -52,3 +52,9 @@ export async function uploadDesignImage(file) {
 export async function uploadCmsImage(file) {
   return uploadToFolder(file, '22studio-cms');
 }
+
+// Work-report photo evidence attached to Cutting work logs and Finishing
+// progress updates — its own folder, separate from order-design/CMS images.
+export async function uploadLaporanPengerjaanPhoto(file) {
+  return uploadToFolder(file, '22studio-laporan-pengerjaan');
+}

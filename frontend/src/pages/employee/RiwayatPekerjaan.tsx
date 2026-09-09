@@ -35,7 +35,7 @@ import * as workLogApi from '@/services/workLogApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate, WORK_STATUS_OPTIONS } from '@/utils/format'
+import { formatCurrency, formatDate, WORK_STATUS_OPTIONS, editableWorkStatus } from '@/utils/format'
 import type { WorkLog } from '@/types'
 
 const formSchema = z.object({
@@ -83,7 +83,7 @@ export default function RiwayatPekerjaan() {
       article_id: log.article_id,
       quantity: log.quantity,
       notes: log.notes || '',
-      status: log.status || 'selesai',
+      status: editableWorkStatus(log),
     })
     setEditingLog(log)
   }

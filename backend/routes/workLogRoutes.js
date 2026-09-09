@@ -9,6 +9,7 @@ router.post('/', requireRole('employee', 'admin', 'owner'), workLogController.cr
 router.get('/', requireRole('admin', 'owner'), workLogController.listAll);
 router.get('/export', requireRole('admin', 'owner'), workLogController.exportWorkLogs);
 router.get('/mine', requireRole('employee'), workLogController.listMine);
+router.get('/:id', requireRole('admin', 'owner'), workLogController.detail);
 router.put('/:id', requireRole('employee', 'admin', 'owner'), workLogController.update);
 router.delete('/:id', requireRole('admin', 'owner'), workLogController.remove);
 

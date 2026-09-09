@@ -9,6 +9,12 @@ export interface WorkLogInput {
   notes?: string
   employee_id?: string
   status?: WorkStatus
+  // Required only for Cutting division tasks — see workLogService.createWorkLog.
+  laporan_pengerjaan_foto?: string
+  // Cutting-only audit checkboxes, optional at creation, editable later.
+  acc_owner?: boolean
+  is_jumlah_size_sesuai?: boolean
+  is_size_tertempel?: boolean
 }
 
 export interface WorkLogFilters {
@@ -19,6 +25,14 @@ export interface WorkLogFilters {
   date_from?: string
   date_to?: string
   divisi?: Divisi
+  status?: WorkStatus
+}
+
+// Single-item fetch — used by the notification click-through to load a
+// specific WorkLog that may not be on the current filtered/paginated list.
+export async function getWorkLog(id: string) {
+  const res = await api.get<ApiResponse<WorkLog>>(`/worklogs/${id}`)
+  return res.data.data
 }
 
 export async function createWorkLog(data: WorkLogInput) {

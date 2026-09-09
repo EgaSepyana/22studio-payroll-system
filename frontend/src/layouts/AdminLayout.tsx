@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog'
+import { NotificationBell } from '@/components/NotificationBell'
 
 interface NavItem {
   to: string
@@ -245,6 +246,7 @@ export default function AdminLayout() {
             </SheetContent>
           </Sheet>
           <div className="flex-1" />
+          <NotificationBell />
           <OwnerReturnLink />
           <UserMenu />
         </header>

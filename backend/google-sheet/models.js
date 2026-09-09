@@ -2,13 +2,31 @@ import { SheetRepository } from './SheetRepository.js';
 
 export const WORK_STATUSES = ['on_progress', 'selesai', 'belum_selesai'];
 export const DEFAULT_WORK_STATUS = 'selesai';
+// System-derived only — never a selectable option in the create/edit form's
+// status dropdown (frontend WORK_STATUS_OPTIONS is a separate list that
+// never includes it). See workLogService.createWorkLog: a Cutting WorkLog's
+// status is forced to this until its acc_owner flips true, at which point
+// its originally-chosen status is restored.
+export const PENDING_AUDIT_WORK_STATUS = 'pending_audit';
 
 export const CASH_ADVANCE_STATUSES = ['pending', 'approved', 'rejected', 'paid'];
 
 export const DIVISIONS = ['Jahit', 'Sablon', 'Cutting', 'Finishing'];
 export const FINISHING_DIVISION = 'Finishing';
+export const CUTTING_DIVISION = 'Cutting';
 
 export const PAY_SOURCES = ['worklog', 'attendance'];
+
+// A generic `type` field (rather than one boolean per notification kind)
+// so new notification kinds can be added later without a schema change —
+// the frontend switches on `type` to decide icon/click-through target.
+export const NOTIFICATION_TYPES = ['cutting_audit'];
+// Shared inbox: any of these roles sees the same rows with the same read
+// state (see notificationService) — not a per-user inbox. admin_produksi is
+// deliberately excluded — Data Pekerjaan (the click-through target for a
+// cutting_audit notification) is admin/owner-only, so a notification that
+// role can't act on would just be a dead end.
+export const NOTIFICATION_RECIPIENT_ROLES = ['admin', 'owner'];
 
 export const ORDER_STATUSES = [
   'Belum Di Proses',
@@ -18,7 +36,10 @@ export const ORDER_STATUSES = [
   'Dikirim',
   'Di Ambil Costumer',
 ];
-export const TASK_STATUSES = ['open', 'in_progress', 'completed'];
+// 'pending_audit' only ever applies to Cutting tasks (see
+// taskService.taskStatusFromQty) — every other division goes straight from
+// 'in_progress' to 'completed' when qty hits target, unchanged.
+export const TASK_STATUSES = ['open', 'in_progress', 'pending_audit', 'completed'];
 
 // Owner (Keuangan) module — the `type` values OwnerCategories rows can take.
 // One flexible table (see SHEET_SCHEMAS.OwnerCategories) replaces the
@@ -241,6 +262,24 @@ export const SHEET_SCHEMAS = {
     'payroll_id',
     'status',
     'task_id',
+    // Photo evidence of the work reported — required for Cutting division
+    // input, appended at the end so existing rows (which predate this field)
+    // keep their column indices. Empty for every other division.
+    'laporan_pengerjaan_foto',
+    // Cutting-only audit checkboxes, set on the same "Tambah Pekerjaan" form
+    // as the photo above. acc_owner is what taskService.recheckCuttingAudit
+    // watches: once every WorkLog against a pending_audit Cutting task has
+    // acc_owner=true, the task itself completes. Empty for every other
+    // division.
+    'acc_owner',
+    'is_jumlah_size_sesuai',
+    'is_size_tertempel',
+    // For Cutting only: the status the employee actually chose at submit
+    // time, remembered while the visible `status` above is forced to
+    // 'pending_audit' — restored once acc_owner flips true (see
+    // workLogService). Empty for every other division, where `status` is
+    // never overridden and this is never read.
+    'original_status',
   ],
   Payroll: [
     'id',
@@ -319,6 +358,35 @@ export const SHEET_SCHEMAS = {
     'completed_qty',
     'assigned_to',
     'status',
+    'created_at',
+    // acc_owner/is_jumlah_size_sesuai/is_size_tertempel briefly lived here
+    // but moved to WorkLogs instead (see that schema below) — the audit is
+    // per work-log entry, not per task. Kept in the array rather than
+    // removed (columns are always appended, never removed/reordered here,
+    // since SheetRepository maps by index) so any already-written sheet
+    // rows keep their column alignment; no code reads or writes these 3
+    // anymore.
+    'acc_owner',
+    'is_jumlah_size_sesuai',
+    'is_size_tertempel',
+  ],
+  // Finishing's progress updates never create a WorkLog (see
+  // taskService.addTaskProgress) — payroll for that division is entirely
+  // attendance-hours based, so there's nowhere else to attach the required
+  // work-report photo for each update. This is that history: one row per
+  // Finishing progress update, purely evidentiary — never read by payroll.
+  TaskProgressPhotos: ['id', 'task_id', 'employee_id', 'quantity', 'laporan_pengerjaan_foto', 'created_at'],
+  // Shared inbox (see NOTIFICATION_RECIPIENT_ROLES) — one row per event, not
+  // one per recipient, so is_read is a single shared flag rather than a
+  // per-user read table. related_id's meaning depends on `type` (for
+  // 'cutting_audit' it's the WorkLog id) — see notificationService.
+  Notifications: [
+    'id',
+    'type',
+    'title',
+    'message',
+    'related_id',
+    'is_read',
     'created_at',
   ],
   SuratJalan: [
@@ -585,6 +653,8 @@ export const OrderItemsRepo = new SheetRepository('OrderItems', SHEET_SCHEMAS.Or
 export const OrderItemSizesRepo = new SheetRepository('OrderItemSizes', SHEET_SCHEMAS.OrderItemSizes);
 export const OrderDPRepo = new SheetRepository('OrderDP', SHEET_SCHEMAS.OrderDP);
 export const TasksRepo = new SheetRepository('Tasks', SHEET_SCHEMAS.Tasks);
+export const TaskProgressPhotosRepo = new SheetRepository('TaskProgressPhotos', SHEET_SCHEMAS.TaskProgressPhotos);
+export const NotificationsRepo = new SheetRepository('Notifications', SHEET_SCHEMAS.Notifications);
 export const SuratJalanRepo = new SheetRepository('SuratJalan', SHEET_SCHEMAS.SuratJalan);
 export const SuratJalanItemsRepo = new SheetRepository('SuratJalanItems', SHEET_SCHEMAS.SuratJalanItems);
 export const LembarPORepo = new SheetRepository('LembarPO', SHEET_SCHEMAS.LembarPO);
