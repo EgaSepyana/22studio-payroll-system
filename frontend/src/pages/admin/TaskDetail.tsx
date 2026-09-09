@@ -78,7 +78,7 @@ const TASK_SORT_FIELD_OPTIONS: { value: TaskSortField; label: string }[] = [
   { value: 'status', label: 'Status' },
 ]
 
-const TASK_STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, completed: 2 }
+const TASK_STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, pending_audit: 2, completed: 3 }
 
 function compareTaskRows(a: Task, b: Task, field: TaskSortField): number {
   switch (field) {

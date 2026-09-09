@@ -26,6 +26,7 @@ const filterSchema = z.object({
 const progressSchema = z.object({
   quantity: z.coerce.number().positive(),
   employee_id: z.union([z.string(), z.number()]).optional(),
+  laporan_pengerjaan_foto: z.string().min(1, 'Foto laporan pengerjaan wajib diunggah'),
 });
 
 export async function create(req, res, next) {
@@ -87,14 +88,15 @@ export async function remove(req, res, next) {
 
 export async function addProgress(req, res, next) {
   try {
-    const { quantity, employee_id } = progressSchema.parse(req.body);
+    const { quantity, employee_id, laporan_pengerjaan_foto } = progressSchema.parse(req.body);
     const employeeId =
       req.user.role === 'admin' || req.user.role === 'admin_produksi' || req.user.role === 'owner'
         ? employee_id
         : req.user.employee_id;
     if (!employeeId) throw new Error('employee_id is required');
-    ok(res, await taskService.addTaskProgress(req.params.id, employeeId, quantity));
+    ok(res, await taskService.addTaskProgress(req.params.id, employeeId, quantity, laporan_pengerjaan_foto));
   } catch (err) {
     next(err);
   }
 }
+

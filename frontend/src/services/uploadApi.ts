@@ -18,3 +18,12 @@ export async function uploadCmsImage(file: File) {
   })
   return res.data.data.url
 }
+
+export async function uploadLaporanPengerjaanPhoto(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await api.post<ApiResponse<{ url: string }>>('/uploads/laporan-pengerjaan', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data.data.url
+}

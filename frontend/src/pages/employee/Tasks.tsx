@@ -25,9 +25,11 @@ import {
 import { ProgressBar } from '@/components/ProgressBar'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import { LembarPOPreviewDialog } from '@/components/LembarPOPreviewDialog'
+import { WorkPhotoCaptureField } from '@/components/WorkPhotoCaptureField'
 import { useAuth } from '@/hooks/useAuth'
 import * as taskApi from '@/services/taskApi'
 import * as lembarPOApi from '@/services/lembarPOApi'
+import * as uploadApi from '@/services/uploadApi'
 import { getErrorMessage } from '@/services/api'
 import { formatDate } from '@/utils/format'
 import type { Task, TaskStatus } from '@/types'
@@ -45,7 +47,7 @@ const SORT_FIELD_OPTIONS: { value: SortField; label: string }[] = [
   { value: 'order_name', label: 'Nama Order' },
 ]
 
-const STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, completed: 2 }
+const STATUS_ORDER: Record<TaskStatus, number> = { open: 0, in_progress: 1, pending_audit: 2, completed: 3 }
 
 function compareTasks(a: Task, b: Task, field: SortField): number {
   switch (field) {
@@ -81,7 +83,14 @@ function DeadlineBadge({ deadline }: { deadline: string }) {
   )
 }
 
-function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onViewLembarPO, onOpenInInput }: {
+function TaskCard({
+  task,
+  canUpdateProgress,
+  onUpdateProgress,
+  hasLembarPO,
+  onViewLembarPO,
+  onOpenInInput,
+}: {
   task: Task
   canUpdateProgress: boolean
   onUpdateProgress: (task: Task) => void
@@ -138,14 +147,18 @@ function TaskCard({ task, canUpdateProgress, onUpdateProgress, hasLembarPO, onVi
 function UpdateProgressDialog({ task, onOpenChange }: { task: Task | null; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient()
   const [quantity, setQuantity] = React.useState('')
+  const [photoUrl, setPhotoUrl] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    if (task) setQuantity('')
+    if (task) {
+      setQuantity('')
+      setPhotoUrl('')
+    }
   }, [task])
 
   const mutation = useMutation({
-    mutationFn: (qty: number) => taskApi.addTaskProgress(task!.id, qty),
+    mutationFn: ({ qty, foto }: { qty: number; foto: string }) => taskApi.addTaskProgress(task!.id, qty, foto),
     onSuccess: () => {
       toast.success('Progress berhasil diperbarui')
       queryClient.invalidateQueries({ queryKey: ['tasks-available'] })
@@ -159,8 +172,9 @@ function UpdateProgressDialog({ task, onOpenChange }: { task: Task | null; onOpe
     const qty = Number(quantity)
     if (!(qty > 0)) return setError('Quantity harus lebih dari 0')
     if (task && qty > task.remaining_qty) return setError(`Quantity melebihi sisa target (sisa ${task.remaining_qty})`)
+    if (!photoUrl) return setError('Foto laporan pengerjaan wajib diunggah')
     setError(null)
-    mutation.mutate(qty)
+    mutation.mutate({ qty, foto: photoUrl })
   }
 
   return (
@@ -186,6 +200,14 @@ function UpdateProgressDialog({ task, onOpenChange }: { task: Task | null; onOpe
             onChange={(e) => setQuantity(e.target.value)}
             autoFocus
           />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">Foto Laporan Pengerjaan</p>
+            <WorkPhotoCaptureField
+              value={photoUrl}
+              onChange={setPhotoUrl}
+              upload={uploadApi.uploadLaporanPengerjaanPhoto}
+            />
+          </div>
           {error && <p className="text-destructive text-xs">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={mutation.isPending}>
@@ -198,6 +220,7 @@ function UpdateProgressDialog({ task, onOpenChange }: { task: Task | null; onOpe
     </Dialog>
   )
 }
+
 
 export default function Tasks() {
   const { user } = useAuth()

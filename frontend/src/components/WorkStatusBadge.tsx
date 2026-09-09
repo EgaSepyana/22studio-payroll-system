@@ -10,7 +10,8 @@ export function WorkStatusBadge({ status }: { status: WorkStatus }) {
       className={cn(
         status === 'selesai' && 'bg-success text-success-foreground',
         status === 'on_progress' && 'bg-warning text-warning-foreground',
-        status === 'belum_selesai' && 'bg-destructive/10 text-destructive'
+        status === 'belum_selesai' && 'bg-destructive/10 text-destructive',
+        status === 'pending_audit' && 'bg-muted text-muted-foreground'
       )}
     >
       {workStatusLabel(status)}

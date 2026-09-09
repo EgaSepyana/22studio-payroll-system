@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CashAdvanceStatus, Divisi, OrderPaymentStatus, OrderStatus, ReportGroupBy } from '@/types'
+import type { CashAdvanceStatus, Divisi, OrderPaymentStatus, OrderStatus, ReportGroupBy, WorkStatus } from '@/types'
 
 const ALL = 'all'
 
@@ -38,6 +38,7 @@ interface WorkLogsFilterState {
   customerId: string
   articleId: string
   divisiFilter: string
+  statusFilter: WorkStatus | typeof ALL
 }
 
 interface KasbonFilterState {
@@ -139,7 +140,7 @@ export const useFilterStore = create<FilterStore>()(
       articles: { divisiFilter: ALL, search: '' },
       setArticles: (patch) => set((state) => ({ articles: { ...state.articles, ...patch } })),
 
-      workLogs: { employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL },
+      workLogs: { employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL, statusFilter: ALL },
       setWorkLogs: (patch) => set((state) => ({ workLogs: { ...state.workLogs, ...patch } })),
 
       kasbon: { search: '', statusFilter: ALL, divisiFilter: ALL },

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import * as workLogService from '../services/workLogService.js';
 import * as workLogExportService from '../services/workLogExportService.js';
-import { WORK_STATUSES, DIVISIONS } from '../google-sheet/models.js';
+import { WORK_STATUSES, PENDING_AUDIT_WORK_STATUS, DIVISIONS } from '../google-sheet/models.js';
 import { ok, created } from '../utils/response.js';
 
 const createSchema = z.object({
@@ -12,6 +12,14 @@ const createSchema = z.object({
   quantity: z.coerce.number().positive(),
   notes: z.string().optional(),
   status: z.enum(WORK_STATUSES).optional(),
+  // Only required for Cutting division tasks — enforced in workLogService
+  // (division isn't known until the task is loaded), not here.
+  laporan_pengerjaan_foto: z.string().optional(),
+  // Cutting-only audit checkboxes, optional at creation — see
+  // workLogService.createWorkLog.
+  acc_owner: z.boolean().optional(),
+  is_jumlah_size_sesuai: z.boolean().optional(),
+  is_size_tertempel: z.boolean().optional(),
 });
 
 // Deliberately its own schema, not createSchema.partial() — task_id can
@@ -23,6 +31,9 @@ const updateSchema = z.object({
   quantity: z.coerce.number().positive().optional(),
   notes: z.string().optional(),
   status: z.enum(WORK_STATUSES).optional(),
+  acc_owner: z.boolean().optional(),
+  is_jumlah_size_sesuai: z.boolean().optional(),
+  is_size_tertempel: z.boolean().optional(),
 });
 
 const filterSchema = z.object({
@@ -33,6 +44,9 @@ const filterSchema = z.object({
   date_from: z.string().optional(),
   date_to: z.string().optional(),
   divisi: z.enum(DIVISIONS).optional(),
+  // Unlike create/update, a filter may query on pending_audit too — it's a
+  // real stored value, just never one either form lets someone pick.
+  status: z.enum([...WORK_STATUSES, PENDING_AUDIT_WORK_STATUS]).optional(),
 });
 
 export async function create(req, res, next) {
@@ -41,7 +55,15 @@ export async function create(req, res, next) {
     const employeeId =
       req.user.role === 'admin' || req.user.role === 'owner' ? req.body.employee_id : req.user.employee_id;
     if (!employeeId) throw new Error('employee_id is required');
-    created(res, await workLogService.createWorkLog(employeeId, data));
+    created(res, await workLogService.createWorkLog(employeeId, data, { actorRole: req.user.role }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function detail(req, res, next) {
+  try {
+    ok(res, await workLogService.getWorkLog(req.params.id));
   } catch (err) {
     next(err);
   }
