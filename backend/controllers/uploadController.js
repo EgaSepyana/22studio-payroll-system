@@ -20,3 +20,13 @@ export async function uploadCmsImage(req, res, next) {
     next(err);
   }
 }
+
+export async function uploadLaporanPengerjaanPhoto(req, res, next) {
+  try {
+    if (!req.file) throw new ApiError(400, 'File wajib diunggah');
+    const url = await cloudinaryUploadService.uploadLaporanPengerjaanPhoto(req.file);
+    ok(res, { url });
+  } catch (err) {
+    next(err);
+  }
+}

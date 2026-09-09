@@ -6,6 +6,7 @@ const LABELS: Record<OrderStatus | TaskStatus, string> = {
   // Task statuses (also used by legacy Order rows predating the 4-value enum).
   open: 'Belum Dikerjakan',
   in_progress: 'Sedang Dikerjakan',
+  pending_audit: 'Menunggu Audit',
   completed: 'Selesai',
   // Order statuses.
   'Belum Di Proses': 'Belum Di Proses',
@@ -25,6 +26,7 @@ export function OrderTaskStatusBadge({ status }: { status: OrderStatus | TaskSta
         (status === 'in_progress' || status === 'On Progress') && 'bg-warning text-warning-foreground',
         (status === 'open' || status === 'Desain Fix' || status === 'Belum Di Proses') &&
           'bg-muted text-muted-foreground',
+        status === 'pending_audit' && 'bg-destructive/15 text-destructive',
         status === 'Dikirim' && 'bg-primary/70 text-primary-foreground',
         status === 'Di Ambil Costumer' && 'bg-primary text-primary-foreground'
       )}

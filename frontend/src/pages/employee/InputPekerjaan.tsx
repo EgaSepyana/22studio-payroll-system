@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { WorkPhotoCaptureField } from '@/components/WorkPhotoCaptureField'
 import { ProgressBar } from '@/components/ProgressBar'
 import { LembarPOPreviewDialog } from '@/components/LembarPOPreviewDialog'
 import {
@@ -39,8 +41,11 @@ import * as workLogApi from '@/services/workLogApi'
 import * as taskApi from '@/services/taskApi'
 import * as articleApi from '@/services/articleApi'
 import * as lembarPOApi from '@/services/lembarPOApi'
+import * as uploadApi from '@/services/uploadApi'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
+
+const CUTTING_DIVISION = 'Cutting'
 
 const schema = z.object({
   work_date: z.string().min(1, 'Tanggal wajib diisi'),
@@ -49,6 +54,12 @@ const schema = z.object({
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
+  laporan_pengerjaan_foto: z.string().optional(),
+  // Cutting-only audit checkboxes, optional at creation — see
+  // backend workLogService.createWorkLog.
+  acc_owner: z.boolean().optional(),
+  is_jumlah_size_sesuai: z.boolean().optional(),
+  is_size_tertempel: z.boolean().optional(),
 })
 type FormInput = z.input<typeof schema>
 type FormValues = z.output<typeof schema>
@@ -75,6 +86,10 @@ export default function InputPekerjaan() {
       quantity: undefined,
       notes: '',
       status: 'selesai',
+      laporan_pengerjaan_foto: '',
+      acc_owner: false,
+      is_jumlah_size_sesuai: false,
+      is_size_tertempel: false,
     },
   })
 
@@ -130,6 +145,10 @@ export default function InputPekerjaan() {
         quantity: values.quantity,
         notes: values.notes,
         status: values.status,
+        laporan_pengerjaan_foto: values.laporan_pengerjaan_foto,
+        acc_owner: values.acc_owner,
+        is_jumlah_size_sesuai: values.is_jumlah_size_sesuai,
+        is_size_tertempel: values.is_size_tertempel,
       }),
     onSuccess: () => {
       toast.success('Pekerjaan berhasil disimpan!')
@@ -141,10 +160,18 @@ export default function InputPekerjaan() {
     onError: (err) => toast.error(getErrorMessage(err)),
   })
 
+  const isCuttingTask = selectedTask?.divisi === CUTTING_DIVISION
+
   function onSubmit(values: FormValues) {
     if (selectedTask && values.quantity > selectedTask.remaining_qty) {
       form.setError('quantity', {
         message: `Quantity melebihi sisa target task (sisa ${selectedTask.remaining_qty})`,
+      })
+      return
+    }
+    if (isCuttingTask && !values.laporan_pengerjaan_foto) {
+      form.setError('laporan_pengerjaan_foto', {
+        message: 'Foto laporan pengerjaan wajib diunggah untuk divisi Cutting',
       })
       return
     }
@@ -197,6 +224,10 @@ export default function InputPekerjaan() {
                   onValueChange={(t) => {
                     field.onChange(t ? t.id : '')
                     form.setValue('article_id', '')
+                    form.setValue('laporan_pengerjaan_foto', '')
+                    form.setValue('acc_owner', false)
+                    form.setValue('is_jumlah_size_sesuai', false)
+                    form.setValue('is_size_tertempel', false)
                   }}
                   disabled={activeTasks.length === 0}
                 >
@@ -302,6 +333,74 @@ export default function InputPekerjaan() {
               </FormItem>
             )}
           />
+
+          {isCuttingTask && (
+            <FormField
+              control={form.control}
+              name="laporan_pengerjaan_foto"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-base">Foto Laporan Pengerjaan</FormLabel>
+                  <FormControl>
+                    <WorkPhotoCaptureField
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      upload={uploadApi.uploadLaporanPengerjaanPhoto}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {isCuttingTask && (
+            <Card className="shadow-none">
+              <CardContent className="flex flex-col gap-3 py-4">
+                <p className="text-sm font-medium">Audit Cutting</p>
+                <FormField
+                  control={form.control}
+                  name="is_jumlah_size_sesuai"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl>
+                        <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal">Jumlah size sesuai</FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="is_size_tertempel"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl>
+                        <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal">Size tertempel</FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="acc_owner"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl>
+                        <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <FormLabel className="text-sm font-normal">ACC Owner</FormLabel>
+                    </FormItem>
+                  )}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Setelah quantity task ini mencapai target, task akan selesai begitu semua pekerjaan Cutting di
+                  dalamnya sudah dicentang ACC Owner.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <FormField
             control={form.control}

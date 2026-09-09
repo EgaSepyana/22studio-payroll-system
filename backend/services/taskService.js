@@ -1,10 +1,13 @@
 import {
   TasksRepo,
+  WorkLogsRepo,
   OrdersRepo,
   EmployeesRepo,
   CustomersRepo,
   FINISHING_DIVISION,
+  CUTTING_DIVISION,
   DIVISI_SUBSTAGE_LABELS,
+  TaskProgressPhotosRepo,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { recalculateOrderStatus } from './orderService.js';
@@ -126,7 +129,13 @@ export async function listAvailableTasks(divisi) {
 
   const available = tasks
     .filter((t) => {
-      if (t.status === 'completed') return false;
+      // pending_audit (Cutting only — see taskStatusFromQty) means qty is
+      // already at target and awaiting acc_owner on its WorkLogs (see
+      // recheckCuttingAudit) — no more qty can be logged against it, so it
+      // drops out of "available" the same as completed. The audit itself
+      // happens by editing an existing WorkLog (Riwayat Pekerjaan), not by
+      // acting on the task here.
+      if (t.status === 'completed' || t.status === 'pending_audit') return false;
       if (divisi && t.divisi !== divisi) return false;
       const order = orderMap.get(String(t.order_id));
       return order && order.status !== 'completed';
@@ -205,10 +214,51 @@ export async function deleteTask(taskId) {
 // log's own status field (on_progress/selesai/belum_selesai) is just a label
 // on that entry and never drives task/order completion. This is critical:
 // a 30/100 work log marked "selesai" must NOT complete a 100-qty task.
-function taskStatusFromQty(completedQty, targetQty) {
-  if (targetQty > 0 && completedQty >= targetQty) return 'completed';
+//
+// Cutting is the one exception: hitting target only reaches 'pending_audit',
+// not 'completed' — every WorkLog logged against it must also carry
+// acc_owner=true before it's truly done (see recheckCuttingAudit). Every
+// other division goes straight to 'completed' as before.
+function taskStatusFromQty(completedQty, targetQty, divisi) {
+  if (targetQty > 0 && completedQty >= targetQty) {
+    return divisi === CUTTING_DIVISION ? 'pending_audit' : 'completed';
+  }
   if (completedQty > 0) return 'in_progress';
   return 'open';
+}
+
+// Re-derives a Cutting task's pending_audit -> completed transition from its
+// WorkLogs' acc_owner flags (the audit checkboxes now live per-WorkLog, not
+// on the Task itself — see workLogService.createWorkLog/updateWorkLog).
+// Called after any Cutting WorkLog is created or edited, since either can
+// change whether "every WorkLog on this task has acc_owner true" holds.
+// Deleting a WorkLog never needs this: removing one from a pending_audit
+// task always drops completed_qty below target too (see removeWorkLog),
+// which un-completes it back to in_progress on its own — there's no way for
+// a delete to leave a task pending_audit with a now-all-true set of logs
+// that this function would otherwise have caught. A pure read (getById, not
+// updateById) until it's actually ready to finalize — a Task write is one
+// Sheets API call, and this runs on every Cutting WorkLog write, so it must
+// not spend one just to check.
+export async function recheckCuttingAudit(taskId) {
+  const task = await TasksRepo.getById(taskId);
+  if (!task || task.status !== 'pending_audit') return;
+
+  const logs = await WorkLogsRepo.getAll();
+  const taskLogs = logs.filter((l) => String(l.task_id) === String(taskId));
+  const allAcc = taskLogs.length > 0 && taskLogs.every((l) => l.acc_owner === 'true');
+  if (!allAcc) return;
+
+  let becameCompleted = false;
+  const updated = await TasksRepo.updateById(taskId, (current) => {
+    if (current.status !== 'pending_audit') return {};
+    becameCompleted = true;
+    return { status: 'completed' };
+  });
+  if (!updated || !becameCompleted) return;
+
+  await recalculateOrderStatus(task.order_id);
+  await noteSubStageCompletion(task.order_id, task.divisi);
 }
 
 // Called by workLogService when a work log is created against a task.
@@ -230,6 +280,9 @@ export async function applyWorkLog(taskId, employeeId, qty) {
   let divisi;
   const updated = await TasksRepo.updateById(taskId, (task) => {
     if (task.status === 'completed') throw new ApiError(400, 'Task ini sudah selesai');
+    if (task.status === 'pending_audit') {
+      throw new ApiError(400, 'Task ini menunggu audit dan tidak dapat menerima pekerjaan baru');
+    }
 
     const target = Number(task.target_qty);
     const currentCompleted = Number(task.completed_qty || 0);
@@ -241,7 +294,7 @@ export async function applyWorkLog(taskId, employeeId, qty) {
 
     orderId = task.order_id;
     divisi = task.divisi;
-    const nextStatus = taskStatusFromQty(nextCompleted, target);
+    const nextStatus = taskStatusFromQty(nextCompleted, target, task.divisi);
     becameCompleted = nextStatus === 'completed';
     const patch = {
       completed_qty: nextCompleted,
@@ -264,7 +317,7 @@ export async function applyWorkLog(taskId, employeeId, qty) {
 // exact same atomic qty math as applyWorkLog. Restricted to Finishing tasks
 // specifically — every other division's progress must keep going through
 // workLogService.createWorkLog so its pay is correctly recorded.
-export async function addTaskProgress(taskId, employeeId, qty) {
+export async function addTaskProgress(taskId, employeeId, qty, laporanPengerjaanFoto) {
   const employee = await EmployeesRepo.getById(employeeId);
   if (!employee) throw new ApiError(400, 'Karyawan tidak valid');
 
@@ -276,8 +329,21 @@ export async function addTaskProgress(taskId, employeeId, qty) {
   if (employee.divisi !== task.divisi) {
     throw new ApiError(403, 'Task ini bukan untuk divisi Anda');
   }
+  if (!laporanPengerjaanFoto) {
+    throw new ApiError(400, 'Foto laporan pengerjaan wajib diunggah');
+  }
 
   await applyWorkLog(taskId, employeeId, qty);
+  // Purely evidentiary — never read by payroll, see TaskProgressPhotos schema
+  // comment. Written after applyWorkLog succeeds so a rejected qty (e.g. over
+  // target) never leaves an orphaned photo row with nothing behind it.
+  await TaskProgressPhotosRepo.insert({
+    task_id: taskId,
+    employee_id: employeeId,
+    quantity: qty,
+    laporan_pengerjaan_foto: laporanPengerjaanFoto,
+    created_at: new Date().toISOString(),
+  });
   return getTaskDetail(taskId);
 }
 
@@ -299,7 +365,7 @@ export async function reapplyWorkLog(taskId, qtyDelta) {
 
     orderId = task.order_id;
     divisi = task.divisi;
-    const nextStatus = taskStatusFromQty(nextCompleted, target);
+    const nextStatus = taskStatusFromQty(nextCompleted, target, task.divisi);
     becameCompleted = task.status !== 'completed' && nextStatus === 'completed';
     return { completed_qty: nextCompleted, status: nextStatus };
   });
@@ -319,7 +385,7 @@ export async function removeWorkLog(taskId, qty) {
     const nextCompleted = Math.max(0, currentCompleted - Number(qty));
 
     orderId = task.order_id;
-    return { completed_qty: nextCompleted, status: taskStatusFromQty(nextCompleted, target) };
+    return { completed_qty: nextCompleted, status: taskStatusFromQty(nextCompleted, target, task.divisi) };
   });
   if (!updated) return; // task may have been deleted independently; nothing to reverse
 

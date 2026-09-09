@@ -52,7 +52,11 @@ export async function deleteTask(id: string) {
 // Finishing-only: advances a task's completed_qty directly, without
 // creating a WorkLog — Finishing employees are paid hourly via Attendance,
 // so there's no article/price to attach and this must never feed payroll.
-export async function addTaskProgress(id: string, quantity: number) {
-  const res = await api.post<ApiResponse<Task>>(`/tasks/${id}/progress`, { quantity })
+// laporanPengerjaanFoto is required (photo evidence for this progress update).
+export async function addTaskProgress(id: string, quantity: number, laporanPengerjaanFoto: string) {
+  const res = await api.post<ApiResponse<Task>>(`/tasks/${id}/progress`, {
+    quantity,
+    laporan_pengerjaan_foto: laporanPengerjaanFoto,
+  })
   return res.data.data
 }

@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { WorkStatusBadge } from '@/components/WorkStatusBadge'
 import { RowActionsMenu, type RowAction } from '@/components/RowActionsMenu'
 import { MobileCardList, MobileCard, MobileCardRow } from '@/components/MobileCardList'
@@ -54,7 +55,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/services/api'
-import { todayISO, WORK_STATUS_OPTIONS } from '@/utils/format'
+import { todayISO, WORK_STATUS_OPTIONS, editableWorkStatus } from '@/utils/format'
 
 import { useFilterStore } from '@/stores/filterStore'
 import * as workLogApi from '@/services/workLogApi'
@@ -62,11 +63,23 @@ import * as employeeApi from '@/services/employeeApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
 import * as taskApi from '@/services/taskApi'
+import * as uploadApi from '@/services/uploadApi'
+import { WorkPhotoCaptureField } from '@/components/WorkPhotoCaptureField'
 import { formatCurrency, formatDate } from '@/utils/format'
-import type { Divisi, WorkLog } from '@/types'
+import type { Divisi, WorkLog, WorkStatus } from '@/types'
 
 const ALL = 'all'
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
+const CUTTING_DIVISION: Divisi = 'Cutting'
+
+// Its own list rather than reusing WORK_STATUS_OPTIONS — that one
+// deliberately excludes 'pending_audit' (never a value the create/edit form
+// lets someone pick), but a filter legitimately needs to query on it (e.g.
+// "show me everything still awaiting audit").
+const STATUS_FILTER_OPTIONS: { value: WorkStatus; label: string }[] = [
+  ...WORK_STATUS_OPTIONS,
+  { value: 'pending_audit', label: 'Menunggu Audit' },
+]
 
 const createSchema = z.object({
   employee_id: z.string().min(1, 'Karyawan wajib dipilih'),
@@ -76,6 +89,10 @@ const createSchema = z.object({
   quantity: z.coerce.number().positive('Quantity harus lebih dari 0'),
   notes: z.string().optional(),
   status: z.enum(['on_progress', 'selesai', 'belum_selesai']),
+  laporan_pengerjaan_foto: z.string().optional(),
+  acc_owner: z.boolean().optional(),
+  is_jumlah_size_sesuai: z.boolean().optional(),
+  is_size_tertempel: z.boolean().optional(),
 })
 const editSchema = createSchema.extend({ task_id: z.string(), article_id: z.string() })
 type FormInput = z.input<typeof createSchema>
@@ -83,13 +100,36 @@ type FormValues = z.output<typeof createSchema>
 
 export default function WorkLogs() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
-  const { employeeId, customerId, articleId, divisiFilter } = useFilterStore((state) => state.workLogs)
+  const { employeeId, customerId, articleId, divisiFilter, statusFilter } = useFilterStore((state) => state.workLogs)
   const setWorkLogsFilter = useFilterStore((state) => state.setWorkLogs)
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
   const [deletingLog, setDeletingLog] = React.useState<WorkLog | null>(null)
+
+  // Deep-link from a notification (see NotificationBell) — fetched directly
+  // by id rather than found in the current filtered/paginated list, which
+  // may not even contain it (e.g. a different employee/status filter is
+  // active). Consumed once: the param is stripped from the URL right after
+  // so a page refresh doesn't keep re-opening the same dialog.
+  const openWorklogId = searchParams.get('openWorklogId')
+  const { data: deepLinkedLog } = useQuery({
+    queryKey: ['worklog', openWorklogId],
+    queryFn: () => workLogApi.getWorkLog(openWorklogId!),
+    enabled: !!openWorklogId,
+  })
+  React.useEffect(() => {
+    if (!deepLinkedLog) return
+    setEditingLog(deepLinkedLog)
+    setIsFormOpen(true)
+    setSearchParams((params) => {
+      params.delete('openWorklogId')
+      return params
+    }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkedLog])
   const [exportingFormat, setExportingFormat] = React.useState<'excel' | 'pdf' | null>(null)
 
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
@@ -103,6 +143,7 @@ export default function WorkLogs() {
     customer_id: customerId === ALL ? undefined : customerId,
     article_id: articleId === ALL ? undefined : articleId,
     divisi: divisiFilter === ALL ? undefined : (divisiFilter as Divisi),
+    status: statusFilter === ALL ? undefined : statusFilter,
   }
 
   const { data, isLoading } = useQuery({
@@ -111,12 +152,18 @@ export default function WorkLogs() {
   })
 
   const hasFilters =
-    dateFrom || dateTo || employeeId !== ALL || customerId !== ALL || articleId !== ALL || divisiFilter !== ALL
+    dateFrom ||
+    dateTo ||
+    employeeId !== ALL ||
+    customerId !== ALL ||
+    articleId !== ALL ||
+    divisiFilter !== ALL ||
+    statusFilter !== ALL
 
   function resetFilters() {
     setDateFrom('')
     setDateTo('')
-    setWorkLogsFilter({ employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL })
+    setWorkLogsFilter({ employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL, statusFilter: ALL })
   }
 
   const isEdit = !!editingLog
@@ -131,6 +178,10 @@ export default function WorkLogs() {
       quantity: undefined,
       notes: '',
       status: 'selesai',
+      laporan_pengerjaan_foto: '',
+      acc_owner: false,
+      is_jumlah_size_sesuai: false,
+      is_size_tertempel: false,
     },
   })
 
@@ -143,7 +194,11 @@ export default function WorkLogs() {
         article_id: editingLog?.article_id || '',
         quantity: editingLog?.quantity,
         notes: editingLog?.notes || '',
-        status: editingLog?.status || 'selesai',
+        status: editingLog ? editableWorkStatus(editingLog) : 'selesai',
+        laporan_pengerjaan_foto: editingLog?.laporan_pengerjaan_foto || '',
+        acc_owner: editingLog?.acc_owner ?? false,
+        is_jumlah_size_sesuai: editingLog?.is_jumlah_size_sesuai ?? false,
+        is_size_tertempel: editingLog?.is_size_tertempel ?? false,
       })
     }
   }, [isFormOpen, editingLog, form])
@@ -176,6 +231,13 @@ export default function WorkLogs() {
     [articles, formCustomerId]
   )
   const selectedFormArticle = availableFormArticles.find((a) => a.id === formArticleId)
+  // Photo is required by the backend only on create (see
+  // workLogService.createWorkLog) — an existing Cutting log can be edited
+  // without re-uploading one.
+  const requiresPhoto = !isEdit && formEmployeeDivisi === CUTTING_DIVISION
+  // Audit checkboxes show (and can be edited) any time the log is Cutting's,
+  // on both create and edit — unlike the photo, they're never required.
+  const isCuttingLog = formEmployeeDivisi === CUTTING_DIVISION
 
   const saveMutation = useMutation({
     mutationFn: (values: FormValues) =>
@@ -187,6 +249,16 @@ export default function WorkLogs() {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  function onSubmit(values: FormValues) {
+    if (requiresPhoto && !values.laporan_pengerjaan_foto) {
+      form.setError('laporan_pengerjaan_foto', {
+        message: 'Foto laporan pengerjaan wajib diunggah untuk divisi Cutting',
+      })
+      return
+    }
+    saveMutation.mutate(values)
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => workLogApi.deleteWorkLog(id),
@@ -272,7 +344,7 @@ export default function WorkLogs() {
             <DialogTitle>{isEdit ? 'Edit Pekerjaan' : 'Tambah Pekerjaan'}</DialogTitle>
           </DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="employee_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Karyawan</FormLabel>
@@ -374,6 +446,48 @@ export default function WorkLogs() {
                   <FormMessage />
                 </FormItem>
               )} />
+              {requiresPhoto && (
+                <FormField control={form.control} name="laporan_pengerjaan_foto" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Foto Laporan Pengerjaan</FormLabel>
+                    <FormControl>
+                      <WorkPhotoCaptureField
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        upload={uploadApi.uploadLaporanPengerjaanPhoto}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              )}
+              {isCuttingLog && (
+                <div className="flex flex-col gap-2 rounded-md border p-3">
+                  <p className="text-sm font-medium">Audit Cutting</p>
+                  <FormField control={form.control} name="is_jumlah_size_sesuai" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl><Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} /></FormControl>
+                      <FormLabel className="font-normal">Jumlah size sesuai</FormLabel>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="is_size_tertempel" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl><Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} /></FormControl>
+                      <FormLabel className="font-normal">Size tertempel</FormLabel>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="acc_owner" render={({ field }) => (
+                    <FormItem className="flex flex-row items-center gap-2">
+                      <FormControl><Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} /></FormControl>
+                      <FormLabel className="font-normal">ACC Owner</FormLabel>
+                    </FormItem>
+                  )} />
+                  <p className="text-muted-foreground text-xs">
+                    Task selesai otomatis setelah qty mencapai target dan seluruh pekerjaan Cutting di task tersebut
+                    sudah dicentang ACC Owner.
+                  </p>
+                </div>
+              )}
               <FormField control={form.control} name="status" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status Pekerjaan</FormLabel>
@@ -474,6 +588,18 @@ export default function WorkLogs() {
               <SelectContent>
                 <SelectItem value={ALL}>Semua Divisi</SelectItem>
                 {DIVISIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-muted-foreground text-xs font-medium">Status</label>
+            <Select value={statusFilter} onValueChange={(v) => setWorkLogsFilter({ statusFilter: v as typeof statusFilter })}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua Status</SelectItem>
+                {STATUS_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

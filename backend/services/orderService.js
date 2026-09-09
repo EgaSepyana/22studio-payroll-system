@@ -388,7 +388,10 @@ export async function recalculateOrderStatus(orderId) {
   let nextStatus;
   if (orderTasks.every((t) => t.status === 'completed')) {
     nextStatus = STATUS_DONE;
-  } else if (orderTasks.some((t) => t.status === 'in_progress' || t.status === 'completed')) {
+  } else if (orderTasks.some((t) => t.status === 'in_progress' || t.status === 'completed' || t.status === 'pending_audit')) {
+    // pending_audit (Cutting awaiting acc_owner — see taskService) is not
+    // "done" yet, but it's clearly not "not started" either, so it counts
+    // toward On Progress the same way in_progress/completed already do.
     nextStatus = STATUS_ON_PROGRESS;
   } else {
     nextStatus = STATUS_DESAIN_FIX;
