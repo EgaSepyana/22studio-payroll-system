@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ApiResponse, Divisi, Task, TaskStatus } from '@/types'
+import type { ApiResponse, Divisi, Task, TaskStatus, TaskProgressPhoto } from '@/types'
 
 export interface TaskInput {
   order_id: string
@@ -37,6 +37,13 @@ export async function listMyTasks() {
 
 export async function getTaskDetail(id: string) {
   const res = await api.get<ApiResponse<Task>>(`/tasks/${id}`)
+  return res.data.data
+}
+
+// Admin-only: the photo history from a Finishing task's Update Progress
+// submissions (Finishing tasks have no WorkLogs — see addTaskProgress).
+export async function listTaskProgressPhotos(id: string) {
+  const res = await api.get<ApiResponse<TaskProgressPhoto[]>>(`/tasks/${id}/progress-photos`)
   return res.data.data
 }
 

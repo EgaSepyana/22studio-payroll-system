@@ -248,6 +248,18 @@ export interface Task {
   deadline?: string | null
 }
 
+// One row per Finishing 'Update Progress' submission — its photo evidence.
+// Finishing tasks create no WorkLog, so this is the only per-update record.
+export interface TaskProgressPhoto {
+  id: string
+  task_id: string
+  employee_id: string
+  quantity: number
+  laporan_pengerjaan_foto: string
+  created_at: string
+  employee_name: string | null
+}
+
 export interface Attendance {
   id: string
   employee_id: string
