@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2 } from 'lucide-react'
+import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2, Eye, ImageIcon } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -55,7 +55,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/services/api'
-import { todayISO, WORK_STATUS_OPTIONS, editableWorkStatus } from '@/utils/format'
+import { todayISO, WORK_STATUS_OPTIONS, editableWorkStatus, workStatusLabel } from '@/utils/format'
 
 import { useFilterStore } from '@/stores/filterStore'
 import * as workLogApi from '@/services/workLogApi'
@@ -98,6 +98,118 @@ const editSchema = createSchema.extend({ task_id: z.string(), article_id: z.stri
 type FormInput = z.input<typeof createSchema>
 type FormValues = z.output<typeof createSchema>
 
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-4 py-1.5 text-sm">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-right font-medium">{children}</span>
+    </div>
+  )
+}
+
+function BoolPill({ value }: { value: boolean }) {
+  return (
+    <span
+      className={
+        value
+          ? 'inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success'
+          : 'inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
+      }
+    >
+      {value ? 'Ya' : 'Tidak'}
+    </span>
+  )
+}
+
+function WorkLogDetailDialog({
+  log,
+  isCutting,
+  onOpenChange,
+}: {
+  log: WorkLog | null
+  isCutting: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={!!log} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Detail Pekerjaan</DialogTitle>
+        </DialogHeader>
+        {log && (
+          <div className="flex flex-col gap-4">
+            <div className="divide-y">
+              <DetailRow label="ID">{log.id}</DetailRow>
+              <DetailRow label="Tanggal">{formatDate(log.work_date)}</DetailRow>
+              <DetailRow label="Karyawan">{log.employee_name || '-'}</DetailRow>
+              <DetailRow label="Task">
+                {log.order_id ? (
+                  <Link to={`/admin/orders/${log.order_id}`} className="text-primary hover:underline">
+                    {log.order_name || '-'}
+                  </Link>
+                ) : (
+                  '-'
+                )}
+              </DetailRow>
+              <DetailRow label="Customer">{log.customer_name || '-'}</DetailRow>
+              <DetailRow label="Artikel">{log.article_name || '-'}</DetailRow>
+              <DetailRow label="Harga / pcs">{formatCurrency(log.price)}</DetailRow>
+              <DetailRow label="Quantity">{log.quantity}</DetailRow>
+              <DetailRow label="Total">{formatCurrency(log.total)}</DetailRow>
+              <DetailRow label="Status">
+                <WorkStatusBadge status={log.status} />
+              </DetailRow>
+              {isCutting && log.original_status && (
+                <DetailRow label="Status Setelah Audit">{workStatusLabel(log.original_status)}</DetailRow>
+              )}
+              <DetailRow label="Keterangan">{log.notes || '-'}</DetailRow>
+              <DetailRow label="Status Pembayaran">
+                {log.payroll_id ? `Sudah dibayar (payroll #${log.payroll_id})` : 'Belum dibayar'}
+              </DetailRow>
+            </div>
+
+            {isCutting && (
+              <div className="rounded-md border p-3">
+                <p className="mb-2 text-sm font-medium">Audit Cutting</p>
+                <div className="divide-y">
+                  <DetailRow label="Jumlah size sesuai">
+                    <BoolPill value={log.is_jumlah_size_sesuai} />
+                  </DetailRow>
+                  <DetailRow label="Size tertempel">
+                    <BoolPill value={log.is_size_tertempel} />
+                  </DetailRow>
+                  <DetailRow label="ACC Owner">
+                    <BoolPill value={log.acc_owner} />
+                  </DetailRow>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-2 text-sm font-medium">Foto Laporan Pengerjaan</p>
+              {log.laporan_pengerjaan_foto ? (
+                <a href={log.laporan_pengerjaan_foto} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={log.laporan_pengerjaan_foto}
+                    alt="Laporan pengerjaan"
+                    className="border-border w-full rounded-md border object-contain"
+                  />
+                  <span className="text-muted-foreground mt-1 block text-xs">Klik untuk buka ukuran penuh</span>
+                </a>
+              ) : (
+                <div className="border-border text-muted-foreground flex flex-col items-center gap-1.5 rounded-md border border-dashed p-6 text-center text-sm">
+                  <ImageIcon className="size-6" />
+                  Tidak ada foto
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function WorkLogs() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -108,6 +220,7 @@ export default function WorkLogs() {
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
   const [deletingLog, setDeletingLog] = React.useState<WorkLog | null>(null)
+  const [viewingLog, setViewingLog] = React.useState<WorkLog | null>(null)
 
   // Deep-link from a notification (see NotificationBell) — fetched directly
   // by id rather than found in the current filtered/paginated list, which
@@ -135,6 +248,13 @@ export default function WorkLogs() {
   const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: employeeApi.listEmployees })
   const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: customerApi.listCustomers })
   const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: () => articleApi.listArticles() })
+
+  // The audit fields/photo only matter for a Cutting log — derived from the
+  // log's own employee's divisi (a log's employee is always the same divisi
+  // as its task, enforced at creation).
+  const viewingLogIsCutting =
+    !!viewingLog &&
+    employees?.find((e) => String(e.id) === String(viewingLog.employee_id))?.divisi === CUTTING_DIVISION
 
   const filters = {
     date_from: dateFrom || undefined,
@@ -286,22 +406,28 @@ export default function WorkLogs() {
 
   const rowsWithActions = React.useMemo(
     () =>
-      (data || []).map((log) => ({
-        log,
-        actions: log.payroll_id
-          ? []
-          : ([
-              {
-                label: 'Edit',
-                icon: Pencil,
-                onClick: () => {
-                  setEditingLog(log)
-                  setIsFormOpen(true)
+      (data || []).map((log) => {
+        // Detail is read-only, so it stays available even for a log already
+        // rolled into a payroll (which has no Edit/Hapus).
+        const detailAction: RowAction = { label: 'Lihat Detail', icon: Eye, onClick: () => setViewingLog(log) }
+        return {
+          log,
+          actions: log.payroll_id
+            ? [detailAction]
+            : ([
+                detailAction,
+                {
+                  label: 'Edit',
+                  icon: Pencil,
+                  onClick: () => {
+                    setEditingLog(log)
+                    setIsFormOpen(true)
+                  },
                 },
-              },
-              { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingLog(log) },
-            ] satisfies RowAction[]),
-      })),
+                { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingLog(log) },
+              ] satisfies RowAction[]),
+        }
+      }),
     [data]
   )
 
@@ -540,6 +666,12 @@ export default function WorkLogs() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WorkLogDetailDialog
+        log={viewingLog}
+        isCutting={viewingLogIsCutting}
+        onOpenChange={(open) => !open && setViewingLog(null)}
+      />
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">
