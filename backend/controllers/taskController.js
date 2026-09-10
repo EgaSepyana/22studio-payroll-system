@@ -69,6 +69,14 @@ export async function detail(req, res, next) {
   }
 }
 
+export async function progressPhotos(req, res, next) {
+  try {
+    ok(res, await taskService.listTaskProgressPhotos(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function update(req, res, next) {
   try {
     ok(res, await taskService.updateTask(req.params.id, updateSchema.parse(req.body)));

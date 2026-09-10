@@ -63,7 +63,7 @@ import * as orderApi from '@/services/orderApi'
 import * as taskApi from '@/services/taskApi'
 import * as workLogApi from '@/services/workLogApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate, workStatusLabel } from '@/utils/format'
+import { formatCurrency, formatDate, formatDateTime, workStatusLabel } from '@/utils/format'
 import type { Divisi, Task, TaskStatus } from '@/types'
 
 const DIVISIONS: Divisi[] = ['Jahit', 'Sablon', 'Cutting', 'Finishing']
@@ -346,11 +346,67 @@ function EditTaskDialog({
   )
 }
 
+// Finishing tasks never create a WorkLog (progress is advanced directly via
+// Update Progress — see backend taskService.addTaskProgress), so their
+// "Detail Pekerjaan" shows the photo history from those submissions instead
+// of the empty WorkLogs table every other division gets here.
+function FinishingProgressPhotos({ taskId }: { taskId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['task-progress-photos', taskId],
+    queryFn: () => taskApi.listTaskProgressPhotos(taskId),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-square w-full rounded-md" />
+        ))}
+      </div>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <p className="text-muted-foreground rounded-md border py-8 text-center text-sm">
+        Belum ada update progress dengan foto untuk task ini.
+      </p>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {data.map((photo) => (
+        <div key={photo.id} className="flex flex-col gap-1.5">
+          <a
+            href={photo.laporan_pengerjaan_foto}
+            target="_blank"
+            rel="noreferrer"
+            className="border-border block aspect-square overflow-hidden rounded-md border"
+          >
+            <img
+              src={photo.laporan_pengerjaan_foto}
+              alt="Foto update progress"
+              className="size-full object-cover"
+            />
+          </a>
+          <div className="text-xs">
+            <p className="font-medium">{photo.employee_name || '-'} · +{photo.quantity} pcs</p>
+            <p className="text-muted-foreground">{formatDateTime(photo.created_at)}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TaskWorkLogDialog({ task, onOpenChange }: { task: Task | null; onOpenChange: (open: boolean) => void }) {
+  const isFinishing = task?.divisi === 'Finishing'
+
   const { data, isLoading } = useQuery({
     queryKey: ['worklogs', { task_id: task?.id }],
     queryFn: () => workLogApi.listAllWorkLogs({ task_id: task!.id }),
-    enabled: !!task,
+    enabled: !!task && !isFinishing,
   })
 
   const total = data?.reduce((sum, log) => sum + log.total, 0) || 0
@@ -362,7 +418,9 @@ function TaskWorkLogDialog({ task, onOpenChange }: { task: Task | null; onOpenCh
           <DialogTitle>Detail Pekerjaan — {task?.description || task?.divisi}</DialogTitle>
         </DialogHeader>
 
-        {isLoading ? (
+        {isFinishing ? (
+          task && <FinishingProgressPhotos taskId={task.id} />
+        ) : isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full" />
@@ -408,7 +466,7 @@ function TaskWorkLogDialog({ task, onOpenChange }: { task: Task | null; onOpenCh
           </div>
         )}
 
-        {data && data.length > 0 && (
+        {!isFinishing && data && data.length > 0 && (
           <div className="flex justify-end gap-2 text-sm font-semibold">
             <span>Total</span>
             <span>{formatCurrency(total)}</span>

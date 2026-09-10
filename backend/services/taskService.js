@@ -350,6 +350,22 @@ export async function addTaskProgress(taskId, employeeId, qty, laporanPengerjaan
   return getTaskDetail(taskId);
 }
 
+// Admin-facing: the photo history for a Finishing task's progress updates
+// (see addTaskProgress). Every other division has an equivalent view via
+// its WorkLogs; Finishing has no WorkLogs, so this is where its per-update
+// evidence surfaces. Sorted newest-first.
+export async function listTaskProgressPhotos(taskId) {
+  const [rows, employees] = await Promise.all([TaskProgressPhotosRepo.getAll(), EmployeesRepo.getAll()]);
+  return rows
+    .filter((r) => String(r.task_id) === String(taskId))
+    .map((r) => {
+      const { _rowNumber, ...rest } = r;
+      const employee = employees.find((e) => String(e.id) === String(r.employee_id));
+      return { ...rest, quantity: Number(r.quantity), employee_name: employee?.name || null };
+    })
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+}
+
 // Called by workLogService.updateWorkLog when an existing work log's
 // quantity changes. qtyDelta is the change in quantity (positive = more
 // completed, negative = less). Same atomic-updater reasoning as applyWorkLog.
