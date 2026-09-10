@@ -180,7 +180,10 @@ export async function updateTask(taskId, { divisi, description, target_qty }) {
       // Editing the target can move a task in or out of "completed" (e.g.
       // raising the target on an already-completed task un-completes it),
       // so status is always re-derived alongside target_qty, not left stale.
-      const nextStatus = taskStatusFromQty(completedQty, nextTarget);
+      // Pass divisi (the new one if it's changing in this same patch) so a
+      // Cutting task correctly re-derives to 'pending_audit' rather than
+      // straight to 'completed' when its target drops to the completed qty.
+      const nextStatus = taskStatusFromQty(completedQty, nextTarget, taskDivisi);
       becameCompleted = task.status !== 'completed' && nextStatus === 'completed';
       patch.status = nextStatus;
     }
