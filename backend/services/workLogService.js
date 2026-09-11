@@ -229,10 +229,6 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     throw new ApiError(403, 'Akses ditolak');
   }
 
-  if (existing.payroll_id) {
-    throw new ApiError(400, 'Tidak dapat mengubah pekerjaan yang sudah dibayar');
-  }
-
   const {
     quantity,
     work_date,
@@ -243,6 +239,23 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
     is_jumlah_size_sesuai,
     is_size_tertempel,
   } = updates;
+
+  if (existing.payroll_id) {
+    // Once paid, everything that affects pay (qty/price/article) or the
+    // work-log's own record (status/notes/date) is locked — but the audit
+    // checkboxes are orthogonal to payroll and must stay editable, or a
+    // Cutting WorkLog paid before it was audited permanently strands its
+    // task at 'pending_audit' with no way to ever finalize it (this was a
+    // real production bug: 3 tasks stuck this way, all paid before this
+    // checkbox existed). Reject only if something beyond the 3 audit
+    // fields was actually sent — silently ignoring them would look like a
+    // successful edit while quietly doing nothing.
+    const attemptsOtherFields = [quantity, work_date, notes, status, article_id].some((v) => v !== undefined);
+    if (attemptsOtherFields) {
+      throw new ApiError(400, 'Tidak dapat mengubah pekerjaan yang sudah dibayar');
+    }
+  }
+
   const targetQty = quantity !== undefined ? Number(quantity) : Number(existing.quantity);
 
   // Article can be changed after creation (customer is still fixed — an

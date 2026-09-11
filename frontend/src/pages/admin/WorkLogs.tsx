@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2, Eye, ImageIcon } from 'lucide-react'
+import { X, Plus, Loader2, FileSpreadsheet, FileDown, Pencil, Trash2, Eye, ImageIcon, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -210,6 +210,81 @@ function WorkLogDetailDialog({
   )
 }
 
+// For a Cutting WorkLog that's already been paid — the regular Edit dialog
+// (which touches quantity/price/article/status, all locked once paid) isn't
+// available for it, but the 3 audit checkboxes still are (see backend
+// workLogService.updateWorkLog: paid-but-audit-only edits are explicitly
+// allowed, everything else stays rejected). Without this, a Cutting
+// WorkLog paid before it was audited would permanently strand its task at
+// "Menunggu Audit" with no way to ever finalize it — this was a real
+// production bug.
+function AuditOnlyDialog({ log, onOpenChange }: { log: WorkLog | null; onOpenChange: (open: boolean) => void }) {
+  const queryClient = useQueryClient()
+  const [accOwner, setAccOwner] = React.useState(false)
+  const [jumlahSizeSesuai, setJumlahSizeSesuai] = React.useState(false)
+  const [sizeTertempel, setSizeTertempel] = React.useState(false)
+
+  React.useEffect(() => {
+    if (log) {
+      setAccOwner(log.acc_owner)
+      setJumlahSizeSesuai(log.is_jumlah_size_sesuai)
+      setSizeTertempel(log.is_size_tertempel)
+    }
+  }, [log])
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      workLogApi.updateWorkLog(log!.id, {
+        acc_owner: accOwner,
+        is_jumlah_size_sesuai: jumlahSizeSesuai,
+        is_size_tertempel: sizeTertempel,
+      }),
+    onSuccess: () => {
+      toast.success('Audit berhasil disimpan')
+      queryClient.invalidateQueries({ queryKey: ['worklogs'] })
+      onOpenChange(false)
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  return (
+    <Dialog open={!!log} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Audit Cutting</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <p className="text-muted-foreground text-xs">
+            Pekerjaan ini sudah dibayar (payroll #{log?.payroll_id}) sehingga tidak dapat diedit — hanya audit yang
+            masih bisa diisi.
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={jumlahSizeSesuai} onCheckedChange={(v) => setJumlahSizeSesuai(!!v)} />
+            Jumlah size sesuai
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={sizeTertempel} onCheckedChange={(v) => setSizeTertempel(!!v)} />
+            Size tertempel
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={accOwner} onCheckedChange={(v) => setAccOwner(!!v)} />
+            ACC Owner
+          </label>
+          <p className="text-muted-foreground text-xs">
+            Mencentang &quot;ACC Owner&quot; pada seluruh pekerjaan Cutting di task ini akan menandai task selesai.
+          </p>
+          <div className="flex justify-end">
+            <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+              {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function WorkLogs() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -221,6 +296,7 @@ export default function WorkLogs() {
   const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
   const [deletingLog, setDeletingLog] = React.useState<WorkLog | null>(null)
   const [viewingLog, setViewingLog] = React.useState<WorkLog | null>(null)
+  const [auditingLog, setAuditingLog] = React.useState<WorkLog | null>(null)
 
   // Deep-link from a notification (see NotificationBell) — fetched directly
   // by id rather than found in the current filtered/paginated list, which
@@ -416,25 +492,35 @@ export default function WorkLogs() {
         // Detail is read-only, so it stays available even for a log already
         // rolled into a payroll (which has no Edit/Hapus).
         const detailAction: RowAction = { label: 'Lihat Detail', icon: Eye, onClick: () => setViewingLog(log) }
+        const isCutting = employees?.find((e) => String(e.id) === String(log.employee_id))?.divisi === CUTTING_DIVISION
+        if (log.payroll_id) {
+          // Regular Edit is unavailable once paid (locks qty/price/article/
+          // status), but a Cutting log's audit checkboxes must stay
+          // reachable — otherwise a log paid before it's audited
+          // permanently strands its task at "Menunggu Audit" (see
+          // AuditOnlyDialog's comment; this was a real production bug).
+          const auditAction: RowAction | null = isCutting
+            ? { label: 'Audit', icon: ShieldCheck, onClick: () => setAuditingLog(log) }
+            : null
+          return { log, actions: auditAction ? [detailAction, auditAction] : [detailAction] }
+        }
         return {
           log,
-          actions: log.payroll_id
-            ? [detailAction]
-            : ([
-                detailAction,
-                {
-                  label: 'Edit',
-                  icon: Pencil,
-                  onClick: () => {
-                    setEditingLog(log)
-                    setIsFormOpen(true)
-                  },
-                },
-                { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingLog(log) },
-              ] satisfies RowAction[]),
+          actions: [
+            detailAction,
+            {
+              label: 'Edit',
+              icon: Pencil,
+              onClick: () => {
+                setEditingLog(log)
+                setIsFormOpen(true)
+              },
+            },
+            { label: 'Hapus', icon: Trash2, variant: 'destructive', onClick: () => setDeletingLog(log) },
+          ] satisfies RowAction[],
         }
       }),
-    [data]
+    [data, employees]
   )
 
   return (
@@ -678,6 +764,8 @@ export default function WorkLogs() {
         isCutting={viewingLogIsCutting}
         onOpenChange={(open) => !open && setViewingLog(null)}
       />
+
+      <AuditOnlyDialog log={auditingLog} onOpenChange={(open) => !open && setAuditingLog(null)} />
 
       <Card className="mb-4 shadow-sm">
         <CardContent className="flex flex-wrap items-end gap-3">
