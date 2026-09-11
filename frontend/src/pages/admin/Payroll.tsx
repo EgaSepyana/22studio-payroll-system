@@ -55,7 +55,7 @@ import * as payrollApi from '@/services/payrollApi'
 import * as employeeApi from '@/services/employeeApi'
 import * as cashAccountLookupApi from '@/services/cashAccountLookupApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate, formatDateTime, todayISO, MONTH_NAMES } from '@/utils/format'
+import { formatCurrency, formatDate, formatDateTime, MONTH_NAMES } from '@/utils/format'
 import type { PayrollExportFilters } from '@/services/payrollApi'
 import type { Divisi, PaymentStatus, PayrollRow } from '@/types'
 
@@ -184,14 +184,12 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
 
 export default function Payroll() {
   const queryClient = useQueryClient()
-  const { viewMode, employeeId, divisiFilter, paymentStatusFilter, search } = useFilterStore(
+  const { viewMode, employeeId, divisiFilter, paymentStatusFilter, search, dateFrom, dateTo } = useFilterStore(
     (state) => state.payroll
   )
   const setPayrollFilter = useFilterStore((state) => state.setPayroll)
   const [month, setMonth] = React.useState(String(now.getMonth() + 1))
   const [year, setYear] = React.useState(String(now.getFullYear()))
-  const [dateFrom, setDateFrom] = React.useState(todayISO())
-  const [dateTo, setDateTo] = React.useState(todayISO())
   const [detailId, setDetailId] = React.useState<string | null>(null)
   const [rowAction, setRowAction] = React.useState<{ id: string; type: 'print' | 'excel' | 'pdf' } | null>(null)
   const [bulkExporting, setBulkExporting] = React.useState<'print' | 'excel' | 'pdf' | null>(null)
@@ -396,11 +394,21 @@ export default function Payroll() {
             <>
               <div className="flex flex-col gap-1.5">
                 <label className="text-muted-foreground text-xs font-medium">Dari Tanggal</label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setPayrollFilter({ dateFrom: e.target.value })}
+                  className="w-40"
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-muted-foreground text-xs font-medium">Sampai Tanggal</label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setPayrollFilter({ dateTo: e.target.value })}
+                  className="w-40"
+                />
               </div>
             </>
           ) : (
