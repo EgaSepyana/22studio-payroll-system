@@ -39,6 +39,8 @@ interface WorkLogsFilterState {
   articleId: string
   divisiFilter: string
   statusFilter: WorkStatus | typeof ALL
+  dateFrom: string
+  dateTo: string
 }
 
 interface KasbonFilterState {
@@ -118,9 +120,12 @@ const defaultOrderState: OrderFilterState = {
 // Persisted via localStorage (same mechanism this app already uses for the
 // auth token/user — see hooks/useAuth.tsx) so filters survive navigating
 // between pages and full page reloads alike. Date/month/year fields are
-// deliberately excluded from every slice below — persisting a value that
-// defaulted to "today" would otherwise silently show a stale date next time
-// the page is opened, so those always reset to "now" per page load.
+// deliberately excluded from what's written to storage (see `partialize`
+// below) — persisting a value that defaulted to "today" would otherwise
+// silently show a stale date next time the page is opened, so those always
+// reset to "now" on a fresh load. They still live in the in-memory store
+// like everything else, though, so switching between pages within one
+// session (no reload) keeps them — see workLogs.dateFrom/dateTo.
 export const useFilterStore = create<FilterStore>()(
   persist(
     (set) => ({
@@ -140,7 +145,15 @@ export const useFilterStore = create<FilterStore>()(
       articles: { divisiFilter: ALL, search: '' },
       setArticles: (patch) => set((state) => ({ articles: { ...state.articles, ...patch } })),
 
-      workLogs: { employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL, statusFilter: ALL },
+      workLogs: {
+        employeeId: ALL,
+        customerId: ALL,
+        articleId: ALL,
+        divisiFilter: ALL,
+        statusFilter: ALL,
+        dateFrom: '',
+        dateTo: '',
+      },
       setWorkLogs: (patch) => set((state) => ({ workLogs: { ...state.workLogs, ...patch } })),
 
       kasbon: { search: '', statusFilter: ALL, divisiFilter: ALL },
@@ -158,6 +171,17 @@ export const useFilterStore = create<FilterStore>()(
       taskDetail: { sortField: 'status', sortDir: 'asc' },
       setTaskDetail: (patch) => set((state) => ({ taskDetail: { ...state.taskDetail, ...patch } })),
     }),
-    { name: 'admin-filter-store' }
+    {
+      name: 'admin-filter-store',
+      // workLogs.dateFrom/dateTo deliberately opt back into the
+      // "reset on reload" rule above (unlike the rest of this slice, which
+      // does persist) — they still live in this same store so switching
+      // between admin pages in one session keeps them, but a stale range
+      // never survives a full page reload/reopen.
+      partialize: (state) => ({
+        ...state,
+        workLogs: { ...state.workLogs, dateFrom: '', dateTo: '' },
+      }),
+    }
   )
 )
