@@ -60,7 +60,7 @@ import { Textarea } from '@/components/ui/textarea'
 import * as orderApi from '@/services/orderApi'
 import * as cashAccountLookupApi from '@/services/cashAccountLookupApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import { formatCurrency, formatDate, formatDateTime, orderPaymentStatusDisplay } from '@/utils/format'
 import type { OrderDP, OrderDPCategory, OrderItem, OrderItemSize, OrderStatus, OrderTimelineEntry } from '@/types'
 
 const FIXED_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL']
@@ -1147,9 +1147,10 @@ export default function OrderDetailPage() {
             </div>
             <div className="flex items-center gap-2 pt-1">
               <span className="text-muted-foreground">Status</span>
-              <Badge variant={data.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
-                {data.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
-              </Badge>
+              {(() => {
+                const p = orderPaymentStatusDisplay(data.status_pembayaran)
+                return <Badge variant={p.variant}>{p.label}</Badge>
+              })()}
             </div>
           </div>
         </CardContent>

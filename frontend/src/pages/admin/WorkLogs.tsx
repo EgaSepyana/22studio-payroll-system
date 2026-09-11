@@ -213,9 +213,9 @@ function WorkLogDetailDialog({
 export default function WorkLogs() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [dateFrom, setDateFrom] = React.useState('')
-  const [dateTo, setDateTo] = React.useState('')
-  const { employeeId, customerId, articleId, divisiFilter, statusFilter } = useFilterStore((state) => state.workLogs)
+  const { employeeId, customerId, articleId, divisiFilter, statusFilter, dateFrom, dateTo } = useFilterStore(
+    (state) => state.workLogs
+  )
   const setWorkLogsFilter = useFilterStore((state) => state.setWorkLogs)
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [editingLog, setEditingLog] = React.useState<WorkLog | undefined>(undefined)
@@ -281,9 +281,15 @@ export default function WorkLogs() {
     statusFilter !== ALL
 
   function resetFilters() {
-    setDateFrom('')
-    setDateTo('')
-    setWorkLogsFilter({ employeeId: ALL, customerId: ALL, articleId: ALL, divisiFilter: ALL, statusFilter: ALL })
+    setWorkLogsFilter({
+      employeeId: ALL,
+      customerId: ALL,
+      articleId: ALL,
+      divisiFilter: ALL,
+      statusFilter: ALL,
+      dateFrom: '',
+      dateTo: '',
+    })
   }
 
   const isEdit = !!editingLog
@@ -677,11 +683,21 @@ export default function WorkLogs() {
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Dari Tanggal</label>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setWorkLogsFilter({ dateFrom: e.target.value })}
+              className="w-40"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Sampai Tanggal</label>
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setWorkLogsFilter({ dateTo: e.target.value })}
+              className="w-40"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-muted-foreground text-xs font-medium">Karyawan</label>

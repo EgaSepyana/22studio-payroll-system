@@ -70,7 +70,7 @@ import * as taskApi from '@/services/taskApi'
 import * as uploadApi from '@/services/uploadApi'
 import * as settingsApi from '@/services/settingsApi'
 import { getErrorMessage } from '@/services/api'
-import { formatCurrency, formatDate } from '@/utils/format'
+import { formatCurrency, formatDate, orderPaymentStatusDisplay } from '@/utils/format'
 import type { Divisi, Order, OrderFrom, OrderJenisCategory, OrderStatus, WATemplateKey } from '@/types'
 
 // Ad-hoc placeholders each template needs filled in fresh at send-time,
@@ -645,7 +645,9 @@ export default function OrderPage() {
       // paymentStatusFilter may be missing on state persisted before this
       // filter existed — treat anything but a real category as "semua".
       if (
-        (paymentStatusFilter === 'lunas' || paymentStatusFilter === 'belum_lunas') &&
+        (paymentStatusFilter === 'lunas' ||
+          paymentStatusFilter === 'belum_lunas' ||
+          paymentStatusFilter === 'data_kosong') &&
         o.status_pembayaran !== paymentStatusFilter
       ) {
         return false
@@ -801,6 +803,7 @@ export default function OrderPage() {
                 <SelectItem value={ALL}>Semua</SelectItem>
                 <SelectItem value="lunas">Lunas</SelectItem>
                 <SelectItem value="belum_lunas">Belum Lunas</SelectItem>
+                <SelectItem value="data_kosong">Data Invoice Kosong</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -879,9 +882,10 @@ export default function OrderPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={order.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
-                          {order.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
-                        </Badge>
+                        {(() => {
+                          const p = orderPaymentStatusDisplay(order.status_pembayaran)
+                          return <Badge variant={p.variant}>{p.label}</Badge>
+                        })()}
                       </TableCell>
                       <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -922,9 +926,10 @@ export default function OrderPage() {
                       </div>
                     </MobileCardRow>
                     <MobileCardRow label="Pembayaran">
-                      <Badge variant={order.status_pembayaran === 'lunas' ? 'default' : 'secondary'}>
-                        {order.status_pembayaran === 'lunas' ? 'Lunas' : 'Belum Lunas'}
-                      </Badge>
+                      {(() => {
+                        const p = orderPaymentStatusDisplay(order.status_pembayaran)
+                        return <Badge variant={p.variant}>{p.label}</Badge>
+                      })()}
                     </MobileCardRow>
                     <MobileCardRow label="Status">
                       <OrderTaskStatusBadge status={order.status} />

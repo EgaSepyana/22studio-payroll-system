@@ -1,4 +1,4 @@
-import type { WorkStatus, CashAdvanceStatus } from '@/types'
+import type { WorkStatus, CashAdvanceStatus, OrderPaymentStatus } from '@/types'
 
 export function formatCurrency(value: number): string {
   const formatted = new Intl.NumberFormat('id-ID', {
@@ -114,4 +114,20 @@ export const CASH_ADVANCE_STATUS_OPTIONS: { value: CashAdvanceStatus; label: str
 
 export function cashAdvanceStatusLabel(status: string): string {
   return CASH_ADVANCE_STATUS_OPTIONS.find((o) => o.value === status)?.label || 'Pending'
+}
+
+// Label + Badge variant for an order's payment status. 'data_kosong' means
+// the order has no rincian yet, so payment status can't be determined.
+export function orderPaymentStatusDisplay(status: OrderPaymentStatus): {
+  label: string
+  variant: 'default' | 'secondary' | 'destructive' | 'outline'
+} {
+  switch (status) {
+    case 'lunas':
+      return { label: 'Lunas', variant: 'default' }
+    case 'data_kosong':
+      return { label: 'Data Invoice Kosong', variant: 'outline' }
+    default:
+      return { label: 'Belum Lunas', variant: 'secondary' }
+  }
 }
