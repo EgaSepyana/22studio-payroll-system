@@ -25,7 +25,9 @@ export interface AppNotification {
 export type Divisi = 'Jahit' | 'Sablon' | 'Cutting' | 'Finishing'
 export type PaySource = 'worklog' | 'attendance'
 export type OrderStatus = 'Belum Di Proses' | 'Desain Fix' | 'On Progress' | 'Done' | 'Dikirim' | 'Di Ambil Costumer'
-export type OrderPaymentStatus = 'lunas' | 'belum_lunas'
+// 'data_kosong' — order has no rincian (items/sizes), so there's nothing to
+// base payment status on; shown as "Data Invoice Kosong".
+export type OrderPaymentStatus = 'lunas' | 'belum_lunas' | 'data_kosong'
 // 'pending_audit' only ever applies to Cutting tasks — every other division
 // goes straight from 'in_progress' to 'completed' when qty hits target.
 export type TaskStatus = 'open' | 'in_progress' | 'pending_audit' | 'completed'

@@ -35,7 +35,7 @@ const updateSchema = z.object({
 const filterSchema = z.object({
   customer_id: z.string().optional(),
   status: z.enum(ORDER_STATUSES).optional(),
-  status_pembayaran: z.enum(['lunas', 'belum_lunas']).optional(),
+  status_pembayaran: z.enum(['lunas', 'belum_lunas', 'data_kosong']).optional(),
 });
 
 const itemSchema = z.object({

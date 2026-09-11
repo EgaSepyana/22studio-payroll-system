@@ -113,6 +113,10 @@ function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
   const itemsTotal = orderSizes.reduce((sum, s) => sum + Number(s.harga) * Number(s.qty), 0);
   const totalDP = orderDP.reduce((sum, d) => sum + Number(d.total_dp), 0);
   const sisaPembayaran = itemsTotal - totalDP;
+  // An order with no rincian (no items/sizes) has items_total 0, which would
+  // otherwise read as "fully paid" — misleading, since there's simply
+  // nothing to pay for yet. Flag it as its own state instead of "lunas".
+  const hasRincian = orderItems.length > 0 && itemsTotal > 0;
 
   return {
     ...clean(order),
@@ -124,10 +128,11 @@ function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
     items_total: itemsTotal,
     total_dp: totalDP,
     sisa_pembayaran: sisaPembayaran,
-    // Lunas once payments cover the full item total (a tiny epsilon guards
-    // against floating-point remainders landing at e.g. -0.00000001 instead
-    // of exactly 0 and reading as "not yet paid off").
-    status_pembayaran: sisaPembayaran <= 0.01 ? 'lunas' : 'belum_lunas',
+    // 'data_kosong' when there's no invoice detail to base payment on;
+    // otherwise 'lunas' once payments cover the full item total (a tiny
+    // epsilon guards against floating-point remainders landing at e.g.
+    // -0.00000001 instead of exactly 0 and reading as "not yet paid off").
+    status_pembayaran: !hasRincian ? 'data_kosong' : sisaPembayaran <= 0.01 ? 'lunas' : 'belum_lunas',
   };
 }
 
