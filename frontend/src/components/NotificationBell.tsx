@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import * as notificationApi from '@/services/notificationApi'
+import { useNotificationStream } from '@/hooks/useNotificationStream'
 import { timeAgo } from '@/utils/format'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -18,11 +19,17 @@ import type { AppNotification } from '@/types'
 // on would be a dead end).
 const RECIPIENT_ROLES = new Set(['admin', 'owner'])
 
-// Vercel serverless functions can't hold a WebSocket/SSE connection open, so
-// "realtime" here is plain polling — see the "Peningkatan Notifikasi" doc
-// (docs/notification-improvements.md) for the managed-realtime-service path
-// to take if this ever needs to be genuinely push-based.
-const POLL_INTERVAL_MS = 12_000
+// The SSE stream (useNotificationStream) is what actually delivers new
+// notifications close to realtime now — see backend
+// notificationService/notificationController for the Redis-queue-backed
+// stream, and notification-improvements.md for why it cycles connections
+// every few seconds instead of staying open (Vercel's serverless function
+// timeout, not a design choice). Polling stays on as a slow safety net on
+// top of it: if Redis is unreachable, the SSE stream degrades to
+// connect-and-idle rather than erroring, so nothing ever surfaces without
+// this — and it's also just the mechanism for picking up a read/unread
+// change made in another tab.
+const POLL_INTERVAL_MS = 60_000
 
 function iconForType(type: AppNotification['type']) {
   switch (type) {
@@ -87,8 +94,9 @@ export function NotificationBell() {
   const queryClient = useQueryClient()
   const [open, setOpen] = React.useState(false)
   // Tracks which notification ids have already triggered a toast, so a
-  // background refetch that returns the same unread rows doesn't re-toast
-  // them — only a genuinely new id (not seen since this tab loaded) does.
+  // background refetch/reconnect returning something already-seen (e.g. the
+  // SSE resuming a couple entries into its own retained queue right where a
+  // slow poll also just landed) never double-toasts it.
   const seenIds = React.useRef<Set<string> | null>(null)
 
   const enabled = !!user && RECIPIENT_ROLES.has(user.role)
@@ -101,44 +109,6 @@ export function NotificationBell() {
     enabled,
   })
 
-  React.useEffect(() => {
-    if (!notifications) return
-    if (seenIds.current === null) {
-      // First load: seed from what's already there instead of toasting a
-      // backlog of everything unread from before this tab was even open.
-      seenIds.current = new Set(notifications.map((n) => n.id))
-      return
-    }
-    const fresh = notifications.filter((n) => !n.is_read && !seenIds.current!.has(n.id))
-    for (const n of fresh) {
-      seenIds.current.add(n.id)
-      const Icon = iconForType(n.type)
-      toast.custom(
-        (t) => (
-          <button
-            type="button"
-            onClick={() => {
-              toast.dismiss(t)
-              handleOpen(n)
-            }}
-            className="border-border bg-popover text-popover-foreground flex w-full items-start gap-3 rounded-lg border p-3.5 text-left shadow-lg"
-          >
-            <span className="bg-primary/15 text-primary mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full">
-              <Icon className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold leading-tight">{n.title}</span>
-              <span className="text-muted-foreground mt-0.5 block text-xs leading-snug">{n.message}</span>
-            </span>
-          </button>
-        ),
-        { position: 'top-right', duration: 8000 }
-      )
-    }
-    for (const n of notifications) seenIds.current.add(n.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notifications])
-
   const markReadMutation = useMutation({
     mutationFn: (id: string) => notificationApi.markAsRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
@@ -149,12 +119,68 @@ export function NotificationBell() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   })
 
-  function handleOpen(n: AppNotification) {
-    if (!n.is_read) markReadMutation.mutate(n.id)
-    setOpen(false)
-    const target = targetForNotification(n)
-    if (target) navigate(target)
-  }
+  const handleOpen = React.useCallback(
+    (n: AppNotification) => {
+      if (!n.is_read) markReadMutation.mutate(n.id)
+      setOpen(false)
+      const target = targetForNotification(n)
+      if (target) navigate(target)
+    },
+    // markReadMutation is a fresh object every render (useMutation's
+    // return value isn't memoized) — depending on it would defeat this
+    // callback's own memoization and, transitively, the SSE hook's effect
+    // below, reconnecting the stream far more often than intended.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [navigate]
+  )
+
+  const showToast = React.useCallback((n: AppNotification) => {
+    const Icon = iconForType(n.type)
+    toast.custom(
+      (t) => (
+        <button
+          type="button"
+          onClick={() => {
+            toast.dismiss(t)
+            handleOpen(n)
+          }}
+          className="border-border bg-popover text-popover-foreground flex w-full items-start gap-3 rounded-lg border p-3.5 text-left shadow-lg"
+        >
+          <span className="bg-primary/15 text-primary mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full">
+            <Icon className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold leading-tight">{n.title}</span>
+            <span className="text-muted-foreground mt-0.5 block text-xs leading-snug">{n.message}</span>
+          </span>
+        </button>
+      ),
+      { position: 'top-right', duration: 8000 }
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Seed seenIds from the first successful list load, so reconnecting to
+  // a stream that resumes a couple entries back (or a slow first poll
+  // landing after SSE already delivered something) doesn't toast a
+  // backlog of everything that was already unread before this tab opened.
+  React.useEffect(() => {
+    if (notifications && seenIds.current === null) {
+      seenIds.current = new Set(notifications.map((n) => n.id))
+    }
+  }, [notifications])
+
+  const handleStreamNotification = React.useCallback(
+    (n: AppNotification) => {
+      if (seenIds.current?.has(n.id)) return
+      seenIds.current?.add(n.id)
+      showToast(n)
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+    [showToast, queryClient]
+  )
+
+  useNotificationStream({ enabled, onNotification: handleStreamNotification })
 
   const unreadCount = notifications?.filter((n) => !n.is_read).length ?? 0
 

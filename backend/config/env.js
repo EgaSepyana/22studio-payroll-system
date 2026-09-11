@@ -40,4 +40,19 @@ export const env = {
   // (/s/:code) redirect through here, so they need the backend's own
   // deployed origin, not the separate tracking-page frontend above.
   publicBackendUrl: process.env.PUBLIC_BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`,
+  // Notification queue (Upstash Redis) — see config/redis.js and
+  // notificationStreamService.js. Both optional: if unset, notifications
+  // still write to the Notifications sheet as before, they just don't get
+  // pushed onto the realtime queue (the SSE endpoint then has nothing to
+  // stream and the frontend's polling fallback covers it).
+  redisUrl: process.env.REDIS_URL || null,
+  redisQueueDb: process.env.REDIS_QUEUE_DB ? Number(process.env.REDIS_QUEUE_DB) : 0,
+  // How long GET /notifications/stream holds one SSE connection open before
+  // ending it (the browser's native EventSource then reconnects on its
+  // own, and a fresh serverless invocation picks up from there — see
+  // notificationController.stream). Vercel Hobby hard-caps function
+  // duration at 10s regardless of any per-route config, so this defaults
+  // safely under that; bump it via env once/if the project is on a plan
+  // that allows longer (Pro: up to 300s) — see notification-improvements.md.
+  sseHoldMs: process.env.NOTIFICATION_SSE_HOLD_MS ? Number(process.env.NOTIFICATION_SSE_HOLD_MS) : 8000,
 };
