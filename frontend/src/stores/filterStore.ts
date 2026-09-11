@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CashAdvanceStatus, Divisi, OrderPaymentStatus, OrderStatus, ReportGroupBy, WorkStatus } from '@/types'
+import { todayISO } from '@/utils/format'
 
 const ALL = 'all'
 
@@ -26,6 +27,8 @@ interface PayrollFilterState {
   divisiFilter: string
   paymentStatusFilter: string
   search: string
+  dateFrom: string
+  dateTo: string
 }
 
 interface ArticlesFilterState {
@@ -139,6 +142,8 @@ export const useFilterStore = create<FilterStore>()(
         divisiFilter: ALL,
         paymentStatusFilter: ALL,
         search: '',
+        dateFrom: todayISO(),
+        dateTo: todayISO(),
       },
       setPayroll: (patch) => set((state) => ({ payroll: { ...state.payroll, ...patch } })),
 
@@ -173,14 +178,18 @@ export const useFilterStore = create<FilterStore>()(
     }),
     {
       name: 'admin-filter-store',
-      // workLogs.dateFrom/dateTo deliberately opt back into the
-      // "reset on reload" rule above (unlike the rest of this slice, which
+      // workLogs/payroll's dateFrom/dateTo deliberately opt back into the
+      // "reset on reload" rule above (unlike the rest of each slice, which
       // does persist) — they still live in this same store so switching
       // between admin pages in one session keeps them, but a stale range
-      // never survives a full page reload/reopen.
+      // never survives a full page reload/reopen. workLogs' empty string
+      // means "no filter", so it resets to that; payroll's range mode
+      // needs a real date to query against, so it resets to today (its
+      // original default), not blank.
       partialize: (state) => ({
         ...state,
         workLogs: { ...state.workLogs, dateFrom: '', dateTo: '' },
+        payroll: { ...state.payroll, dateFrom: todayISO(), dateTo: todayISO() },
       }),
     }
   )

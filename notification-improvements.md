@@ -77,3 +77,5 @@ Worth doing regardless of whether/when a realtime service gets added:
 - **Notification pruning**: `Notifications` currently grows forever (no
   delete/archive path). Once volume matters, add a cutoff (e.g. auto-delete
   read notifications older than N days) so the sheet doesn't grow unbounded.
+
+ i want a improve on notification feature, i want a notification is pushed to redis queue and the SSE is listen the queue until the sse connection is closed, and if the sse is close open new sse connection again.
