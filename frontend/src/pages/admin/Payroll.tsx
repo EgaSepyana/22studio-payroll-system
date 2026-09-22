@@ -83,9 +83,16 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
     enabled: !!payrollId,
   })
 
+  // The attendance table gained 3 more columns (Bayaran Per Jam/Lembur,
+  // Total) on top of the original 4 — sm:max-w-lg (the worklog table's
+  // width) is too narrow for that many columns and made the dialog look
+  // broken (content visibly bleeding past the card edge). Widened only for
+  // the attendance case; the worklog table keeps its original width.
+  const isWide = data?.items_type === 'attendance'
+
   return (
     <Dialog open={!!payrollId} onOpenChange={(open) => !open && onOpenChange(false)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className={isWide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}>
         <DialogHeader>
           <DialogTitle>Detail Payroll</DialogTitle>
           <DialogDescription>
@@ -96,7 +103,7 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
           <Skeleton className="h-40 w-full" />
         ) : (
           <div className="flex flex-col gap-3">
-            <div className="max-h-72 overflow-y-auto rounded-md border">
+            <div className="max-h-72 overflow-auto rounded-md border">
               {data.items_type === 'attendance' ? (
                 <Table>
                   <TableHeader>
@@ -105,6 +112,9 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
                       <TableHead>Check-in</TableHead>
                       <TableHead>Check-out</TableHead>
                       <TableHead className="text-right">Jam Kerja</TableHead>
+                      <TableHead className="text-right">Bayaran Per Jam</TableHead>
+                      <TableHead className="text-right">Bayaran Lembur</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -119,6 +129,15 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
                         </TableCell>
                         <TableCell className="text-right">
                           {'hours' in item ? item.hours ?? '-' : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency('pay_per_hour' in item ? item.pay_per_hour ?? 0 : 0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency('pay_overtime' in item ? item.pay_overtime ?? 0 : 0)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency('total' in item ? item.total ?? 0 : 0)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -141,7 +160,7 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
                         <TableCell>{'article_name' in item ? item.article_name : '-'}</TableCell>
                         <TableCell>{'quantity' in item ? item.quantity : '-'}</TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency('total' in item ? item.total : 0)}
+                          {formatCurrency('total' in item ? (item.total ?? 0) : 0)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -149,6 +168,18 @@ function PayrollDetailDialog({ payrollId, onOpenChange }: { payrollId: string | 
                 </Table>
               )}
             </div>
+            {data.pay_breakdown && (
+              <div className="flex flex-col gap-1.5 rounded-md border px-4 py-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Bayaran Per Jam</span>
+                  <span className="font-medium">{formatCurrency(data.pay_breakdown.pay_per_hour)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Bayaran Lembur</span>
+                  <span className="font-medium">{formatCurrency(data.pay_breakdown.pay_overtime)}</span>
+                </div>
+              </div>
+            )}
             {data.kasbon_deduction > 0 ? (
               <div className="flex flex-col gap-1.5 rounded-md bg-muted px-4 py-3">
                 <div className="flex items-center justify-between text-sm">

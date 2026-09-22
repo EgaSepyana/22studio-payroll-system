@@ -286,7 +286,7 @@ export async function payrollToExcel(rows) {
       .replace(/[[\]*/\\?:]/g, ' ');
     const sheet = workbook.addWorksheet(sheetName || `Slip ${idx + 1}`);
 
-    const lastCol = isAttendance ? 'F' : 'J';
+    const lastCol = isAttendance ? 'H' : 'J';
     sheet.mergeCells(`A1:${lastCol}1`);
     sheet.getCell('A1').value = 'SLIP GAJI 22Studio';
     sheet.getCell('A1').font = { bold: true, size: 14 };
@@ -300,7 +300,7 @@ export async function payrollToExcel(rows) {
 
     const headerRowNumber = 6;
     const headers = isAttendance
-      ? ['No', 'Tanggal', 'Check-in', 'Check-out', 'Jam Kerja', 'Total']
+      ? ['No', 'Tanggal', 'Check-in', 'Check-out', 'Jam Kerja', 'Bayaran Per Jam', 'Bayaran Lembur', 'Total']
       : ['No', 'Tanggal', 'Nama Customer', 'Jenis Artikel', 'Size', 'Harga Jahit', 'Quantity', 'Jumlah', 'Keterangan', 'Status'];
 
     const headerRow = sheet.getRow(headerRowNumber);
@@ -324,6 +324,8 @@ export async function payrollToExcel(rows) {
           { key: 'checkin', width: 14 },
           { key: 'checkout', width: 14 },
           { key: 'jam', width: 12 },
+          { key: 'bayaranPerJam', width: 16 },
+          { key: 'bayaranLembur', width: 16 },
           { key: 'total', width: 16 },
         ]
       : [
@@ -341,7 +343,16 @@ export async function payrollToExcel(rows) {
 
     row.items.forEach((item, itemIdx) => {
       const values = isAttendance
-        ? [itemIdx + 1, formatDate(item.date), formatTime(item.check_in), formatTime(item.check_out), item.hours, Number(item.total)]
+        ? [
+            itemIdx + 1,
+            formatDate(item.date),
+            formatTime(item.check_in),
+            formatTime(item.check_out),
+            item.hours,
+            Number(item.pay_per_hour || 0),
+            Number(item.pay_overtime || 0),
+            Number(item.total),
+          ]
         : [
             itemIdx + 1,
             formatDate(item.work_date),
@@ -366,6 +377,8 @@ export async function payrollToExcel(rows) {
 
       if (isAttendance) {
         excelRow.getCell(6).numFmt = '#,##0';
+        excelRow.getCell(7).numFmt = '#,##0';
+        excelRow.getCell(8).numFmt = '#,##0';
         excelRow.getCell(1).alignment = { horizontal: 'center' };
       } else {
         excelRow.getCell(6).numFmt = '#,##0';
@@ -386,7 +399,7 @@ export async function payrollToExcel(rows) {
 
     const totalRowNumber = headerRowNumber + row.items.length + 1;
     const labelCol = isAttendance ? 'D' : 'G';
-    const valueCol = isAttendance ? 'F' : 'H';
+    const valueCol = isAttendance ? 'H' : 'H';
 
     sheet.mergeCells(`A${totalRowNumber}:${labelCol}${totalRowNumber}`);
     const totalLabelCell = sheet.getCell(`A${totalRowNumber}`);
@@ -406,6 +419,8 @@ export async function payrollToExcel(rows) {
     const fillCol = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD966' } };
     if (isAttendance) {
       sheet.getCell(`E${totalRowNumber}`).fill = fillCol;
+      sheet.getCell(`F${totalRowNumber}`).fill = fillCol;
+      sheet.getCell(`G${totalRowNumber}`).fill = fillCol;
     } else {
       sheet.getCell(`I${totalRowNumber}`).fill = fillCol;
       sheet.getCell(`J${totalRowNumber}`).fill = fillCol;
@@ -414,6 +429,26 @@ export async function payrollToExcel(rows) {
     const summaryLabelCol = isAttendance ? 'D' : 'F';
     const summaryValueCol = isAttendance ? 'F' : 'H';
     let r = totalRowNumber + 2;
+
+    // Bayaran Per Jam / Bayaran Lembur summary lines below — kept alongside
+    // the new per-row table columns above (the row-level breakdown, and this
+    // period-level rollup, are both useful; they're not duplicates of the
+    // same granularity). Display-only breakdown of the attendance total
+    // above into its two pay components (see
+    // payrollService.getPayrollDetail/listPaidPayrollForExport's
+    // pay_breakdown comment). Never affects total_salary/net_salary below,
+    // which are unchanged from what payroll generation already computed.
+    if (isAttendance && row.pay_breakdown) {
+      sheet.getCell(`${summaryLabelCol}${r}`).value = 'Bayaran Per Jam';
+      sheet.getCell(`${summaryValueCol}${r}`).value = Number(row.pay_breakdown.pay_per_hour);
+      sheet.getCell(`${summaryValueCol}${r}`).numFmt = '#,##0';
+      r += 1;
+      sheet.getCell(`${summaryLabelCol}${r}`).value = 'Bayaran Lembur';
+      sheet.getCell(`${summaryValueCol}${r}`).value = Number(row.pay_breakdown.pay_overtime);
+      sheet.getCell(`${summaryValueCol}${r}`).numFmt = '#,##0';
+      r += 1;
+    }
+
     sheet.getCell(`${summaryLabelCol}${r}`).value = 'Kasbon';
     sheet.getCell(`${summaryLabelCol}${r}`).font = { color: { argb: 'FFFF0000' } };
     sheet.getCell(`${summaryValueCol}${r}`).value = -Number(row.kasbon_deduction || 0);
@@ -467,13 +502,13 @@ export function payrollToPdf(rows) {
       const pageTop = 40;
       const pageBottom = 560;
       const colWidths = isAttendance
-        ? [40, 110, 110, 110, 90, 110]
+        ? [35, 95, 90, 90, 65, 95, 95, 95]
         : [30, 78, 90, 165, 70, 50, 85, 100, 87];
       const headers = isAttendance
-        ? ['No', 'Tanggal', 'Check-in', 'Check-out', 'Jam Kerja', 'Total']
+        ? ['No', 'Tanggal', 'Check-in', 'Check-out', 'Jam Kerja', 'Bayaran Per Jam', 'Bayaran Lembur', 'Total']
         : ['No', 'Tanggal', 'Customer', 'Jenis Artikel', 'Harga', 'Qty', 'Jumlah', 'Keterangan', 'Status'];
       const align = isAttendance
-        ? ['center', 'left', 'center', 'center', 'right', 'right']
+        ? ['center', 'left', 'center', 'center', 'right', 'right', 'right', 'right']
         : ['center', 'left', 'left', 'left', 'right', 'center', 'right', 'left', 'center'];
 
       y = drawPdfRow(doc, startX, colWidths, headers, y, { bold: true, fill: '#c9daf8', align });
@@ -486,6 +521,8 @@ export function payrollToPdf(rows) {
               formatTime(item.check_in),
               formatTime(item.check_out),
               item.hours ?? '-',
+              formatCurrency(item.pay_per_hour || 0),
+              formatCurrency(item.pay_overtime || 0),
               formatCurrency(item.total),
             ]
           : [
@@ -506,14 +543,32 @@ export function payrollToPdf(rows) {
 
       y = ensurePdfSpace(doc, y, 20, pageTop, pageBottom);
       const totalRow = isAttendance
-        ? ['', '', '', '', 'TOTAL', formatCurrency(row.total_salary)]
+        ? ['', '', '', '', '', '', 'TOTAL', formatCurrency(row.total_salary)]
         : ['', '', '', '', '', 'TOTAL', formatCurrency(row.total_salary), '', ''];
       y = drawPdfRow(doc, startX, colWidths, totalRow, y, { bold: true, fill: '#ffd966', align });
 
-      y = ensurePdfSpace(doc, y, 70, pageTop, pageBottom);
+      // Extra room for the Bayaran Per Jam / Bayaran Lembur lines below,
+      // when present — 2 more rows at the same 16pt line height used for
+      // Kasbon/Lain-lain/GAJI BERSIH.
+      const hasPayBreakdown = isAttendance && !!row.pay_breakdown;
+      y = ensurePdfSpace(doc, y, hasPayBreakdown ? 102 : 70, pageTop, pageBottom);
       y += 14;
       const tableWidth = colWidths.reduce((a, b) => a + b, 0);
       const summaryX = startX + tableWidth - 200;
+
+      // Display-only breakdown of the total above into its two pay
+      // components (see payrollService's pay_breakdown comment). Never
+      // affects total_salary/net_salary below, which are unchanged from
+      // what payroll generation already computed.
+      if (hasPayBreakdown) {
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#000').text('Bayaran Per Jam', summaryX, y);
+        doc.font('Helvetica').text(formatCurrency(row.pay_breakdown.pay_per_hour), summaryX + 100, y);
+        y += 16;
+        doc.font('Helvetica-Bold').text('Bayaran Lembur', summaryX, y);
+        doc.font('Helvetica').text(formatCurrency(row.pay_breakdown.pay_overtime), summaryX + 100, y);
+        y += 16;
+      }
+
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#cc0000').text('Kasbon', summaryX, y);
       doc.text(`-${formatCurrency(row.kasbon_deduction || 0)}`, summaryX + 100, y);
       y += 16;

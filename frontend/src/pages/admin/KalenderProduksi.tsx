@@ -9,6 +9,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import * as orderApi from '@/services/orderApi'
 
+// Order statuses that count as "sudah selesai" for calendar coloring —
+// once an order reaches any of these it no longer needs the red deadline
+// urgency color, so its deadline event moves to the 'deadline-done'
+// calendar instead of 'deadline'.
+const DONE_STATUSES = new Set(['Done', 'Dikirim', 'Di Ambil Costumer'])
+
 const CALENDARS = [
   {
     id: 'start',
@@ -28,6 +34,16 @@ const CALENDARS = [
       eventColor: '#fee2e2',
       eventSelectedColor: '#fecaca',
       textColor: '#7f1d1d',
+    },
+  },
+  {
+    id: 'deadline-done',
+    name: 'Deadline (Selesai)',
+    colors: {
+      lineColor: '#16a34a',
+      eventColor: '#dcfce7',
+      eventSelectedColor: '#bbf7d0',
+      textColor: '#14532d',
     },
   },
 ]
@@ -55,7 +71,7 @@ export default function KalenderProduksi() {
       if (order.deadline) {
         result.push(
           createAllDayEvent(`deadline-${order.id}`, `Deadline: ${order.order_name}`, new Date(order.deadline), {
-            calendarId: 'deadline',
+            calendarId: DONE_STATUSES.has(order.status) ? 'deadline-done' : 'deadline',
             meta: { orderId: order.id },
           })
         )

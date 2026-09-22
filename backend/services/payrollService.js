@@ -73,6 +73,24 @@ function computeAttendanceRowPay(hoursBeforeThisRow, rowHours, hourlyRate, overt
   return payThroughEnd - payThroughStart;
 }
 
+// Same marginal-share idea as computeAttendanceRowPay, but split into its
+// two components instead of one combined total — powers the "Bayaran Per
+// Jam" / "Bayaran Lembur" table columns on the slip gaji print/export.
+// Summing pay_per_hour (or pay_overtime) across every row of a day always
+// equals that day's normal_hours * hourlyRate (or overtime_hours *
+// overtimeRate) from computeAttendancePay — this doesn't recompute pay,
+// just re-expresses each row's already-correct total as two numbers.
+function computeAttendanceRowPayBreakdown(hoursBeforeThisRow, rowHours, hourlyRate, overtimeRate) {
+  const normalHoursBefore = Math.min(hoursBeforeThisRow, OVERTIME_THRESHOLD_HOURS);
+  const normalHoursAfter = Math.min(hoursBeforeThisRow + rowHours, OVERTIME_THRESHOLD_HOURS);
+  const rowNormalHours = normalHoursAfter - normalHoursBefore;
+  const rowOvertimeHours = rowHours - rowNormalHours;
+  return {
+    pay_per_hour: rowNormalHours * hourlyRate,
+    pay_overtime: rowOvertimeHours * Number(overtimeRate || 0),
+  };
+}
+
 // A kasbon can now be paid off across several partial payroll payments —
 // paid_amount tracks how much of it has already been deducted, so
 // "outstanding" (not the original amount) is what's left to collect.
@@ -844,6 +862,35 @@ export async function getPayrollDetail(payrollId) {
     return d.getMonth() + 1 === Number(row.month) && d.getFullYear() === Number(row.year);
   });
 
+  // Display-only breakdown of the attendance total into its two pay
+  // components — never written back anywhere, purely for getPayrollDetail's
+  // response (and, downstream, the slip gaji print/export). Always sums to
+  // exactly total_salary: pay_overtime is the full overtimeHours ×
+  // overtimeRate, matching computeAttendancePay (the real pay calculation)
+  // with no separate cutoff — an earlier ">1 hour" threshold here caused a
+  // real, visible mismatch (Bayaran Per Jam + Bayaran Lembur < Total Gaji
+  // whenever overtime was between 0 and 1 hour), confirmed against real
+  // payroll data and corrected.
+  let attendancePayBreakdown = null;
+  if (usesAttendance) {
+    const hourlyRate = Number(employee?.hourly_rate || 0);
+    const overtimeRate = Number(employee?.upah_lembur_per_jam || 0);
+    const totalHours = filtered.reduce((sum, a) => sum + Number(a.hours || 0), 0);
+    const normalHours = Math.min(totalHours, OVERTIME_THRESHOLD_HOURS);
+    const overtimeHours = Math.max(0, totalHours - OVERTIME_THRESHOLD_HOURS);
+    attendancePayBreakdown = {
+      total_hours: totalHours,
+      normal_hours: normalHours,
+      overtime_hours: overtimeHours,
+      hourly_rate: hourlyRate,
+      overtime_rate: overtimeRate,
+      // "Bayaran Per Jam" — first 8 hours at hourly_rate.
+      pay_per_hour: normalHours * hourlyRate,
+      // "Bayaran Lembur" — hours beyond 8, at upah_lembur_per_jam.
+      pay_overtime: overtimeHours * overtimeRate,
+    };
+  }
+
   const items = usesAttendance
     ? (() => {
         const hourlyRate = Number(employee?.hourly_rate || 0);
@@ -856,8 +903,14 @@ export async function getPayrollDetail(payrollId) {
         return filtered.map((a) => {
           const hours = Number(a.hours || 0);
           const total = computeAttendanceRowPay(cumulativeHours, hours, hourlyRate, overtimeRate);
+          const { pay_per_hour, pay_overtime } = computeAttendanceRowPayBreakdown(
+            cumulativeHours,
+            hours,
+            hourlyRate,
+            overtimeRate
+          );
           cumulativeHours += hours;
-          return { ...clean(a), hours, total };
+          return { ...clean(a), hours, total, pay_per_hour, pay_overtime };
         });
       })()
     : filtered.map((l) => {
@@ -878,6 +931,7 @@ export async function getPayrollDetail(payrollId) {
     employee_name: employee?.name || null,
     items_type: usesAttendance ? 'attendance' : 'worklog',
     items,
+    ...(attendancePayBreakdown ? { pay_breakdown: attendancePayBreakdown } : {}),
   };
 }
 
@@ -925,6 +979,13 @@ export async function listPaidPayrollForExport(filters = {}) {
     const usesAttendance = row.pay_source === 'attendance';
 
     let items;
+    // Display-only breakdown for the slip gaji print/export — same
+    // reasoning as getPayrollDetail's attendancePayBreakdown (always sums
+    // to total_salary exactly). Computed per calendar day here (this row is
+    // always one day for attendance pay) and summed across days when
+    // multiple daily rows get merged into one range slip below, so the 8h
+    // threshold stays a per-day concept even across a multi-day export.
+    let payBreakdown = null;
     if (usesAttendance) {
       const hourlyRate = Number(employee?.hourly_rate || 0);
       const overtimeRate = Number(employee?.upah_lembur_per_jam || 0);
@@ -937,9 +998,27 @@ export async function listPaidPayrollForExport(filters = {}) {
         .map((a) => {
           const hours = Number(a.hours || 0);
           const total = computeAttendanceRowPay(cumulativeHours, hours, hourlyRate, overtimeRate);
+          const { pay_per_hour, pay_overtime } = computeAttendanceRowPayBreakdown(
+            cumulativeHours,
+            hours,
+            hourlyRate,
+            overtimeRate
+          );
           cumulativeHours += hours;
-          return { ...clean(a), hours, total };
+          return { ...clean(a), hours, total, pay_per_hour, pay_overtime };
         });
+      const totalHours = cumulativeHours;
+      const normalHours = Math.min(totalHours, OVERTIME_THRESHOLD_HOURS);
+      const overtimeHours = Math.max(0, totalHours - OVERTIME_THRESHOLD_HOURS);
+      payBreakdown = {
+        total_hours: totalHours,
+        normal_hours: normalHours,
+        overtime_hours: overtimeHours,
+        hourly_rate: hourlyRate,
+        overtime_rate: overtimeRate,
+        pay_per_hour: normalHours * hourlyRate,
+        pay_overtime: overtimeHours * overtimeRate,
+      };
     } else {
       items = workLogs
         .filter((l) => String(l.employee_id) === String(row.employee_id) && String(l.payroll_id) === String(row.id))
@@ -962,6 +1041,7 @@ export async function listPaidPayrollForExport(filters = {}) {
       employee_name: employee?.name || null,
       items_type: usesAttendance ? 'attendance' : 'worklog',
       items,
+      ...(payBreakdown ? { pay_breakdown: payBreakdown } : {}),
     };
   });
 
@@ -984,6 +1064,9 @@ export async function listPaidPayrollForExport(filters = {}) {
         net_salary: Number(row.net_salary),
         pay_date_from: row.pay_date,
         pay_date_to: row.pay_date,
+        // Summed across every merged day — see this row's own pay_breakdown
+        // comment above for why the 8h split is computed per-day first.
+        ...(row.pay_breakdown ? { pay_breakdown: { ...row.pay_breakdown } } : {}),
       });
     } else {
       existing.items.push(...row.items);
@@ -992,6 +1075,13 @@ export async function listPaidPayrollForExport(filters = {}) {
       existing.net_salary += Number(row.net_salary);
       if (row.pay_date < existing.pay_date_from) existing.pay_date_from = row.pay_date;
       if (row.pay_date > existing.pay_date_to) existing.pay_date_to = row.pay_date;
+      if (row.pay_breakdown && existing.pay_breakdown) {
+        existing.pay_breakdown.total_hours += row.pay_breakdown.total_hours;
+        existing.pay_breakdown.normal_hours += row.pay_breakdown.normal_hours;
+        existing.pay_breakdown.overtime_hours += row.pay_breakdown.overtime_hours;
+        existing.pay_breakdown.pay_per_hour += row.pay_breakdown.pay_per_hour;
+        existing.pay_breakdown.pay_overtime += row.pay_breakdown.pay_overtime;
+      }
     }
   }
 

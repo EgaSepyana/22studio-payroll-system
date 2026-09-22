@@ -226,7 +226,7 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      <div className="flex min-h-dvh flex-1 flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <header className="bg-background/95 sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b px-4 backdrop-blur supports-backdrop-filter:bg-background/80 lg:px-8">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>

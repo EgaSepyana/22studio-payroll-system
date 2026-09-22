@@ -272,6 +272,12 @@ export interface Attendance {
   payroll_id?: string
   notes: string
   employee_name: string | null
+  /** Only present when returned as a payroll detail/export line item. */
+  total?: number
+  /** "Bayaran Per Jam" for this row — first 8h (of the day, cumulative) × hourly_rate. Payroll item only. */
+  pay_per_hour?: number
+  /** "Bayaran Lembur" for this row — hours beyond 8 (of the day) × overtime_rate. Payroll item only. */
+  pay_overtime?: number
 }
 
 export interface PayrollRow {
@@ -291,9 +297,27 @@ export interface PayrollRow {
   employee_name: string
 }
 
+// Display-only split of an attendance-based payroll's total into its two
+// pay components — never affects total_salary/net_salary, which are
+// computed exactly as before (see backend payrollService.computeAttendancePay).
+// pay_per_hour + pay_overtime always sums to exactly total_salary.
+export interface PayrollPayBreakdown {
+  total_hours: number
+  normal_hours: number
+  overtime_hours: number
+  hourly_rate: number
+  overtime_rate: number
+  /** "Bayaran Per Jam" — first 8 hours × hourly_rate. */
+  pay_per_hour: number
+  /** "Bayaran Lembur" — hours beyond 8 × overtime_rate. */
+  pay_overtime: number
+}
+
 export interface PayrollDetail extends PayrollRow {
   items_type: PaySource
   items: (WorkLog | Attendance)[]
+  /** Only present for attendance-based (Finishing) payroll rows. */
+  pay_breakdown?: PayrollPayBreakdown
 }
 
 export interface CashAdvance {
