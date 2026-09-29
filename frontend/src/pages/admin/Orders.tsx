@@ -467,13 +467,14 @@ export default function Orders() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Progress Task</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Status Task Terakhir</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-muted-foreground text-center">
+                      <TableCell colSpan={6}className="text-muted-foreground text-center">
                         Belum ada order.
                       </TableCell>
                     </TableRow>
@@ -491,6 +492,7 @@ export default function Orders() {
                         </div>
                       </TableCell>
                       <TableCell><OrderTaskStatusBadge status={order.status} /></TableCell>
+                      <TableCell>{order.last_done_divisi ?? '-'}</TableCell>
                       <TableCell className="text-right">
                         <RowActionsMenu actions={actions} />
                       </TableCell>
@@ -523,6 +525,7 @@ export default function Orders() {
                     <MobileCardRow label="Status">
                       <OrderTaskStatusBadge status={order.status} />
                     </MobileCardRow>
+                    <MobileCardRow label="Status Task Terakhir">{order.last_done_divisi ?? '-'}</MobileCardRow>
                   </MobileCard>
                 ))}
               </MobileCardList>
