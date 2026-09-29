@@ -8,6 +8,7 @@ import {
   EmployeesRepo,
   OwnerCategoriesRepo,
   OwnerCashAccountsRepo,
+  WorkLogsRepo,
 } from '../google-sheet/models.js';
 import { ApiError } from '../utils/response.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
@@ -87,6 +88,28 @@ function enrichItem(item, sizes) {
   };
 }
 
+// The division of the order's most recent work log with status "selesai"
+// (newest work_date, ties broken by the later row id) — derived from existing
+// WorkLogs, nothing extra is stored. A Cutting log only reads "selesai" once
+// its owner audit passes (until then it's pending_audit). Null when none yet.
+function getLastDoneDivisi(orderId, tasks, workLogs) {
+  const divisiByTask = new Map(
+    tasks.filter((t) => String(t.order_id) === String(orderId)).map((t) => [String(t.id), t.divisi])
+  );
+  let last = null;
+  for (const log of workLogs) {
+    if (log.status !== 'selesai' || !divisiByTask.has(String(log.task_id))) continue;
+    if (
+      !last ||
+      log.work_date > last.work_date ||
+      (log.work_date === last.work_date && Number(log.id) > Number(last.id))
+    ) {
+      last = log;
+    }
+  }
+  return last ? divisiByTask.get(String(last.task_id)) || null : null;
+}
+
 // Order progress is "how many of its tasks are completed" — a coarser signal
 // than task progress (which is qty-based), by design: an order is a bundle
 // of tasks (each its own article/qty), not a single quantity. items_total is
@@ -101,7 +124,7 @@ function enrichItem(item, sizes) {
 // backward compatibility (WA templates, PDF/Excel exports, the frontend) —
 // it now sums every Pembayaran entry regardless of category (DP or
 // Pelunasan), not just DP ones; see enrichDP for the category itself.
-function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
+function enrichOrder(order, { tasks, customers, items, sizes, dp, workLogs }) {
   const customer = customers.find((c) => String(c.id) === String(order.customer_id));
   const orderTasks = tasks.filter((t) => String(t.order_id) === String(order.id));
   const completedTaskCount = orderTasks.filter((t) => t.status === 'completed').length;
@@ -124,6 +147,7 @@ function enrichOrder(order, { tasks, customers, items, sizes, dp }) {
     task_count: orderTasks.length,
     completed_task_count: completedTaskCount,
     progress: orderTasks.length > 0 ? completedTaskCount / orderTasks.length : 0,
+    last_done_divisi: workLogs ? getLastDoneDivisi(order.id, tasks, workLogs) : null,
     item_count: orderItems.length,
     items_total: itemsTotal,
     total_dp: totalDP,
@@ -211,13 +235,14 @@ export async function createOrder({
 }
 
 export async function listOrders(filters = {}) {
-  const [orders, tasks, customers, items, sizes, dp] = await Promise.all([
+  const [orders, tasks, customers, items, sizes, dp, workLogs] = await Promise.all([
     OrdersRepo.getAll(),
     TasksRepo.getAll(),
     CustomersRepo.getAll(),
     OrderItemsRepo.getAll(),
     OrderItemSizesRepo.getAll(),
     OrderDPRepo.getAll(),
+    WorkLogsRepo.getAll(),
   ]);
 
   let filtered = orders;
@@ -230,7 +255,7 @@ export async function listOrders(filters = {}) {
 
   filtered = [...filtered].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
-  let enriched = filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes, dp }));
+  let enriched = filtered.map((order) => enrichOrder(order, { tasks, customers, items, sizes, dp, workLogs }));
   // status_pembayaran is derived, not a raw column — filtered post-enrichment.
   if (filters.status_pembayaran) {
     enriched = enriched.filter((o) => o.status_pembayaran === filters.status_pembayaran);

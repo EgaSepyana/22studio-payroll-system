@@ -183,6 +183,8 @@ export interface Order {
   task_count: number
   completed_task_count: number
   progress: number
+  /** Never stored — division of the most recently completed task (from the order timeline); null if none done yet. Only set by the order list endpoint. */
+  last_done_divisi: Divisi | null
   item_count: number
   items_total: number
   /** Never stored — always the sum of this order's Pembayaran entries (DP + Pelunasan combined). */
