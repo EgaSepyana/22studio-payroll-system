@@ -47,7 +47,7 @@ export async function list(req, res, next) {
 
 export async function listAvailable(req, res, next) {
   try {
-    ok(res, await taskService.listAvailableTasks(req.user.divisi));
+    ok(res, await taskService.listAvailableTasks(req.user.employee_id));
   } catch (err) {
     next(err);
   }

@@ -54,6 +54,18 @@ async function enrich(log) {
   };
 }
 
+// An article's price is per-division work (e.g. a Cutting rate vs a Jahit
+// rate for the same garment), so a work log may only use an article of its
+// task's own division — otherwise an employee gets paid another division's
+// rate. Articles with no divisi set are rejected too: they'd otherwise be
+// pickable by every division. Legacy logs with no task have no division to
+// check against, so they're left as before.
+function assertArticleMatchesDivisi(article, task) {
+  if (task && article.divisi !== task.divisi) {
+    throw new ApiError(400, 'Artikel tidak sesuai dengan divisi pada task ini');
+  }
+}
+
 // Work logs are task-scoped for progress tracking (task_id, qty against the
 // task's target) but the article/price are picked independently per entry —
 // a task no longer carries a fixed article_id, so the employee (or admin)
@@ -106,6 +118,7 @@ export async function createWorkLog(
   if (!isLinked) {
     throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
   }
+  assertArticleMatchesDivisi(article, task);
 
   const qty = Number(quantity);
   const remaining = Number(task.target_qty) - Number(task.completed_qty || 0);
@@ -276,6 +289,8 @@ export async function updateWorkLog(logId, employeeId, role, updates) {
       (ca) => String(ca.category_id) === String(article.category_id) && String(ca.customer_id) === String(existing.customer_id)
     );
     if (!isLinked) throw new ApiError(400, 'Artikel tidak sesuai dengan customer pada order ini');
+    const articleTask = existing.task_id ? await TasksRepo.getById(existing.task_id) : null;
+    assertArticleMatchesDivisi(article, articleTask);
     price = Number(article.price);
     nextArticleId = article_id;
   }

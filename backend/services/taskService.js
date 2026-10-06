@@ -123,8 +123,17 @@ export async function listTasks(filters = {}) {
 // work against the same task. Sorted by the parent order's deadline
 // (soonest first) so the picker surfaces the most urgent work; tasks
 // without a deadline sort last.
-export async function listAvailableTasks(divisi) {
+//
+// The division is read fresh from the Employees row, never from the JWT —
+// the token's divisi is a snapshot from login (valid 12h), so an admin
+// changing an employee's division would otherwise keep serving the old
+// division's tasks (and, through them, its articles) until re-login. No
+// division at all means no tasks, rather than every division's tasks.
+export async function listAvailableTasks(employeeId) {
   const [tasks, ctx] = await Promise.all([TasksRepo.getAll(), fetchEnrichmentContext()]);
+  const employee = ctx.employees.find((e) => String(e.id) === String(employeeId));
+  const divisi = employee?.divisi;
+  if (!divisi) return [];
   const orderMap = new Map(ctx.orders.map((o) => [String(o.id), o]));
 
   const available = tasks
@@ -136,7 +145,7 @@ export async function listAvailableTasks(divisi) {
       // happens by editing an existing WorkLog (Riwayat Pekerjaan), not by
       // acting on the task here.
       if (t.status === 'completed' || t.status === 'pending_audit') return false;
-      if (divisi && t.divisi !== divisi) return false;
+      if (t.divisi !== divisi) return false;
       const order = orderMap.get(String(t.order_id));
       return order && order.status !== 'completed';
     })
