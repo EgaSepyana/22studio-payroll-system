@@ -123,13 +123,16 @@ export default function InputPekerjaan() {
     enabled: !!selectedTask?.order_id,
     retry: false,
   })
+  // Strict division match — an article with no divisi set is not shown to
+  // any division (same rule the backend enforces on save).
   const availableArticles = React.useMemo(
     () =>
       articles?.filter(
         (a) =>
           !!selectedTask?.customer_id &&
           a.customer_ids.includes(selectedTask.customer_id) &&
-          (!a.divisi || a.divisi === selectedTask?.divisi)
+          a.divisi === selectedTask.divisi &&
+          a.status === 'active'
       ) || [],
     [articles, selectedTask]
   )
@@ -299,7 +302,7 @@ export default function InputPekerjaan() {
                   </SelectContent>
                 </Select>
                 {selectedTask && availableArticles.length === 0 && (
-                  <p className="text-muted-foreground text-xs">Belum ada artikel untuk customer pada task ini.</p>
+                  <p className="text-muted-foreground text-xs">Belum ada artikel untuk customer dan divisi pada task ini.</p>
                 )}
                 {selectedArticle && (
                   <p className="text-muted-foreground text-xs">

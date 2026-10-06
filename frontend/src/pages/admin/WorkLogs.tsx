@@ -428,9 +428,16 @@ export default function WorkLogs() {
   // would have resolved to, so it's used directly instead of re-deriving a
   // task selection just to read a field the row already has.
   const formCustomerId = isEdit ? editingLog?.customer_id : selectedFormTask?.customer_id
+  // Articles are also scoped to the work's division — the task's on create;
+  // on edit (no task selection) the employee's, which is always the same
+  // division as the log's task.
+  const formArticleDivisi = isEdit ? formEmployeeDivisi : selectedFormTask?.divisi
   const availableFormArticles = React.useMemo(
-    () => articles?.filter((a) => !!formCustomerId && a.customer_ids.includes(formCustomerId)) || [],
-    [articles, formCustomerId]
+    () =>
+      articles?.filter(
+        (a) => !!formCustomerId && a.customer_ids.includes(formCustomerId) && a.divisi === formArticleDivisi
+      ) || [],
+    [articles, formCustomerId, formArticleDivisi]
   )
   const selectedFormArticle = availableFormArticles.find((a) => a.id === formArticleId)
   // Photo is required by the backend only on create (see

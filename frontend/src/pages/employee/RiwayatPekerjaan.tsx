@@ -34,6 +34,7 @@ import {
 import * as workLogApi from '@/services/workLogApi'
 import * as customerApi from '@/services/customerApi'
 import * as articleApi from '@/services/articleApi'
+import { useAuth } from '@/hooks/useAuth'
 import { getErrorMessage } from '@/services/api'
 import { formatCurrency, formatDate, WORK_STATUS_OPTIONS, editableWorkStatus } from '@/utils/format'
 import type { WorkLog } from '@/types'
@@ -51,6 +52,7 @@ type FormValues = z.output<typeof formSchema>
 
 export default function RiwayatPekerjaan() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [dateFrom, setDateFrom] = React.useState('')
   const [dateTo, setDateTo] = React.useState('')
   const [editingLog, setEditingLog] = React.useState<WorkLog | null>(null)
@@ -72,8 +74,11 @@ export default function RiwayatPekerjaan() {
 
   const formCustomerId = form.watch('customer_id')
   const availableArticles = React.useMemo(
-    () => articles?.filter((a) => a.customer_ids.includes(formCustomerId) && a.status === 'active') || [],
-    [articles, formCustomerId]
+    () =>
+      articles?.filter(
+        (a) => a.customer_ids.includes(formCustomerId) && a.status === 'active' && a.divisi === user?.divisi
+      ) || [],
+    [articles, formCustomerId, user?.divisi]
   )
 
   const openEdit = (log: WorkLog) => {
