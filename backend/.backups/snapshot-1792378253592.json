@@ -1,0 +1,40 @@
+{
+  "takenAt": "2026-10-19T02:50:53.586Z",
+  "note": "Snapshot before fixing duplicate Payroll id=528 (Dini row467 vs Budi row468). Restore by writing these exact values back to their row/col if the fix needs to be reverted.",
+  "rows": {
+    "dini_row467": {
+      "id": "528",
+      "employee_id": "9",
+      "month": "10",
+      "year": "2026",
+      "total_salary": "1164200",
+      "payment_status": "paid",
+      "paid_at": "2026-10-17T10:10:40.534Z",
+      "paid_by": "20",
+      "kasbon_deduction": "200000",
+      "net_salary": "964200",
+      "pay_source": "attendance",
+      "pay_date": "2026-10-14",
+      "account_id": "1",
+      "expense_id": "454",
+      "_rowNumber": 467
+    },
+    "budi_row468": {
+      "id": "528",
+      "employee_id": "12",
+      "month": "10",
+      "year": "2026",
+      "total_salary": "828200",
+      "payment_status": "unpaid",
+      "paid_at": "",
+      "paid_by": "",
+      "kasbon_deduction": "0",
+      "net_salary": "828200",
+      "pay_source": "worklog",
+      "pay_date": "2026-10-17",
+      "account_id": "",
+      "expense_id": "",
+      "_rowNumber": 468
+    }
+  }
+}
