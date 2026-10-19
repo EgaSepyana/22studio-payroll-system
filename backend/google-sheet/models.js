@@ -645,7 +645,15 @@ export const EmployeesRepo = new SheetRepository('Employees', SHEET_SCHEMAS.Empl
 export const CustomersRepo = new SheetRepository('Customers', SHEET_SCHEMAS.Customers);
 export const ArticlesRepo = new SheetRepository('Articles', SHEET_SCHEMAS.Articles);
 export const WorkLogsRepo = new SheetRepository('WorkLogs', SHEET_SCHEMAS.WorkLogs);
-export const PayrollRepo = new SheetRepository('Payroll', SHEET_SCHEMAS.Payroll);
+// `idStrategy: 'uuid'` — see SheetRepository's constructor comment. Scoped
+// to Payroll alone (the sheet the id-collision incident hit): existing
+// numeric-id rows are untouched and keep working exactly as before: every
+// lookup/update/delete is plain string equality on `id` regardless of its
+// shape, and nothing sorts or compares Payroll rows by numeric id anywhere
+// in this codebase or the frontend (confirmed — unlike WorkLogs/Orders,
+// which orderService.js/suratJalanService.js do sort/compare with
+// `Number(id)`, which is exactly why they keep the sequential scheme).
+export const PayrollRepo = new SheetRepository('Payroll', SHEET_SCHEMAS.Payroll, { idStrategy: 'uuid' });
 export const CashAdvancesRepo = new SheetRepository('CashAdvances', SHEET_SCHEMAS.CashAdvances);
 export const AttendanceRepo = new SheetRepository('Attendance', SHEET_SCHEMAS.Attendance);
 export const OrdersRepo = new SheetRepository('Orders', SHEET_SCHEMAS.Orders);

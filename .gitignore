@@ -5,3 +5,4 @@ service-account.json
 *.log
 *.xlsx
 .DS_Store
+.claude/settings.local.json

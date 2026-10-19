@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { getRedis } from '../config/redis.js';
 import { getSheetsClient, SPREADSHEET_ID } from './sheetClient.js';
 
 const locks = new Map();
@@ -24,6 +26,72 @@ function withLock(key, fn) {
     )
   );
   return next;
+}
+
+// `withLock` above only serializes inserts *within this process* — on a
+// serverless platform (Vercel), a concurrent insert on a different instance
+// has its own separate `locks` Map and doesn't see this one at all. That
+// produced a real production incident: two different employees' Payroll
+// rows both got id 528 (two inserts racing across instances), and every
+// getById(528) lookup silently resolved to whichever row happened to sit
+// first in the sheet — misrouting both the "view detail" and "mark as paid"
+// actions for the *other* row (confirmed and manually repaired, Oct 2026).
+// A retry-after-the-fact fix (re-check post-write, reassign on collision)
+// was tried first and measurably failed under real contention: two
+// processes racing in near-lockstep (same trigger moment, similar network
+// latency — exactly what a real race looks like) kept recomputing the same
+// candidate id together across retries even with randomized backoff between
+// attempts (confirmed empirically: 2 of 5 trials of a live two-process race
+// test still ended in a duplicate id). Correctness needs real mutual
+// exclusion, not statistical avoidance — this uses the Redis (Upstash)
+// already in this project's stack (config/redis.js, otherwise only used for
+// the notification queue) as a distributed lock around id allocation, which
+// every process *does* share. Random ids (UUIDs) would have sidestepped the
+// race entirely with no lock needed, but ids are relied on elsewhere as
+// monotonically-increasing-by-insertion-order (orderService.js/
+// suratJalanService.js sort and compare with `Number(id)`), so that would
+// have silently broken those call sites — not an option here.
+const LOCK_TTL_MS = 10_000;
+const LOCK_ACQUIRE_RETRY_MS = 100;
+const LOCK_ACQUIRE_MAX_WAIT_MS = 15_000;
+
+async function acquireIdLock(sheetName) {
+  const redis = getRedis();
+  if (!redis) return null; // No Redis configured — caller falls back to the local retry/reassign loop below.
+  const key = `lock:nextid:${sheetName}`;
+  const token = crypto.randomUUID();
+  const deadline = Date.now() + LOCK_ACQUIRE_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const ok = await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX');
+      if (ok === 'OK') return { key, token };
+    } catch (err) {
+      // Redis unreachable right now — same "queue unavailable, fall back"
+      // treatment config/redis.js's own call sites already give a Redis
+      // failure, not a hard error for an insert.
+      console.error('acquireIdLock: Redis error, falling back to local retry loop:', err.message);
+      return null;
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCK_ACQUIRE_RETRY_MS));
+  }
+  return null; // Couldn't get the lock in time — fall back rather than block the request indefinitely.
+}
+
+// Lua CAS so this only ever deletes a lock *we* still hold — without this, a
+// slow holder whose TTL already expired (and whose key some other process
+// has since acquired) would delete that other process's lock out from under
+// it instead of its own.
+const RELEASE_LOCK_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
+
+async function releaseIdLock(lock) {
+  if (!lock) return;
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.eval(RELEASE_LOCK_SCRIPT, 1, lock.key, lock.token);
+  } catch (err) {
+    console.error('releaseIdLock: Redis error (lock will expire via TTL):', err.message);
+  }
 }
 
 function colLetter(index) {
@@ -55,10 +123,24 @@ function rowsToData(repo, rows) {
  * real read per sheet, no matter how many reads/writes happen afterward.
  */
 export class SheetRepository {
-  constructor(sheetName, columns) {
+  // `idStrategy: 'uuid'` (Payroll only, see models.js) generates a random
+  // id for every auto-generated insert instead of the default sequential
+  // `nextId()` — this sidesteps the cross-process collision class entirely
+  // (no coordination needed between processes when ids can't collide by
+  // construction) rather than coordinating around it with the Redis lock
+  // below. Left opt-in per-sheet, not the default, because other sheets'
+  // ids are relied on elsewhere as monotonically-increasing-by-insertion-
+  // order (orderService.js/suratJalanService.js sort and compare with
+  // `Number(id)`) — switching those too would silently break that. Every
+  // *existing* row, on every sheet, keeps whatever id it already has
+  // regardless of this setting — this only governs what a *future*
+  // auto-generated insert picks, so old numeric-id rows are untouched and
+  // keep working exactly as before, side by side with new UUID rows.
+  constructor(sheetName, columns, { idStrategy = 'sequential' } = {}) {
     this.sheetName = sheetName;
     this.columns = columns;
     this.lastCol = colLetter(columns.length - 1);
+    this.idStrategy = idStrategy;
   }
 
   rowToObject(row) {
@@ -150,8 +232,13 @@ export class SheetRepository {
     return existing || null;
   }
 
-  async nextId() {
-    const all = await this.getAll();
+  // `fresh: true` (passed by insert() while it holds the distributed id
+  // lock) forces a real read instead of trusting the possibly-30s-stale
+  // cache — safe to pay for here since no other process can be allocating
+  // an id on this sheet concurrently while we hold the lock, so this read
+  // is the authoritative last word before we commit to a value.
+  async nextId({ fresh = false } = {}) {
+    const all = await this.getAll({ fresh });
     const max = all.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
     return max + 1;
   }
@@ -159,37 +246,91 @@ export class SheetRepository {
   async insert(data) {
     return withLock(this.sheetName, async () => {
       const sheets = await getSheetsClient();
-      // Stringified immediately: nextId() returns a number, but every other
-      // read path (rowToObject, used by every real getAll() fetch) stores
-      // ids as strings. Without this, a create's response/write-through
-      // cache entry carries a numeric id for up to the 30s cache TTL, while
-      // a fresh fetch after that window returns it as a string — the same
-      // "every sheet-sourced field is a string" contract rowToObject
-      // documents, silently violated for one specific window.
-      const id = data.id !== undefined ? data.id : String(await this.nextId());
-      const record = { ...data, id };
-      const row = this.objectToRow(record);
-      const res = await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${this.sheetName}!A:${this.lastCol}`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [row] },
-      });
+      const hasExplicitId = data.id !== undefined;
+      const usesUuid = this.idStrategy === 'uuid';
+      // Cross-process mutual exclusion around id allocation (see the
+      // acquireIdLock comment above) — only needed when we're the one
+      // picking a *sequential* id; a caller-supplied id can't race with
+      // nextId(), and a UUID can't collide with anything regardless of
+      // timing, so neither needs this lock at all.
+      const idLock = !hasExplicitId && !usesUuid ? await acquireIdLock(this.sheetName) : null;
+      try {
+        // Stringified immediately: nextId() returns a number, but every other
+        // read path (rowToObject, used by every real getAll() fetch) stores
+        // ids as strings. Without this, a create's response/write-through
+        // cache entry carries a numeric id for up to the 30s cache TTL, while
+        // a fresh fetch after that window returns it as a string — the same
+        // "every sheet-sourced field is a string" contract rowToObject
+        // documents, silently violated for one specific window.
+        let id = hasExplicitId
+          ? data.id
+          : usesUuid
+            ? crypto.randomUUID()
+            : String(await this.nextId({ fresh: Boolean(idLock) }));
+        let record = { ...data, id };
+        const row = this.objectToRow(record);
+        const res = await sheets.spreadsheets.values.append({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${this.sheetName}!A:${this.lastCol}`,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: [row] },
+        });
 
-      // Write-through only if the cache is already warm — seeding a cold
-      // cache with just this one new row would make getAll() think it's the
-      // *only* row in the sheet. When cold, leave it alone; the next getAll()
-      // does a real fetch and sees the new row naturally.
-      const entry = cache.get(this.sheetName);
-      if (entry) {
         const updatedRange = res.data.updates?.updatedRange || '';
         const match = updatedRange.match(/![A-Z]+(\d+)/);
-        const rowNumber = match ? Number(match[1]) : entry.data.length + 2;
-        entry.data.push({ ...record, _rowNumber: rowNumber });
-      }
+        let rowNumber = match ? Number(match[1]) : null;
 
-      return record;
+        // Fallback path only — for the sequential-id strategy, when the lock
+        // above couldn't be acquired (Redis not configured, or contended
+        // past LOCK_ACQUIRE_MAX_WAIT_MS), this is the only thing standing
+        // between us and the id-collision incident described above.
+        // Best-effort, not a guarantee: re-check with a fresh read now that
+        // our own row is visible, and if another row still claims the same
+        // id, reassign ours in place. Never runs for `usesUuid` — a UUID
+        // can't collide, so there's nothing here to reassign away from.
+        if (!hasExplicitId && !usesUuid && !idLock && rowNumber) {
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const fresh = await this.getAll({ fresh: true });
+            const collision = fresh.some((r) => r._rowNumber !== rowNumber && String(r.id) === String(id));
+            if (!collision) break;
+
+            // Jittered delay, then re-read, before picking the next candidate
+            // — two processes racing on the same action tend to enter this
+            // loop in near-lockstep (same trigger moment, similar network
+            // latency), so without a delay they keep recomputing the
+            // identical freshMax+1 together on every attempt. Even with this
+            // jitter, confirmed empirically to still collide sometimes under
+            // real contention — it narrows the window, it doesn't close it,
+            // which is exactly why the lock above is the real fix and this
+            // only runs when that lock isn't available.
+            await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 250));
+            const freshAfterDelay = await this.getAll({ fresh: true });
+            const freshMax = freshAfterDelay.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0);
+            id = String(freshMax + 1);
+            record = { ...data, id };
+            await sheets.spreadsheets.values.update({
+              spreadsheetId: SPREADSHEET_ID,
+              range: `${this.sheetName}!A${rowNumber}`,
+              valueInputOption: 'RAW',
+              requestBody: { values: [[id]] },
+            });
+          }
+        }
+
+        // Write-through only if the cache is already warm — seeding a cold
+        // cache with just this one new row would make getAll() think it's
+        // the *only* row in the sheet. When cold, leave it alone; the next
+        // getAll() does a real fetch and sees the new row naturally.
+        const entry = cache.get(this.sheetName);
+        if (entry) {
+          entry.data.push({ ...record, _rowNumber: rowNumber ?? entry.data.length + 2 });
+        }
+
+        return record;
+      } finally {
+        await releaseIdLock(idLock);
+      }
     });
   }
 
