@@ -15,6 +15,7 @@ import {
   Boxes,
   FileBarChart,
   Scale,
+  Bot,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -50,6 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/owner/stok', label: 'Stok Persediaan', icon: Boxes },
   { to: '/owner/laba-rugi', label: 'Laba Rugi', icon: FileBarChart },
   { to: '/owner/neraca', label: 'Neraca', icon: Scale },
+  { to: '/owner/aktivitas-agent', label: 'Aktivitas Agent', icon: Bot },
   { to: '/owner/pengaturan', label: 'Pengaturan Keuangan', icon: Settings },
 ]
 

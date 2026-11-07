@@ -501,6 +501,13 @@
     ],
     "divisi": null
   },
+  "GET /api/owner/agent-activity": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
   "GET /api/owner/assets": {
     "auth": "jwt",
     "roles": [

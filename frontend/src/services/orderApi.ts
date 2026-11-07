@@ -72,6 +72,19 @@ export async function listOrders(filters: OrderFilters = {}) {
   return res.data.data
 }
 
+export interface PublishConsentInput {
+  boleh_publikasi: boolean
+  catatan_publikasi?: string
+}
+
+export async function updatePublishConsent(id: string, data: PublishConsentInput) {
+  const res = await api.patch<ApiResponse<{ id: string; boleh_publikasi: boolean; catatan_publikasi: string }>>(
+    `/orders/${id}/publish-consent`,
+    data
+  )
+  return res.data.data
+}
+
 export async function getOrderDetail(id: string) {
   const res = await api.get<ApiResponse<OrderDetail>>(`/orders/${id}`)
   return res.data.data

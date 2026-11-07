@@ -37,6 +37,7 @@ import OwnerAssets from '@/pages/owner/Assets'
 import OwnerInventory from '@/pages/owner/Inventory'
 import OwnerProfitLoss from '@/pages/owner/ProfitLoss'
 import OwnerBalanceSheet from '@/pages/owner/BalanceSheet'
+import OwnerAgentActivity from '@/pages/owner/AgentActivity'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="/owner/stok" element={<OwnerInventory />} />
             <Route path="/owner/laba-rugi" element={<OwnerProfitLoss />} />
             <Route path="/owner/neraca" element={<OwnerBalanceSheet />} />
+            <Route path="/owner/aktivitas-agent" element={<OwnerAgentActivity />} />
             <Route path="/owner/pengaturan" element={<OwnerSettings />} />
           </Route>
         </Route>

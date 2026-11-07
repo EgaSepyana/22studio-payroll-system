@@ -179,6 +179,9 @@ export interface Order {
   order_from: OrderFrom | ''
   broker: string
   desain_fix_url: string
+  /** 'true' once the customer allowed publishing the design; '' / 'false' otherwise. */
+  boleh_publikasi: string
+  catatan_publikasi: string
   customer_name: string | null
   task_count: number
   completed_task_count: number
@@ -220,8 +223,25 @@ export interface OrderTimelineEntry {
   stage: OrderStatus
   sub_stage: string
   note: string
-  actor: 'system' | 'admin' | 'customer'
+  /** 'system' | 'admin' | 'customer', or the username of whoever made the change (e.g. an agent account). */
+  actor: string
   created_at: string
+}
+
+export interface AgentActivityEntry {
+  id: string
+  created_at: string
+  username: string
+  method: string
+  path: string
+  status_code: number
+  summary: string
+}
+
+export interface AgentActivity {
+  entries: AgentActivityEntry[]
+  /** Every agent username present in the log, for the filter. */
+  agents: string[]
 }
 
 export interface OrderShippingInfo {
