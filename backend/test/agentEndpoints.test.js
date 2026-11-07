@@ -63,11 +63,14 @@ const PATCHED = [
   [models.OrderItemSizesRepo, 'getAll'],
   [models.LembarPORepo, 'getAll'],
   [models.OrderTimelineRepo, 'insert'],
+  [models.AuditLogRepo, 'insert'],
 ];
 const originals = PATCHED.map(([repo, name]) => repo[name]);
 
 let orders;
 let timeline;
+let audit;
+let failAudit = false;
 let users;
 const agents = {};
 
@@ -83,6 +86,7 @@ let base;
 test.before(async () => {
   orders = [{ ...order }];
   timeline = [];
+  audit = [];
   users = [];
   addAgent('agent-produksi', ['orders:status']);
   addAgent('agent-marketing', ['orders:public-summary']);
@@ -104,6 +108,12 @@ test.before(async () => {
   models.OrderTimelineRepo.insert = async (entry) => {
     timeline.push(entry);
     return { id: String(timeline.length), ...entry };
+  };
+
+  models.AuditLogRepo.insert = async (entry) => {
+    if (failAudit) throw new Error('sheets down');
+    audit.push(entry);
+    return { id: String(audit.length), ...entry };
   };
 
   server = app.listen(0);
@@ -237,4 +247,76 @@ test('GET /api/agent/orders/:id/design-brief returns the brief without PII or pr
 
   assert.equal((await call('GET', '/api/agent/orders/999/design-brief', { key })).status, 404);
   assert.equal((await call('GET', '/api/agent/orders/1/design-brief', { key: agents['agent-marketing'] })).status, 403);
+});
+
+// ---- audit log & rate limit (T6) -------------------------------------------
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+
+test('an agent write is audited with user, method, path, status and a redacted summary', async () => {
+  audit.length = 0;
+  const res = await call('PATCH', '/api/orders/1/status', { key: agents['agent-produksi'], body: { status: 'Done' } });
+  assert.equal(res.status, 200);
+  await settle();
+  assert.equal(audit.length, 1);
+  const entry = audit[0];
+  assert.equal(entry.username, 'agent-produksi');
+  assert.equal(entry.role, 'agent');
+  assert.equal(entry.method, 'PATCH');
+  assert.equal(entry.path, '/api/orders/1/status');
+  assert.equal(entry.status_code, 200);
+  assert.equal(entry.summary, '{"status":"Done"}');
+  assert.ok(entry.user_id);
+  assert.ok(!Number.isNaN(Date.parse(entry.created_at)));
+});
+
+test('denied and invalid agent writes are audited with their status code', async () => {
+  audit.length = 0;
+  await call('DELETE', '/api/orders/1', { key: agents['agent-produksi'] });
+  await call('PATCH', '/api/orders/1/publish-consent', { key: agents['agent-produksi'], body: { boleh_publikasi: true, password: 'x' } });
+  await call('PATCH', '/api/orders/1/status', { key: agents['agent-produksi'], body: { status: 'Dikirim' } });
+  await settle();
+  assert.deepEqual(audit.map((a) => [a.method, a.path, a.status_code]), [
+    ['DELETE', '/api/orders/1', 403],
+    ['PATCH', '/api/orders/1/publish-consent', 403],
+    ['PATCH', '/api/orders/1/status', 400],
+  ]);
+  assert.equal(JSON.stringify(audit).includes('"x"'), false);
+});
+
+test('agent reads and human writes are never audited', async () => {
+  audit.length = 0;
+  await call('GET', '/api/agent/me', { key: agents['agent-produksi'] });
+  await call('GET', '/api/orders', { key: agents['agent-produksi'] });
+  await call('GET', '/api/agent/orders/public-summary', { key: agents['agent-marketing'] });
+  await call('PATCH', '/api/orders/1/status', { token: adminToken(), body: { status: 'Done' } });
+  await settle();
+  assert.equal(audit.length, 0);
+});
+
+test('a failing audit write never fails the request', async () => {
+  failAudit = true;
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const res = await call('PATCH', '/api/orders/1/status', { key: agents['agent-produksi'], body: { status: 'On Progress' } });
+    assert.equal(res.status, 200);
+    await settle();
+  } finally {
+    console.error = originalError;
+    failAudit = false;
+  }
+});
+
+test('an agent over 60 requests a minute gets 429; other agents and humans are unaffected', async () => {
+  addAgent('agent-flood', []);
+  let limitedAt = null;
+  for (let i = 1; i <= 62; i++) {
+    const res = await call('GET', '/api/agent/me', { key: agents['agent-flood'] });
+    if (res.status === 429 && limitedAt === null) limitedAt = i;
+    else if (limitedAt === null) assert.equal(res.status, 200);
+  }
+  assert.equal(limitedAt, 61);
+  assert.equal((await call('GET', '/api/agent/me', { key: agents['agent-nothing'] })).status, 200);
+  assert.equal((await call('PATCH', '/api/orders/1/status', { token: adminToken(), body: { status: 'Done' } })).status, 200);
 });

@@ -4,6 +4,8 @@ import { ApiError } from '../utils/response.js';
 import { isAgentKey } from '../utils/agentKeyUtils.js';
 import { authenticateAgentKey, usersAgentStore } from '../services/agentAuthService.js';
 import { isForbiddenRoute, hasScope } from '../config/agentScopes.js';
+import { createAgentAuditor } from './agentAudit.js';
+import { createAgentRateLimiter } from './agentRateLimit.js';
 
 function bearerToken(req) {
   const header = req.headers.authorization || '';
@@ -18,9 +20,15 @@ function verifyHumanJwt(token) {
   return payload;
 }
 
-// `agentStore` and `agentKeySecret` are injectable so tests don't need
-// Google Sheets. The default exports below use the real ones.
-export function createAuthMiddleware({ agentStore, agentKeySecret } = {}) {
+// `agentStore`, `agentKeySecret`, `agentAuditor` and `agentRateLimiter` are
+// injectable so tests don't need Google Sheets. The default exports below
+// use the real ones.
+export function createAuthMiddleware({
+  agentStore,
+  agentKeySecret,
+  agentAuditor = createAgentAuditor(),
+  agentRateLimiter = createAgentRateLimiter(),
+} = {}) {
   function requireAuth(req, res, next) {
     const token = bearerToken(req);
     if (!token) return next(new ApiError(401, 'Not authenticated'));
@@ -28,13 +36,20 @@ export function createAuthMiddleware({ agentStore, agentKeySecret } = {}) {
     if (isAgentKey(token)) {
       authenticateAgentKey(token, { store: agentStore, secret: agentKeySecret })
         .then((user) => {
-          // Agents never get past auth on the areas the catalog forbids
-          // (/api/auth, /api/profile, /api/notifications, ...).
-          if (isForbiddenRoute(req.method, `${req.baseUrl || ''}${req.path || ''}`)) {
-            return next(new ApiError(403, 'Forbidden'));
-          }
           req.user = user;
-          next();
+          // Audit first so rejected writes are recorded too, then count the
+          // request against this agent's rate limit.
+          agentAuditor(req, res, user);
+          agentRateLimiter(req, res, (limitError) => {
+            if (limitError) return next(limitError);
+            // Agents never get past auth on the areas the catalog forbids
+            // (/api/auth, /api/profile, /api/notifications, ...).
+            if (isForbiddenRoute(req.method, `${req.baseUrl || ''}${req.path || ''}`)) {
+              delete req.user;
+              return next(new ApiError(403, 'Forbidden'));
+            }
+            next();
+          });
         })
         .catch(next);
       return;

@@ -47,7 +47,14 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - The status change writes an `OrderTimeline` entry with `actor`.
   - **Test:** mapper unit tests (no forbidden keys, `desain_fix_url` / `order_name` only with consent); zod validation tests; endpoints present in the route-access test with correct scopes.
 
-- [ ] **T6 — Audit log + rate limit**
+- [ ] **T5b — Status rules & task progress fix**
+  - `PATCH /api/orders/:id/status` must follow the human rules: go through `transitionOrderStatus` / `MANUAL_TRANSITIONS` only (`Belum Di Proses → Desain Fix`, `Done → Dikirim` with resi + shipping method, `Dikirim → Di Ambil Costumer`). `STATUS_API_TARGETS` = those three targets; `On Progress` / `Done` are rejected (they stay automatic via `recalculateOrderStatus`). Body accepts `note`, `resi`, `shipping_method`.
+  - Remove scope `tasks:progress` (catalog, `agent-produksi`, route map). `POST /api/tasks/:id/progress` stays humans-only.
+  - Add `orders:status` to `agent-admin` (for `Desain Fix` from the human's instruction).
+  - Remove the resolved `tasks:progress` item from Follow-ups.
+  - **Test:** unit/route tests: every allowed transition passes, every other transition → 400, `Dikirim` without resi → 400, same status = no-op; route-access test updated (`tasks:progress` gone, agent gets 403 on task progress); T0 human snapshot unchanged.
+
+- [x] **T6 — Audit log + rate limit**
   - Audit middleware per PRD §6 (agent non-GET only, after finish, redacted summary, fire-and-forget).
   - Per-agent rate limiter (60/min, 429).
   - **Test:** unit tests for summary builder / redaction and for "write only for agent non-GET"; limiter keyed by user id.
@@ -71,6 +78,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 
 ## Follow-ups
 - `POST /api/tasks/:id/progress` (`tasks:progress`): `taskController.addProgress` takes `employee_id` from the body only for admin/admin_produksi/owner; for an agent it falls back to `req.user.employee_id` (empty) and throws. Decide before T7/T9 whether agents may pass `employee_id`.
+- Shared rate limit across Vercel instances (Redis store via `rate-limit-redis`, new dependency): only if per-instance limiting proves insufficient. The MCP server will also throttle agents on its side.
 
 ## Log
 | Date | Task | Note |
@@ -81,3 +89,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | 2026-11-07 | T3 | Done. `npm test` green (56). Agent lookup uses `UsersRepo.getAll()` (30s cache), so disable/rotate can lag up to 30s per instance. |
 | 2026-11-07 | T4 | Done. `npm test` green (70). Human snapshot unchanged. `allow({ roles, scope })` in `middleware/auth.js`; router-level `requireRole` removed from owner*/cms/reports/cash-accounts routers (per-route guards instead). |
 | 2026-11-07 | T5 | Done. `npm test` green (99). `NEW_ENDPOINTS` removed from the scope catalog. `route-roles.json` regenerated: 5 routes added, no existing entry changed. Status endpoint: any of the 4 statuses (no transition map), no-op if unchanged, `Di Ambil Costumer` is final. |
+| 2026-11-07 | T6 | Done. `npm test` green (122). Audit + limiter run inside `requireAuth`'s agent branch. Limiter counters are per process (per serverless instance). New optional env `AGENT_RATE_LIMIT_PER_MIN` (default 60). Test env now points the service account at a missing file so tests can't reach Sheets. |

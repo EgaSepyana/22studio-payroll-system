@@ -36,8 +36,8 @@ Human users (admin, admin_produksi, owner, employee) must see **zero behaviour c
 |---|---|
 | `agent-manager` | `orders:read`, `tasks:read`, `dashboard:read` |
 | `agent-owner` | `orders:read`, `finance:read`, `reports:read` |
-| `agent-produksi` | `orders:read`, `orders:status`, `tasks:read`, `tasks:write`, `tasks:progress`, `lembar-po:read`, `lembar-po:write`, `surat-jalan:read`, `surat-jalan:write`, `worklogs:read` |
-| `agent-admin` | `orders:read`, `orders:write`, `orders:items`, `orders:publish-flag`, `customers:read`, `customers:write`, `dp:create`, `invoice:read`, `followup:draft`, `tracking-link:read`, `articles:read` |
+| `agent-produksi` | `orders:read`, `orders:status`, `tasks:read`, `tasks:write`, `lembar-po:read`, `lembar-po:write`, `surat-jalan:read`, `surat-jalan:write`, `worklogs:read` |
+| `agent-admin` | `orders:read`, `orders:write`, `orders:items`, `orders:status`, `orders:publish-flag`, `customers:read`, `customers:write`, `dp:create`, `invoice:read`, `followup:draft`, `tracking-link:read`, `articles:read` |
 | `agent-marketing` | `articles:read`, `orders:public-summary`, `cms:read`, `cms:write`, `uploads:cms-image` |
 | `agent-designer` | `orders:read-design`, `articles:read`, `uploads:design` |
 | `agent-keuangan` | `finance:read`, `reports:read`, `payroll:read`, `worklogs:read`, `cashadvances:read`, `expenses:create`, `income:create`, `payroll:pay`, `cashadvances:decide`, `cash:transfer`, `cash:reconcile`, `liabilities:pay`, `assets:trade`, `inventory:stock` |
@@ -67,7 +67,6 @@ Only these routes accept agents, and only with the listed scope. Human role guar
 | `articles:read` | `GET /api/articles`, `GET /api/article-categories` |
 | `tasks:read` | `GET /api/tasks`, `GET /api/tasks/:id`, `GET /api/tasks/:id/progress-photos` |
 | `tasks:write` | `POST /api/tasks`, `PUT /api/tasks/:id` |
-| `tasks:progress` | `POST /api/tasks/:id/progress` |
 | `lembar-po:read` | `GET /api/lembar-po`, `GET /api/lembar-po/by-order/:orderId`, `GET /api/lembar-po/order-ids`, `GET /api/lembar-po/:id`, `GET /api/lembar-po/:id/pdf` |
 | `lembar-po:write` | `POST /api/lembar-po`, `PUT /api/lembar-po/:id` |
 | `surat-jalan:read` | `GET /api/surat-jalan`, `GET /api/surat-jalan/:id`, `GET /api/surat-jalan/:id/pdf` |
@@ -92,13 +91,15 @@ Only these routes accept agents, and only with the listed scope. Human role guar
 | `uploads:design` | `POST /api/uploads/design` |
 | *(any agent)* | `GET /api/agent/me` **(new)**: own username + scopes |
 
+**Task progress:** `POST /api/tasks/:id/progress` is **not** agent-accessible. Progress is reported by the employees doing the work; agents report through Kanban.
+
 **Surat Jalan note:** these routes use `requireDivisi` for employees. An agent with the scope must pass without a divisi; human behaviour stays unchanged.
 
 ## 4. New endpoints
 
 | Endpoint | Who | Behaviour |
 |---|---|---|
-| `PATCH /api/orders/:id/status` | admin, admin_produksi, owner, scope `orders:status` | Body `{ status }`. Only the 4 order statuses (Desain Fix, On Progress, Done, Di Ambil Costumer). Updates the status field only. Writes an `OrderTimeline` entry with the actor. |
+| `PATCH /api/orders/:id/status` | admin, admin_produksi, owner, scope `orders:status` | Body `{ status, note?, resi?, shipping_method? }`. **Same rules as humans:** only the existing `MANUAL_TRANSITIONS` (`Belum Di Proses → Desain Fix`, `Done → Dikirim` with resi / shipping method, `Dikirim → Di Ambil Costumer`) via `transitionOrderStatus`. `Desain Fix → On Progress → Done` stay automatic from tasks (`recalculateOrderStatus`) and are rejected here. Same status = no-op. Writes an `OrderTimeline` entry with the actor. |
 | `PATCH /api/orders/:id/publish-consent` | admin, owner, scope `orders:publish-flag` | Body `{ boleh_publikasi: boolean, catatan_publikasi?: string }` |
 | `GET /api/agent/orders/public-summary` | scope `orders:public-summary` | Query: `status`, `from`, `to`, `jenis_category`. Returns order-level data **without customer name, phone, address, invoice no, broker, or prices**: id, order_name (see note), jenis_category, status, created_at, items (nama_item, warna, total qty), `boleh_publikasi`, and `desain_fix_url` **only if** `boleh_publikasi` is true |
 | `GET /api/agent/orders/:id/design-brief` | scope `orders:read-design` | Items, colours, sizes + qty, notes, `desain_fix_url`, Lembar PO design-related fields. No customer contact data, no prices |

@@ -7,6 +7,9 @@ Object.assign(process.env, {
   PUBLIC_TRACKING_SECRET: 'test-tracking-secret',
   AGENT_KEY_SECRET: 'test-agent-key-secret',
   GOOGLE_SERVICE_ACCOUNT_JSON: '',
+  // Missing on purpose: an accidental Sheets call fails locally instead of
+  // reaching Google with the developer's real credentials.
+  GOOGLE_SERVICE_ACCOUNT_PATH: '/nonexistent/service-account.json',
   REDIS_URL: '',
   CLOUDINARY_CLOUD_NAME: '',
   CLOUDINARY_API_KEY: '',

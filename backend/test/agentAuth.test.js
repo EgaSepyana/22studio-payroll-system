@@ -179,8 +179,15 @@ function run(middleware, req) {
   });
 }
 
+// Audit and rate limiting have their own tests (agentAudit/agentRateLimit);
+// these tests only exercise key authentication.
 function setup(rows = []) {
-  return createAuthMiddleware({ agentStore: memoryStore(rows), agentKeySecret: SERVER_SECRET });
+  return createAuthMiddleware({
+    agentStore: memoryStore(rows),
+    agentKeySecret: SERVER_SECRET,
+    agentAuditor: () => {},
+    agentRateLimiter: (req, res, next) => next(),
+  });
 }
 
 test('requireAuth: valid agent key sets req.user', async () => {
