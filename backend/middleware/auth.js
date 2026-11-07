@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
 import { isAgentKey } from '../utils/agentKeyUtils.js';
 import { authenticateAgentKey, usersAgentStore } from '../services/agentAuthService.js';
-import { isForbiddenRoute } from '../config/agentScopes.js';
+import { isForbiddenRoute, hasScope } from '../config/agentScopes.js';
 
 function bearerToken(req) {
   const header = req.headers.authorization || '';
@@ -75,18 +75,35 @@ export const { requireAuth, requireAuthQueryOrHeader } = createAuthMiddleware({
   agentKeySecret: env.agentKeySecret,
 });
 
-// The allowed roles are exposed on the returned guard (`guard.roles`) so the
-// route-guard snapshot test can read them off the router stack.
-export function requireRole(...roles) {
-  const guard = (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return next(new ApiError(403, 'Forbidden'));
+// The one route guard. `roles` are the human roles allowed (omit for any
+// authenticated human); `scope` is the agent scope that also lets an agent
+// through. Agents are default-deny: with no `scope` declared, or without that
+// scope on their account, they get 403. 'agent' is never a valid role here.
+// The function is named `routeGuard` and exposes `.roles` / `.scope` so the
+// route-guard snapshot and route-access tests can find and read it.
+export function allow({ roles, scope } = {}) {
+  if (roles?.includes('agent')) throw new Error("allow(): 'agent' is not a role, declare a scope instead");
+  const routeGuard = (req, res, next) => {
+    const user = req.user;
+    if (user?.role === 'agent') {
+      if (!scope || !hasScope(user, scope)) return next(new ApiError(403, 'Forbidden'));
+      req.agentScopeVerified = true;
+      return next();
     }
+    if (!user || (roles && !roles.includes(user.role))) return next(new ApiError(403, 'Forbidden'));
     next();
   };
-  guard.roles = roles;
-  return guard;
+  if (roles) routeGuard.roles = roles;
+  if (scope) routeGuard.scope = scope;
+  return routeGuard;
 }
+
+export function requireRole(...roles) {
+  return allow({ roles });
+}
+
+// Any authenticated human, never an agent.
+export const requireHuman = allow();
 
 // Gates a route to specific employee divisions (e.g. only Finishing may
 // create Surat Jalan). Admin always bypasses — this only ever narrows what
@@ -97,13 +114,17 @@ export function requireRole(...roles) {
 const DIVISI_BYPASS_ROLES = new Set(['admin', 'admin_produksi', 'owner']);
 
 export function requireDivisi(...divisions) {
-  const guard = (req, res, next) => {
+  const routeGuard = (req, res, next) => {
     if (DIVISI_BYPASS_ROLES.has(req.user?.role)) return next();
+    // An agent has no divisi: it passes only after allow() verified its scope.
+    if (req.user?.role === 'agent') {
+      return req.agentScopeVerified ? next() : next(new ApiError(403, 'Forbidden'));
+    }
     if (!req.user || !divisions.includes(req.user.divisi)) {
       return next(new ApiError(403, 'Forbidden'));
     }
     next();
   };
-  guard.divisions = divisions;
-  return guard;
+  routeGuard.divisions = divisions;
+  return routeGuard;
 }

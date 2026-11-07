@@ -35,7 +35,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - Agents rejected on `/api/auth/*`, `/api/profile`, `/api/notifications*`.
   - **Test:** unit tests: valid key, wrong secret, unknown prefix, disabled, malformed header, timing-safe compare used; JWT path regression.
 
-- [ ] **T4 — Default-deny scope guard on all routes**
+- [x] **T4 — Default-deny scope guard on all routes**
   - One guard helper so each route declares human roles **and** optional agent scope, e.g. `allow({ roles: ['admin','owner'], scope: 'orders:write' })`. Agents pass only with the declared scope. Routes without a scope reject agents.
   - Router-level guards (`router.use(requireRole(...))` in owner/cms/settings/employees/reports routes) must keep humans identical and still deny agents unless the specific route declares a scope.
   - Surat Jalan: agents with the scope bypass `requireDivisi`.
@@ -70,6 +70,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 ---
 
 ## Follow-ups
+- `POST /api/tasks/:id/progress` (`tasks:progress`): `taskController.addProgress` takes `employee_id` from the body only for admin/admin_produksi/owner; for an agent it falls back to `req.user.employee_id` (empty) and throws. Decide before T7/T9 whether agents may pass `employee_id`.
 - After T5, drop `NEW_ENDPOINTS` from `config/agentScopes.js` and make the "every mapped route exists" test cover all routes.
 
 ## Log
@@ -79,3 +80,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | 2026-11-07 | T1 | Done. `npm test` green (18). `setup-sheets --yes` run on "22Studio Payroll DB Development"; headers verified, existing rows untouched. |
 | 2026-11-07 | T2 | Done. `npm test` green (33). `scopeForRoute` takes route patterns (`/api/orders/:id`), not request URLs. |
 | 2026-11-07 | T3 | Done. `npm test` green (56). Agent lookup uses `UsersRepo.getAll()` (30s cache), so disable/rotate can lag up to 30s per instance. |
+| 2026-11-07 | T4 | Done. `npm test` green (70). Human snapshot unchanged. `allow({ roles, scope })` in `middleware/auth.js`; router-level `requireRole` removed from owner*/cms/reports/cash-accounts routers (per-route guards instead). |

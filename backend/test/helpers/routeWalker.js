@@ -23,6 +23,12 @@ function joinPath(...parts) {
   return joined.length > 1 ? joined.replace(/\/$/, '') : joined;
 }
 
+// allow()/requireRole()/requireHuman()/requireDivisi() all return a function
+// named `routeGuard` (see middleware/auth.js).
+function routeGuards(handlers) {
+  return handlers.filter((fn) => fn.name === 'routeGuard');
+}
+
 function describeGuards(handlers) {
   let auth = 'none';
   let roles = null;
@@ -46,7 +52,13 @@ function walk(stack, prefix, inherited, out) {
       const handlers = [...scoped, ...layer.route.stack.map((l) => l.handle)];
       const path = joinPath(prefix, layer.route.path);
       for (const method of Object.keys(layer.route.methods)) {
-        out.push({ key: `${method.toUpperCase()} ${path}`, ...describeGuards(handlers) });
+        out.push({
+          key: `${method.toUpperCase()} ${path}`,
+          method: method.toUpperCase(),
+          path,
+          chain: routeGuards(handlers),
+          ...describeGuards(handlers),
+        });
       }
     } else if (layer.handle.stack) {
       walk(layer.handle.stack, joinPath(prefix, layer.mountPath ?? '/'), scoped, out);
