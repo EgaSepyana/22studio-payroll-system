@@ -24,7 +24,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - Services treat empty `boleh_publikasi` as `false` and empty `scopes` as none.
   - **Test:** unit test asserting existing column order of `Users` and `Orders` is unchanged and new columns are last. Human runs `npm run setup-sheets -- --yes` on the **dev copy** and confirms headers.
 
-- [ ] **T2 — Scope catalog**
+- [x] **T2 — Scope catalog**
   - `backend/config/agentScopes.js`: list of all scopes, the scope → route map from PRD §3 as data, the 7 accounts with their scopes, and the forbidden-route rules.
   - Pure helpers: `hasScope(user, scope)`, `scopeForRoute(method, path)`.
   - **Test:** every account scope exists in the catalog; no route in the map is a `DELETE` or a forbidden route; every route in the map exists in the app's router (use the T0 route walker).
@@ -70,10 +70,11 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 ---
 
 ## Follow-ups
--
+- After T5, drop `NEW_ENDPOINTS` from `config/agentScopes.js` and make the "every mapped route exists" test cover all routes.
 
 ## Log
 | Date | Task | Note |
 |---|---|---|
 | 2026-11-07 | T0 | Done. `npm test` green (9); `npm run setup-sheets` without `--yes` printed the title and made no changes. |
 | 2026-11-07 | T1 | Done. `npm test` green (18). `setup-sheets --yes` run on "22Studio Payroll DB Development"; headers verified, existing rows untouched. |
+| 2026-11-07 | T2 | Done. `npm test` green (33). `scopeForRoute` takes route patterns (`/api/orders/:id`), not request URLs. |
