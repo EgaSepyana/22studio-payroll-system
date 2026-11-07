@@ -47,7 +47,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - The status change writes an `OrderTimeline` entry with `actor`.
   - **Test:** mapper unit tests (no forbidden keys, `desain_fix_url` / `order_name` only with consent); zod validation tests; endpoints present in the route-access test with correct scopes.
 
-- [ ] **T5b — Status rules & task progress fix**
+- [x] **T5b — Status rules & task progress fix**
   - `PATCH /api/orders/:id/status` must follow the human rules: go through `transitionOrderStatus` / `MANUAL_TRANSITIONS` only (`Belum Di Proses → Desain Fix`, `Done → Dikirim` with resi + shipping method, `Dikirim → Di Ambil Costumer`). `STATUS_API_TARGETS` = those three targets; `On Progress` / `Done` are rejected (they stay automatic via `recalculateOrderStatus`). Body accepts `note`, `resi`, `shipping_method`.
   - Remove scope `tasks:progress` (catalog, `agent-produksi`, route map). `POST /api/tasks/:id/progress` stays humans-only.
   - Add `orders:status` to `agent-admin` (for `Desain Fix` from the human's instruction).
@@ -77,7 +77,6 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 ---
 
 ## Follow-ups
-- `POST /api/tasks/:id/progress` (`tasks:progress`): `taskController.addProgress` takes `employee_id` from the body only for admin/admin_produksi/owner; for an agent it falls back to `req.user.employee_id` (empty) and throws. Decide before T7/T9 whether agents may pass `employee_id`.
 - Shared rate limit across Vercel instances (Redis store via `rate-limit-redis`, new dependency): only if per-instance limiting proves insufficient. The MCP server will also throttle agents on its side.
 
 ## Log
@@ -90,3 +89,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | 2026-11-07 | T4 | Done. `npm test` green (70). Human snapshot unchanged. `allow({ roles, scope })` in `middleware/auth.js`; router-level `requireRole` removed from owner*/cms/reports/cash-accounts routers (per-route guards instead). |
 | 2026-11-07 | T5 | Done. `npm test` green (99). `NEW_ENDPOINTS` removed from the scope catalog. `route-roles.json` regenerated: 5 routes added, no existing entry changed. Status endpoint: any of the 4 statuses (no transition map), no-op if unchanged, `Di Ambil Costumer` is final. |
 | 2026-11-07 | T6 | Done. `npm test` green (122). Audit + limiter run inside `requireAuth`'s agent branch. Limiter counters are per process (per serverless instance). New optional env `AGENT_RATE_LIMIT_PER_MIN` (default 60). Test env now points the service account at a missing file so tests can't reach Sheets. |
+| 2026-11-07 | T5b | Done. `npm test` green (145). Status endpoint now goes through `transitionOrderStatus` (targets Desain Fix / Dikirim / Di Ambil Costumer). `tasks:progress` removed; `agent-admin` gained `orders:status`. Also: failed agent-key attempts log a server warning (reason, key prefix, ip, method, path; never the secret). PRD-agent-access.md §2–§4 still shows the old scope and status list. |

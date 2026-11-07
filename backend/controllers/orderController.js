@@ -32,7 +32,14 @@ const updateSchema = z.object({
   shipping_method: z.string().optional(),
 });
 
-export const statusSchema = z.object({ status: z.enum(orderService.STATUS_API_TARGETS) }).strict();
+export const statusSchema = z
+  .object({
+    status: z.enum(orderService.STATUS_API_TARGETS),
+    note: z.string().max(1000).optional(),
+    resi: z.string().max(100).optional(),
+    shipping_method: z.string().max(100).optional(),
+  })
+  .strict();
 
 export const publishConsentSchema = z
   .object({
@@ -136,8 +143,8 @@ export async function update(req, res, next) {
 
 export async function updateStatus(req, res, next) {
   try {
-    const { status } = statusSchema.parse(req.body);
-    ok(res, await orderService.setOrderStatus(req.params.id, status, { actor: req.user.username }));
+    const { status, ...details } = statusSchema.parse(req.body);
+    ok(res, await orderService.setOrderStatus(req.params.id, status, { actor: req.user.username, ...details }));
   } catch (err) {
     next(err);
   }

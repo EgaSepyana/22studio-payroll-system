@@ -13,6 +13,9 @@ const { authenticateAgentKey } = await import('../services/agentAuthService.js')
 const { UsersRepo } = await import('../google-sheet/models.js');
 const authService = await import('../services/authService.js');
 
+// Failed-key warnings are covered in agentAuthLog.test.js; keep this output quiet.
+console.warn = () => {};
+
 const SERVER_SECRET = 'test-agent-key-secret';
 
 function agentRow(overrides = {}) {

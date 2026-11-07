@@ -48,8 +48,9 @@ const STATUS_DONE = 'Done';
 const STATUS_DIKIRIM = 'Dikirim';
 const STATUS_DIAMBIL = 'Di Ambil Costumer';
 
-// Statuses PATCH /api/orders/:id/status may set (see setOrderStatus).
-export const STATUS_API_TARGETS = [STATUS_DESAIN_FIX, STATUS_ON_PROGRESS, STATUS_DONE, STATUS_DIAMBIL];
+// Statuses PATCH /api/orders/:id/status may target (see setOrderStatus).
+// On Progress / Done stay automatic, driven by recalculateOrderStatus.
+export const STATUS_API_TARGETS = [STATUS_DESAIN_FIX, STATUS_DIKIRIM, STATUS_DIAMBIL];
 
 // The only manual (admin- or customer-triggered) transitions allowed via
 // updateOrder/approveDesign. Desain Fix -> On Progress -> Done are never in
@@ -328,18 +329,13 @@ async function transitionOrderStatus(order, nextStatus, { note, actor, resi, shi
   return updated;
 }
 
-// Direct status change for PATCH /api/orders/:id/status: sets the status
-// field only (no shipping data) and records who did it on the timeline.
-// Unlike updateOrder it isn't limited to MANUAL_TRANSITIONS, but an order
-// already picked up stays final, and setting the current status is a no-op.
-export async function setOrderStatus(orderId, status, { actor }) {
+// Status change for PATCH /api/orders/:id/status. Follows exactly the human
+// rules (MANUAL_TRANSITIONS, Dikirim needs resi + shipping method) and writes
+// the same timeline entry; setting the current status is a no-op.
+export async function setOrderStatus(orderId, status, { actor, note, resi, shipping_method }) {
   const order = await getHeaderOrThrow(orderId);
   if (order.status === status) return { id: order.id, status: order.status };
-  if (order.status === STATUS_DIAMBIL) {
-    throw new ApiError(400, 'Order sudah diambil customer, tidak dapat diubah');
-  }
-  const updated = await OrdersRepo.updateById(order.id, { status });
-  await orderTimelineService.appendTimelineEntry(order.id, { stage: status, actor });
+  const updated = await transitionOrderStatus(order, status, { note, actor, resi, shipping_method });
   return { id: updated.id, status: updated.status };
 }
 

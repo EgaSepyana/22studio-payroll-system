@@ -192,3 +192,15 @@ test('requireDivisi: human behaviour unchanged', () => {
   assert.equal(pass(divisi, { role: 'employee', divisi: 'Finishing' }), null);
   assert.equal(pass(divisi, { role: 'employee', divisi: 'Cutting' })?.status, 403);
 });
+
+test('task progress is humans-only: the scope is gone and every agent gets 403', () => {
+  assert.equal(AGENT_SCOPES.includes('tasks:progress'), false);
+  assert.equal(scopeForRoute('POST', '/api/tasks/:id/progress'), null);
+  const route = routes.find((r) => r.key === 'POST /api/tasks/:id/progress');
+  assert.ok(route);
+  assert.equal(deniedStatus(route, agent(AGENT_SCOPES)), 403);
+  assert.equal(deniedStatus(route, agent(['tasks:read', 'tasks:write'])), 403);
+  for (const role of ['admin', 'admin_produksi', 'owner', 'employee']) {
+    assert.equal(deniedStatus(route, { id: '1', role }), null, role);
+  }
+});

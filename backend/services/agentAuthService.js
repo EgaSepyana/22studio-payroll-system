@@ -13,21 +13,32 @@ export const usersAgentStore = {
   },
 };
 
-// Returns the req.user for a valid key, otherwise throws the same 401 for
-// every failure so a caller can't tell a wrong secret from an unknown prefix.
-export async function authenticateAgentKey(token, { store = usersAgentStore, secret }) {
-  const invalid = () => new ApiError(401, 'Invalid API key');
+// Every failure is the same 401 for the caller, so a wrong secret can't be
+// told from an unknown prefix. `reason` and `prefix` are for the server log
+// only (see utils/agentAuthLog.js); `prefix` is null when the key is malformed.
+export class AgentAuthError extends ApiError {
+  constructor(reason, prefix = null) {
+    super(401, 'Invalid API key');
+    this.reason = reason;
+    this.prefix = prefix;
+  }
+}
 
+// Returns the req.user for a valid key, otherwise throws an AgentAuthError.
+export async function authenticateAgentKey(token, { store = usersAgentStore, secret }) {
   const parsed = parseAgentKey(token);
-  if (!parsed) throw invalid();
+  if (!parsed) throw new AgentAuthError('malformed');
+  const { prefix } = parsed;
   if (!secret) {
     console.error('AGENT_KEY_SECRET is not set: rejecting agent API key');
-    throw invalid();
+    throw new AgentAuthError('not configured', prefix);
   }
 
-  const row = await store.findByPrefix(parsed.prefix);
+  const row = await store.findByPrefix(prefix);
   const secretMatches = verifyAgentSecret(parsed.secret, secret, row?.api_key_hash);
-  if (!row || !secretMatches || row.role !== 'agent' || isAccountDisabled(row)) throw invalid();
+  if (!row || row.role !== 'agent') throw new AgentAuthError('unknown', prefix);
+  if (!secretMatches) throw new AgentAuthError('wrong secret', prefix);
+  if (isAccountDisabled(row)) throw new AgentAuthError('disabled', prefix);
 
   return { id: row.id, username: row.username, role: 'agent', scopes: new Set(parseScopes(row.scopes)) };
 }

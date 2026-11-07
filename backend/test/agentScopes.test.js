@@ -122,3 +122,11 @@ test('hasScope: any agent passes the ANY_AGENT scope, humans do not', () => {
   assert.equal(hasScope({ role: 'agent', scopes: new Set() }, ANY_AGENT_SCOPE), true);
   assert.equal(hasScope({ role: 'admin' }, ANY_AGENT_SCOPE), false);
 });
+
+test('account scopes after T5b: agent-admin can set order status, nobody has tasks:progress', () => {
+  const byName = Object.fromEntries(AGENT_ACCOUNTS.map((a) => [a.username, a.scopes]));
+  assert.ok(byName['agent-admin'].includes('orders:status'));
+  assert.ok(byName['agent-produksi'].includes('orders:status'));
+  for (const scopes of Object.values(byName)) assert.equal(scopes.includes('tasks:progress'), false);
+  assert.equal(AGENT_SCOPES.includes('tasks:progress'), false);
+});

@@ -35,7 +35,6 @@ export const ROUTE_SCOPES = {
   'articles:read': ['GET /api/articles', 'GET /api/article-categories'],
   'tasks:read': ['GET /api/tasks', 'GET /api/tasks/:id', 'GET /api/tasks/:id/progress-photos'],
   'tasks:write': ['POST /api/tasks', 'PUT /api/tasks/:id'],
-  'tasks:progress': ['POST /api/tasks/:id/progress'],
   'lembar-po:read': [
     'GET /api/lembar-po',
     'GET /api/lembar-po/by-order/:orderId',
@@ -119,7 +118,6 @@ export const AGENT_ACCOUNTS = [
       'orders:status',
       'tasks:read',
       'tasks:write',
-      'tasks:progress',
       'lembar-po:read',
       'lembar-po:write',
       'surat-jalan:read',
@@ -133,6 +131,7 @@ export const AGENT_ACCOUNTS = [
       'orders:read',
       'orders:write',
       'orders:items',
+      'orders:status',
       'orders:publish-flag',
       'customers:read',
       'customers:write',

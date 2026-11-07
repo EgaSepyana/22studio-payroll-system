@@ -13,6 +13,6 @@ router.get('/:id', allow({ roles: ['admin', 'admin_produksi', 'owner', 'employee
 router.get('/:id/progress-photos', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'tasks:read' }), taskController.progressPhotos);
 router.put('/:id', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'tasks:write' }), taskController.update);
 router.delete('/:id', requireRole('admin', 'admin_produksi', 'owner'), taskController.remove);
-router.post('/:id/progress', allow({ roles: ['admin', 'admin_produksi', 'owner', 'employee'], scope: 'tasks:progress' }), taskController.addProgress);
+router.post('/:id/progress', requireRole('admin', 'admin_produksi', 'owner', 'employee'), taskController.addProgress);
 
 export default router;

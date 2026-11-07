@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
 import { isAgentKey } from '../utils/agentKeyUtils.js';
-import { authenticateAgentKey, usersAgentStore } from '../services/agentAuthService.js';
+import { authenticateAgentKey, usersAgentStore, AgentAuthError } from '../services/agentAuthService.js';
+import { logAgentAuthFailure } from '../utils/agentAuthLog.js';
 import { isForbiddenRoute, hasScope } from '../config/agentScopes.js';
 import { createAgentAuditor } from './agentAudit.js';
 import { createAgentRateLimiter } from './agentRateLimit.js';
@@ -51,7 +52,10 @@ export function createAuthMiddleware({
             next();
           });
         })
-        .catch(next);
+        .catch((err) => {
+          if (err instanceof AgentAuthError) logAgentAuthFailure(req, err);
+          next(err);
+        });
       return;
     }
 
