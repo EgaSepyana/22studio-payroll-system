@@ -41,7 +41,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - Surat Jalan: agents with the scope bypass `requireDivisi`.
   - **Test:** route-access matrix test over **every** route (PRD §10). The human snapshot from T0 is unchanged.
 
-- [ ] **T5 — New endpoints**
+- [x] **T5 — New endpoints**
   - `PATCH /api/orders/:id/status`, `PATCH /api/orders/:id/publish-consent`, `GET /api/agent/orders/public-summary`, `GET /api/agent/orders/:id/design-brief`, `GET /api/agent/me` (PRD §4).
   - PII filtering as **pure mapper functions**.
   - The status change writes an `OrderTimeline` entry with `actor`.
@@ -71,7 +71,6 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 
 ## Follow-ups
 - `POST /api/tasks/:id/progress` (`tasks:progress`): `taskController.addProgress` takes `employee_id` from the body only for admin/admin_produksi/owner; for an agent it falls back to `req.user.employee_id` (empty) and throws. Decide before T7/T9 whether agents may pass `employee_id`.
-- After T5, drop `NEW_ENDPOINTS` from `config/agentScopes.js` and make the "every mapped route exists" test cover all routes.
 
 ## Log
 | Date | Task | Note |
@@ -81,3 +80,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | 2026-11-07 | T2 | Done. `npm test` green (33). `scopeForRoute` takes route patterns (`/api/orders/:id`), not request URLs. |
 | 2026-11-07 | T3 | Done. `npm test` green (56). Agent lookup uses `UsersRepo.getAll()` (30s cache), so disable/rotate can lag up to 30s per instance. |
 | 2026-11-07 | T4 | Done. `npm test` green (70). Human snapshot unchanged. `allow({ roles, scope })` in `middleware/auth.js`; router-level `requireRole` removed from owner*/cms/reports/cash-accounts routers (per-route guards instead). |
+| 2026-11-07 | T5 | Done. `npm test` green (99). `NEW_ENDPOINTS` removed from the scope catalog. `route-roles.json` regenerated: 5 routes added, no existing entry changed. Status endpoint: any of the 4 statuses (no transition map), no-op if unchanged, `Di Ambil Costumer` is final. |

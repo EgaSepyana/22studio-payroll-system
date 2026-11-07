@@ -207,6 +207,21 @@
     ],
     "divisi": null
   },
+  "GET /api/agent/me": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
+  "GET /api/agent/orders/:id/design-brief": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
+  "GET /api/agent/orders/public-summary": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
   "GET /api/article-categories": {
     "auth": "jwt",
     "roles": null,
@@ -853,6 +868,23 @@
     "auth": "jwt",
     "roles": [
       "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/orders/:id/publish-consent": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/orders/:id/status": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
       "owner"
     ],
     "divisi": null

@@ -5,7 +5,6 @@ import { installMountPathRecorder, collectRouteGuards } from './helpers/routeWal
 import {
   ANY_AGENT_SCOPE,
   ROUTE_SCOPES,
-  NEW_ENDPOINTS,
   AGENT_SCOPES,
   AGENT_ACCOUNTS,
   FORBIDDEN_ROUTE_RULES,
@@ -60,16 +59,8 @@ test('no mapped route is a DELETE or a forbidden route', () => {
   }
 });
 
-test('every mapped route exists in the app router (new endpoints excepted)', () => {
-  for (const { route } of mapped) {
-    if (NEW_ENDPOINTS.includes(route)) continue;
-    assert.ok(registered.has(route), `${route} is not registered`);
-  }
-});
-
-test('new endpoints are all in the route map', () => {
-  const routes = new Set(mapped.map((m) => m.route));
-  for (const route of NEW_ENDPOINTS) assert.ok(routes.has(route), `${route} missing from the map`);
+test('every mapped route exists in the app router', () => {
+  for (const { route } of mapped) assert.ok(registered.has(route), `${route} is not registered`);
 });
 
 test('scopeForRoute resolves mapped routes and is case/slash tolerant', () => {

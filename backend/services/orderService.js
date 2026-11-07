@@ -48,6 +48,9 @@ const STATUS_DONE = 'Done';
 const STATUS_DIKIRIM = 'Dikirim';
 const STATUS_DIAMBIL = 'Di Ambil Costumer';
 
+// Statuses PATCH /api/orders/:id/status may set (see setOrderStatus).
+export const STATUS_API_TARGETS = [STATUS_DESAIN_FIX, STATUS_ON_PROGRESS, STATUS_DONE, STATUS_DIAMBIL];
+
 // The only manual (admin- or customer-triggered) transitions allowed via
 // updateOrder/approveDesign. Desain Fix -> On Progress -> Done are never in
 // this map — those stay purely automatic, driven by recalculateOrderStatus.
@@ -323,6 +326,33 @@ async function transitionOrderStatus(order, nextStatus, { note, actor, resi, shi
   const updated = await OrdersRepo.updateById(order.id, { status: nextStatus });
   await orderTimelineService.appendTimelineEntry(order.id, { stage: nextStatus, note, actor });
   return updated;
+}
+
+// Direct status change for PATCH /api/orders/:id/status: sets the status
+// field only (no shipping data) and records who did it on the timeline.
+// Unlike updateOrder it isn't limited to MANUAL_TRANSITIONS, but an order
+// already picked up stays final, and setting the current status is a no-op.
+export async function setOrderStatus(orderId, status, { actor }) {
+  const order = await getHeaderOrThrow(orderId);
+  if (order.status === status) return { id: order.id, status: order.status };
+  if (order.status === STATUS_DIAMBIL) {
+    throw new ApiError(400, 'Order sudah diambil customer, tidak dapat diubah');
+  }
+  const updated = await OrdersRepo.updateById(order.id, { status });
+  await orderTimelineService.appendTimelineEntry(order.id, { stage: status, actor });
+  return { id: updated.id, status: updated.status };
+}
+
+export async function setPublishConsent(orderId, { boleh_publikasi, catatan_publikasi }) {
+  const order = await getHeaderOrThrow(orderId);
+  const patch = { boleh_publikasi: String(boleh_publikasi) };
+  if (catatan_publikasi !== undefined) patch.catatan_publikasi = catatan_publikasi;
+  const updated = await OrdersRepo.updateById(order.id, patch);
+  return {
+    id: updated.id,
+    boleh_publikasi: updated.boleh_publikasi === 'true',
+    catatan_publikasi: updated.catatan_publikasi || '',
+  };
 }
 
 export async function updateOrder(

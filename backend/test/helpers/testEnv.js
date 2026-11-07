@@ -5,6 +5,7 @@ Object.assign(process.env, {
   JWT_SECRET: 'test-jwt-secret',
   GOOGLE_SHEETS_ID: 'test-spreadsheet-id',
   PUBLIC_TRACKING_SECRET: 'test-tracking-secret',
+  AGENT_KEY_SECRET: 'test-agent-key-secret',
   GOOGLE_SERVICE_ACCOUNT_JSON: '',
   REDIS_URL: '',
   CLOUDINARY_CLOUD_NAME: '',

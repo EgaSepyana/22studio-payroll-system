@@ -2,7 +2,7 @@ import './helpers/testEnv.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { installMountPathRecorder, collectRouteGuards } from './helpers/routeWalker.js';
-import { AGENT_SCOPES, ANY_AGENT_SCOPE, scopeForRoute, NEW_ENDPOINTS, ROUTE_SCOPES } from '../config/agentScopes.js';
+import { AGENT_SCOPES, ANY_AGENT_SCOPE, scopeForRoute, ROUTE_SCOPES } from '../config/agentScopes.js';
 
 installMountPathRecorder();
 const { default: app } = await import('../app.js');
@@ -50,10 +50,46 @@ test('every non-public route declares at least one route guard', () => {
   for (const route of protectedRoutes) assert.ok(route.chain.length > 0, `${route.key} has no guard`);
 });
 
-test('agent with no scopes gets 403 on every non-public route', () => {
+test('agent with no scopes gets 403 on every non-public route except the any-agent ones', () => {
   for (const route of protectedRoutes) {
+    if (scopeForRoute(route.method, route.path) === ANY_AGENT_SCOPE) continue;
     assert.equal(deniedStatus(route, agent([])), 403, route.key);
   }
+});
+
+test('agent-only routes (new endpoints) reject every human role', () => {
+  const agentOnly = ['GET /api/agent/me', 'GET /api/agent/orders/public-summary', 'GET /api/agent/orders/:id/design-brief'];
+  for (const key of agentOnly) {
+    const route = routes.find((r) => r.key === key);
+    assert.ok(route, `${key} is not registered`);
+    for (const role of ['admin', 'admin_produksi', 'owner', 'employee']) {
+      assert.equal(deniedStatus(route, { id: '1', role }), 403, `${key} as ${role}`);
+    }
+  }
+});
+
+test('the new endpoints exist with the scopes from the PRD', () => {
+  const expected = {
+    'PATCH /api/orders/:id/status': 'orders:status',
+    'PATCH /api/orders/:id/publish-consent': 'orders:publish-flag',
+    'GET /api/agent/orders/public-summary': 'orders:public-summary',
+    'GET /api/agent/orders/:id/design-brief': 'orders:read-design',
+    'GET /api/agent/me': ANY_AGENT_SCOPE,
+  };
+  for (const [key, scope] of Object.entries(expected)) {
+    const route = routes.find((r) => r.key === key);
+    assert.ok(route, `${key} is not registered`);
+    assert.equal(route.chain.map((g) => g.scope).find(Boolean), scope, key);
+  }
+});
+
+test('humans keep their roles on the new order endpoints', () => {
+  const status = routes.find((r) => r.key === 'PATCH /api/orders/:id/status');
+  const consent = routes.find((r) => r.key === 'PATCH /api/orders/:id/publish-consent');
+  for (const role of ['admin', 'admin_produksi', 'owner']) assert.equal(deniedStatus(status, { id: '1', role }), null, role);
+  assert.equal(deniedStatus(status, { id: '1', role: 'employee' }), 403);
+  for (const role of ['admin', 'owner']) assert.equal(deniedStatus(consent, { id: '1', role }), null, role);
+  for (const role of ['admin_produksi', 'employee']) assert.equal(deniedStatus(consent, { id: '1', role }), 403, role);
 });
 
 test('agent with every scope is still denied on routes outside the scope map', () => {
@@ -92,12 +128,9 @@ test('the scope declared on each route matches the scope map', () => {
   }
 });
 
-test('every mapped route is covered by this matrix (new endpoints excepted)', () => {
+test('every mapped route is covered by this matrix', () => {
   const registered = new Set(routes.map((r) => r.key));
-  const mapped = Object.values(ROUTE_SCOPES).flat();
-  for (const key of mapped) {
-    if (!NEW_ENDPOINTS.includes(key)) assert.ok(registered.has(key), key);
-  }
+  for (const key of Object.values(ROUTE_SCOPES).flat()) assert.ok(registered.has(key), key);
 });
 
 test('an agent with a scope for another route cannot use human-only routes', () => {

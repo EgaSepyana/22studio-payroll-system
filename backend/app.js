@@ -35,6 +35,7 @@ import ownerReportRoutes from './routes/ownerReportRoutes.js';
 import publicOrderRoutes from './routes/publicOrderRoutes.js';
 import publicCmsRoutes from './routes/publicCmsRoutes.js';
 import shortLinkRoutes from './routes/shortLinkRoutes.js';
+import agentRoutes from './routes/agentRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/cashadvances', cashAdvanceRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/agent', agentRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/surat-jalan', suratJalanRoutes);

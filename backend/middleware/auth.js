@@ -102,6 +102,11 @@ export function requireRole(...roles) {
   return allow({ roles });
 }
 
+// Agent-only route: no human role may use it.
+export function requireAgentScope(scope) {
+  return allow({ roles: [], scope });
+}
+
 // Any authenticated human, never an agent.
 export const requireHuman = allow();
 

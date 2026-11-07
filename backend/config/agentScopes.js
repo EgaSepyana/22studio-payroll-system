@@ -107,16 +107,6 @@ export const ROUTE_SCOPES = {
   [ANY_AGENT_SCOPE]: ['GET /api/agent/me'],
 };
 
-// Routes in ROUTE_SCOPES that are added by the agent-access plan (T5) and so
-// may not be registered in the app yet.
-export const NEW_ENDPOINTS = [
-  'PATCH /api/orders/:id/status',
-  'PATCH /api/orders/:id/publish-consent',
-  'GET /api/agent/orders/public-summary',
-  'GET /api/agent/orders/:id/design-brief',
-  'GET /api/agent/me',
-];
-
 export const AGENT_SCOPES = Object.freeze(Object.keys(ROUTE_SCOPES).filter((s) => s !== ANY_AGENT_SCOPE));
 
 export const AGENT_ACCOUNTS = [

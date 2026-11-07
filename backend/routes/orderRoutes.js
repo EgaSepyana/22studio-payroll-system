@@ -10,6 +10,8 @@ router.get('/', allow({ roles: ['admin', 'admin_produksi', 'owner', 'employee'],
 router.get('/:id', allow({ roles: ['admin', 'admin_produksi', 'owner', 'employee'], scope: 'orders:read' }), orderController.detail);
 router.get('/:id/invoice-pdf', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'invoice:read' }), orderController.invoicePdf);
 router.get('/:id/invoice-excel', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'invoice:read' }), orderController.invoiceExcel);
+router.patch('/:id/status', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'orders:status' }), orderController.updateStatus);
+router.patch('/:id/publish-consent', allow({ roles: ['admin', 'owner'], scope: 'orders:publish-flag' }), orderController.updatePublishConsent);
 router.put('/:id', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'orders:write' }), orderController.update);
 router.delete('/:id', requireRole('admin', 'admin_produksi', 'owner'), orderController.remove);
 
