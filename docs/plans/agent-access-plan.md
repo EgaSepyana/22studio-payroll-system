@@ -19,7 +19,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - Snapshot of current human route guards: a script/test that walks the Express router stack and records `METHOD path → roles`, committed as `backend/test/fixtures/route-roles.json`. T4 must not change it.
   - **Test:** `npm test` green; `npm run setup-sheets` without `--yes` exits without writing.
 
-- [ ] **T1 — Schema (append-only)** 🧑
+- [x] **T1 — Schema (append-only)** 🧑
   - Append columns per PRD §5 (`Users`, `Orders`) and add the `AuditLog` sheet + repo.
   - Services treat empty `boleh_publikasi` as `false` and empty `scopes` as none.
   - **Test:** unit test asserting existing column order of `Users` and `Orders` is unchanged and new columns are last. Human runs `npm run setup-sheets -- --yes` on the **dev copy** and confirms headers.
@@ -76,3 +76,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | Date | Task | Note |
 |---|---|---|
 | 2026-11-07 | T0 | Done. `npm test` green (9); `npm run setup-sheets` without `--yes` printed the title and made no changes. |
+| 2026-11-07 | T1 | Done. `npm test` green (18). `setup-sheets --yes` run on "22Studio Payroll DB Development"; headers verified, existing rows untouched. |
