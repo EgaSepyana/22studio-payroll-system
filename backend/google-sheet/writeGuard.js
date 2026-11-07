@@ -12,15 +12,21 @@ export async function confirmSheetWrite({ argv, spreadsheetId, fetchTitle, log =
   return true;
 }
 
+export async function fetchSpreadsheetTitle(spreadsheetId) {
+  const { getSheetsClient } = await import('./sheetClient.js');
+  const sheets = await getSheetsClient();
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'properties.title' });
+  return meta.data.properties.title;
+}
+
 // Entry point for write-scripts: prints the target spreadsheet title and exits
 // (code 1, nothing written) unless `--yes` was passed.
 export async function guardSheetWrite(argv = process.argv.slice(2)) {
-  const { getSheetsClient, SPREADSHEET_ID } = await import('./sheetClient.js');
-  const fetchTitle = async (spreadsheetId) => {
-    const sheets = await getSheetsClient();
-    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'properties.title' });
-    return meta.data.properties.title;
-  };
-  const confirmed = await confirmSheetWrite({ argv, spreadsheetId: SPREADSHEET_ID, fetchTitle });
+  const { SPREADSHEET_ID } = await import('./sheetClient.js');
+  const confirmed = await confirmSheetWrite({
+    argv,
+    spreadsheetId: SPREADSHEET_ID,
+    fetchTitle: fetchSpreadsheetTitle,
+  });
   if (!confirmed) process.exit(1);
 }
