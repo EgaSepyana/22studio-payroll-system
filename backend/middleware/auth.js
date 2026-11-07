@@ -36,13 +36,17 @@ export function requireAuthQueryOrHeader(req, res, next) {
   }
 }
 
+// The allowed roles are exposed on the returned guard (`guard.roles`) so the
+// route-guard snapshot test can read them off the router stack.
 export function requireRole(...roles) {
-  return (req, res, next) => {
+  const guard = (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return next(new ApiError(403, 'Forbidden'));
     }
     next();
   };
+  guard.roles = roles;
+  return guard;
 }
 
 // Gates a route to specific employee divisions (e.g. only Finishing may
@@ -54,11 +58,13 @@ export function requireRole(...roles) {
 const DIVISI_BYPASS_ROLES = new Set(['admin', 'admin_produksi', 'owner']);
 
 export function requireDivisi(...divisions) {
-  return (req, res, next) => {
+  const guard = (req, res, next) => {
     if (DIVISI_BYPASS_ROLES.has(req.user?.role)) return next();
     if (!req.user || !divisions.includes(req.user.divisi)) {
       return next(new ApiError(403, 'Forbidden'));
     }
     next();
   };
+  guard.divisions = divisions;
+  return guard;
 }

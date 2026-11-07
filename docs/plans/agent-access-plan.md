@@ -12,7 +12,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 
 ---
 
-- [ ] **T0 — Test harness & safety rails**
+- [x] **T0 — Test harness & safety rails**
   - Backend `npm test` → `node --test` (no new deps). Add one smoke test.
   - `.env.example` at `backend/` listing every variable from `config/env.js` plus `AGENT_KEY_SECRET` (no values).
   - Shared helper for write-scripts: print the spreadsheet title from `GOOGLE_SHEETS_ID`, exit unless `--yes`. Apply it to `setup-sheets`.
@@ -75,3 +75,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 ## Log
 | Date | Task | Note |
 |---|---|---|
+| 2026-11-07 | T0 | Done. `npm test` green (9); `npm run setup-sheets` without `--yes` printed the title and made no changes. |
