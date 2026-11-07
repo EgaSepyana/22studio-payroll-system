@@ -1,40 +1,79 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
+import { isAgentKey } from '../utils/agentKeyUtils.js';
+import { authenticateAgentKey, usersAgentStore } from '../services/agentAuthService.js';
+import { isForbiddenRoute } from '../config/agentScopes.js';
 
-export function requireAuth(req, res, next) {
+function bearerToken(req) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return next(new ApiError(401, 'Not authenticated'));
-
-  try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    req.user = payload;
-    next();
-  } catch {
-    next(new ApiError(401, 'Invalid or expired token'));
-  }
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
-// EventSource (used by the notification SSE stream) cannot set custom
-// request headers, so it has no way to send the usual Authorization
-// header — the token has to travel as a query param instead for that one
-// route. Never used anywhere else: every other endpoint stays
-// header-only via requireAuth above, so this doesn't widen how any
-// existing route can be authenticated.
-export function requireAuthQueryOrHeader(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || null;
-  if (!token) return next(new ApiError(401, 'Not authenticated'));
-
-  try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    req.user = payload;
-    next();
-  } catch {
-    next(new ApiError(401, 'Invalid or expired token'));
-  }
+// Agent accounts never authenticate with a JWT: they have no password and
+// login() refuses them, so an agent-role JWT can only be forged or stale.
+function verifyHumanJwt(token) {
+  const payload = jwt.verify(token, env.jwtSecret);
+  if (payload.role === 'agent') throw new Error('agent role in JWT');
+  return payload;
 }
+
+// `agentStore` and `agentKeySecret` are injectable so tests don't need
+// Google Sheets. The default exports below use the real ones.
+export function createAuthMiddleware({ agentStore, agentKeySecret } = {}) {
+  function requireAuth(req, res, next) {
+    const token = bearerToken(req);
+    if (!token) return next(new ApiError(401, 'Not authenticated'));
+
+    if (isAgentKey(token)) {
+      authenticateAgentKey(token, { store: agentStore, secret: agentKeySecret })
+        .then((user) => {
+          // Agents never get past auth on the areas the catalog forbids
+          // (/api/auth, /api/profile, /api/notifications, ...).
+          if (isForbiddenRoute(req.method, `${req.baseUrl || ''}${req.path || ''}`)) {
+            return next(new ApiError(403, 'Forbidden'));
+          }
+          req.user = user;
+          next();
+        })
+        .catch(next);
+      return;
+    }
+
+    try {
+      req.user = verifyHumanJwt(token);
+      next();
+    } catch {
+      next(new ApiError(401, 'Invalid or expired token'));
+    }
+  }
+
+  // EventSource (used by the notification SSE stream) cannot set custom
+  // request headers, so it has no way to send the usual Authorization
+  // header — the token has to travel as a query param instead for that one
+  // route. Never used anywhere else: every other endpoint stays
+  // header-only via requireAuth above, so this doesn't widen how any
+  // existing route can be authenticated. Agent keys are refused here.
+  function requireAuthQueryOrHeader(req, res, next) {
+    const token = bearerToken(req) || req.query.token || null;
+    if (!token) return next(new ApiError(401, 'Not authenticated'));
+    if (isAgentKey(token)) return next(new ApiError(403, 'Forbidden'));
+
+    try {
+      req.user = verifyHumanJwt(token);
+      next();
+    } catch {
+      next(new ApiError(401, 'Invalid or expired token'));
+    }
+  }
+
+  return { requireAuth, requireAuthQueryOrHeader };
+}
+
+export const { requireAuth, requireAuthQueryOrHeader } = createAuthMiddleware({
+  agentStore: usersAgentStore,
+  agentKeySecret: env.agentKeySecret,
+});
 
 // The allowed roles are exposed on the returned guard (`guard.roles`) so the
 // route-guard snapshot test can read them off the router stack.

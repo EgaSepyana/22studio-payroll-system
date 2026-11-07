@@ -14,6 +14,9 @@ function required(name) {
 export const env = {
   port: process.env.PORT || 3000,
   jwtSecret: required('JWT_SECRET'),
+  // Keys the HMAC of agent API keys (see utils/agentKeyUtils.js). Optional so
+  // the app boots without agents; agent keys are rejected while it's unset.
+  agentKeySecret: process.env.AGENT_KEY_SECRET || null,
   googleSheetsId: required('GOOGLE_SHEETS_ID'),
   // On serverless platforms (Vercel) there's no writable/persistent filesystem to
   // ship a service-account.json to, and it shouldn't be committed to git anyway —

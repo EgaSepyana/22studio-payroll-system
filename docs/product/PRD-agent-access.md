@@ -27,6 +27,7 @@ Human users (admin, admin_produksi, owner, employee) must see **zero behaviour c
 - **Storage:** `api_key_hash = HMAC-SHA256(secret, AGENT_KEY_SECRET)`, compared timing-safe. The plaintext key is printed once and never stored.
 - **Request:** `Authorization: Bearer agk_...`. `requireAuth` recognises the `agk_` prefix and authenticates the agent. Otherwise the existing JWT flow is unchanged.
 - **On success:** `req.user = { id, username, role: 'agent', scopes: Set<string> }`. A disabled account or wrong key → `401`.
+- **Losing or leaking `AGENT_KEY_SECRET`:** existing keys stop verifying (or must be treated as compromised). Recovery = set a new secret, run `agents:rotate-key -- --all --yes`, then update each Hermes profile `.env`. Accounts, scopes and audit history are untouched. Keep the secret in a password manager; dev and production use different secrets.
 - New env: **`AGENT_KEY_SECRET`** (required when any agent account exists; documented in `.env.example`).
 
 ### Accounts (from agent-matrix §3.1)
@@ -131,6 +132,7 @@ Note: `order_name` may contain a customer or brand name. The public-summary resp
 | `npm run agents:create -- --yes` | Creates every missing account from the scope config. **Updates scopes** of existing ones. Prints the key **only for newly created** accounts |
 | `npm run agents:list` | Username, scopes, disabled, key prefix |
 | `npm run agents:rotate-key -- --username=<u> --yes` | New key printed once; the old one stops working |
+| `npm run agents:rotate-key -- --all --yes` | New key for **every** agent account (recovery after `AGENT_KEY_SECRET` is lost or leaked) |
 | `npm run agents:disable -- --username=<u> [--enable] --yes` | Toggle `disabled` |
 
 All write commands print the target spreadsheet's **title** and refuse to run without `--yes`.

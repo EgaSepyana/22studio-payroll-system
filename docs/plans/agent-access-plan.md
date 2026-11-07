@@ -29,7 +29,7 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - Pure helpers: `hasScope(user, scope)`, `scopeForRoute(method, path)`.
   - **Test:** every account scope exists in the catalog; no route in the map is a `DELETE` or a forbidden route; every route in the map exists in the app's router (use the T0 route walker).
 
-- [ ] **T3 — Agent API-key authentication**
+- [x] **T3 — Agent API-key authentication**
   - Key generation + HMAC hashing (PRD §2). `requireAuth` accepts `agk_` keys and keeps JWT unchanged; `requireAuthQueryOrHeader` rejects agents.
   - Agent lookup through an injectable store (default: `UsersRepo`), so tests use an in-memory store.
   - Agents rejected on `/api/auth/*`, `/api/profile`, `/api/notifications*`.
@@ -53,8 +53,8 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
   - **Test:** unit tests for summary builder / redaction and for "write only for agent non-GET"; limiter keyed by user id.
 
 - [ ] **T7 — Agent CLI** 🧑
-  - `agents:create`, `agents:list`, `agents:rotate-key`, `agents:disable` per PRD §8 (npm scripts in `backend/package.json`), using the T0 confirmation helper and the T2 account config.
-  - **Test:** unit tests against an in-memory store: idempotent create, scope update on re-run, key printed only for new accounts, rotate invalidates the old key. Human runs `npm run agents:create -- --yes` on the **dev copy** and stores the 7 keys safely.
+  - `agents:create`, `agents:list`, `agents:rotate-key` (also `--all`: new key for every agent account in one run, for when `AGENT_KEY_SECRET` is lost or leaked), `agents:disable` per PRD §8 (npm scripts in `backend/package.json`), using the T0 confirmation helper and the T2 account config.
+  - **Test:** unit tests against an in-memory store: idempotent create, scope update on re-run, key printed only for new accounts, rotate invalidates the old key, `--all` rotates every agent account and prints all new keys once. Human runs `npm run agents:create -- --yes` on the **dev copy** and stores the 7 keys safely.
 
 - [ ] **T8 — Frontend: publish consent + agent activity** 🧑
   - Order detail toggle + note (admin/owner) → publish-consent endpoint.
@@ -78,3 +78,4 @@ Tasks marked 🧑 need the human: a dev copy of the spreadsheet, running a write
 | 2026-11-07 | T0 | Done. `npm test` green (9); `npm run setup-sheets` without `--yes` printed the title and made no changes. |
 | 2026-11-07 | T1 | Done. `npm test` green (18). `setup-sheets --yes` run on "22Studio Payroll DB Development"; headers verified, existing rows untouched. |
 | 2026-11-07 | T2 | Done. `npm test` green (33). `scopeForRoute` takes route patterns (`/api/orders/:id`), not request URLs. |
+| 2026-11-07 | T3 | Done. `npm test` green (56). Agent lookup uses `UsersRepo.getAll()` (30s cache), so disable/rotate can lag up to 30s per instance. |

@@ -31,6 +31,8 @@ export async function login(username, password) {
   const users = await UsersRepo.getAll({ fresh: true });
   const user = users.find((u) => u.username === username);
   if (!user) throw new ApiError(401, 'Username atau password salah');
+  // Agent accounts authenticate with an API key only, never a password/JWT.
+  if (user.role === 'agent') throw new ApiError(401, 'Username atau password salah');
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw new ApiError(401, 'Username atau password salah');
