@@ -31,9 +31,12 @@ prd.md         Product requirement document
 ```bash
 cd backend
 npm install
-npm run setup-sheets   # one-time: creates sheet tabs, headers, and seeds an admin user
-npm run dev            # starts the API on http://localhost:3000
+npm run setup-sheets -- --yes   # one-time: creates sheet tabs, headers, and seeds an admin user (see the warning below)
+npm run dev                     # starts the API on http://localhost:3000
+npm test                        # backend tests (no Google Sheets access needed)
 ```
+
+> **`setup-sheets` writes to the spreadsheet in `GOOGLE_SHEETS_ID`.** It rewrites every header row, deletes a tab named `Sheet1`, and seeds `admin` / `admin_produksi` / `owner` accounts with default passwords. Only run it against a **dev copy** (Google Sheets → File → Make a copy). Without `--yes` it just prints the spreadsheet title and exits, so run it that way first and check the title. `backend/.env.example` lists every variable.
 
 Seeded admin login: `admin` / `admin123` (change the password after first login).
 
@@ -44,6 +47,8 @@ GOOGLE_SHEETS_ID=...
 GOOGLE_SERVICE_ACCOUNT_PATH=./service-account.json
 JWT_SECRET=...
 PORT=3000
+AGENT_KEY_SECRET=...            # only if agent accounts are used, see "Agent Access"
+AGENT_RATE_LIMIT_PER_MIN=60     # optional, per agent account
 ```
 
 ### 2. Frontend
@@ -59,6 +64,58 @@ The Vite dev server proxies `/api` to `http://localhost:3000`, so no extra front
 ## Creating Employee Accounts
 
 Employee logins are created by an admin from **Karyawan → Tambah Karyawan** (this creates both the `Employees` record and the linked `Users` login in one step).
+
+## Agent Access
+
+AI agents (the seven `agent-*` accounts) call the API with an API key instead of a login. Each account has **scopes**; a route accepts an agent only if it declares the scope the account holds, and everything else is `403`. Human roles are unaffected. Spec: `docs/product/PRD-agent-access.md`.
+
+### Setup (dev copy first)
+
+1. Set `AGENT_KEY_SECRET` in `backend/.env` to a long random value (for example `openssl rand -base64 48`). It keys the hash of every API key: keep it in a password manager, use a **different** value in dev and production, and don't change it afterwards without rotating all keys.
+2. Check the target, then create the accounts:
+
+   ```bash
+   cd backend
+   npm run agents:create            # prints the spreadsheet title and exits; confirm it is the dev copy
+   npm run agents:create -- --yes   # creates the 7 accounts and prints each key ONCE
+   ```
+
+   Store the keys immediately (they cannot be shown again). Re-running `agents:create` is safe: it only updates scopes and prints no keys for existing accounts.
+3. Day-to-day commands (every write command needs `--yes` and prints the spreadsheet title first):
+
+   ```bash
+   npm run agents:list
+   npm run agents:rotate-key -- --username=agent-owner --yes   # new key; the old one stops working
+   npm run agents:rotate-key -- --all --yes                     # new key for every agent (e.g. AGENT_KEY_SECRET lost or leaked)
+   npm run agents:disable -- --username=agent-owner --yes       # add --enable to turn it back on
+   ```
+4. Check access with the smoke script (read-only; it needs a running backend and one key per account):
+
+   ```bash
+   SMOKE_BASE_URL=http://localhost:3000 \
+   SMOKE_KEY_AGENT_MANAGER=agk_... SMOKE_KEY_AGENT_OWNER=agk_... SMOKE_KEY_AGENT_PRODUKSI=agk_... \
+   SMOKE_KEY_AGENT_ADMIN=agk_... SMOKE_KEY_AGENT_MARKETING=agk_... SMOKE_KEY_AGENT_DESIGNER=agk_... \
+   SMOKE_KEY_AGENT_KEUANGAN=agk_... npm run agents:smoke
+   ```
+
+   It prints one allowed (expect `200`) and one denied (expect `403`) route per agent and exits non-zero if any row is off or a key is missing.
+
+The owner can review what agents changed under **Aktivitas Agent** in the Keuangan menu. The "Publikasi Desain" box on an order's detail page records whether the customer allowed the design to be published.
+
+### Rolling out to production
+
+Do **not** run `setup-sheets` against production. Prepare the production spreadsheet by hand instead:
+
+1. `Users` tab: add headers in `F1:I1`: `scopes`, `api_key_hash`, `api_key_prefix`, `disabled`.
+2. `Orders` tab: add headers in `M1:N1`: `boleh_publikasi`, `catatan_publikasi`.
+3. Add a new tab named `AuditLog` with headers in `A1:I1`: `id`, `created_at`, `user_id`, `username`, `role`, `method`, `path`, `status_code`, `summary`.
+4. Set `AGENT_KEY_SECRET` (and optionally `AGENT_RATE_LIMIT_PER_MIN`) in the Vercel project, then deploy.
+5. Create the production accounts deliberately, checking that the printed title is the production spreadsheet:
+
+   ```bash
+   GOOGLE_SHEETS_ID=<production id> AGENT_KEY_SECRET=<production secret> npm run agents:create
+   GOOGLE_SHEETS_ID=<production id> AGENT_KEY_SECRET=<production secret> npm run agents:create -- --yes
+   ```
 
 ## Building for Production
 
@@ -88,6 +145,8 @@ cat service-account.json | pbcopy   # macOS — or just open the file and copy i
 | `GOOGLE_SHEETS_ID` | Same as local `.env` |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | The **entire contents** of `service-account.json`, pasted as one value |
 | `JWT_SECRET` | Same as local `.env` (or a new, strong secret for production) |
+| `AGENT_KEY_SECRET` | Required if agent accounts are used: the production value from "Agent Access" (different from dev) |
+| `AGENT_RATE_LIMIT_PER_MIN` | Optional, requests per minute per agent account (default 60) |
 
 (`GOOGLE_SERVICE_ACCOUNT_PATH` and `PORT` are not needed on Vercel.)
 
@@ -106,4 +165,5 @@ Or connect the repo to Vercel via the dashboard (Import Project) for git-based d
 ### Notes
 
 - The Google Sheets read-cache and per-sheet write-lock in `backend/google-sheet/SheetRepository.js` live in memory per function instance. On serverless this resets between cold starts and isn't shared across concurrent invocations — fine at this app's scale, but worth knowing if usage grows heavily concurrent.
-- Run `npm run setup-sheets` from `backend/` once (locally, against the same spreadsheet) before the first deploy if the sheet tabs don't exist yet — it only needs to run once, not on every deploy.
+- Run `npm run setup-sheets -- --yes` from `backend/` once (locally, against the same spreadsheet) before the first deploy only if the sheet tabs don't exist yet, and only on a spreadsheet that is safe to overwrite (see the warning under Setup). For an existing production spreadsheet, add new columns/tabs by hand as described under "Rolling out to production".
+- The agent rate limit counts requests in each function instance's memory, so on Vercel the limit applies per instance.

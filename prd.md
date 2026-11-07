@@ -201,6 +201,7 @@ Admin dapat melihat kalender bulanan berisi tanggal mulai dan deadline seluruh O
 ## Authentication (Admin & Employee)
 
 * Login, Logout, Ganti Password
+* Akun `agent` tidak memakai login/JWT; autentikasi lewat API key (lihat bagian Agent Access)
 
 ---
 
@@ -284,12 +285,32 @@ Edit nomor HP, edit password.
 
 ---
 
+# Agent Access
+
+Backend dapat dipakai oleh agent AI (profil Hermes `st-*`) lewat akun `agent` dengan API key. Spesifikasi lengkap: `docs/product/PRD-agent-access.md`; rencana kerja: `docs/plans/agent-access-plan.md`.
+
+* **Akun & key** — 7 akun (`agent-manager`, `agent-owner`, `agent-produksi`, `agent-admin`, `agent-marketing`, `agent-designer`, `agent-keuangan`), masing-masing punya **scope**. Key berformat `agk_<prefix>_<secret>`, dikirim sebagai `Authorization: Bearer agk_...`. Hanya hash (HMAC dengan `AGENT_KEY_SECRET`) yang disimpan; key ditampilkan sekali saat dibuat. Akun `disabled` atau key salah → `401`.
+* **Default-deny** — agent hanya bisa mengakses route yang mendeklarasikan scope-nya (`allow({ roles, scope })`); route lain `403`. Tidak ada scope untuk `DELETE`, `/api/settings/*`, `/api/owner/settings/*`, karyawan, absensi, auth, profil, notifikasi, dan persetujuan desain publik. Peran manusia (admin, admin_produksi, owner, employee) tidak berubah.
+* **Endpoint khusus agent**
+  * `PATCH /api/orders/:id/status` — hanya transisi manual yang sama dengan manusia: `Belum Di Proses → Desain Fix`, `Done → Dikirim` (wajib `resi` + `shipping_method`), `Dikirim → Di Ambil Costumer`. `On Progress`/`Done` tetap otomatis.
+  * `PATCH /api/orders/:id/publish-consent` — set `boleh_publikasi` + catatan (admin/owner atau scope `orders:publish-flag`).
+  * `GET /api/agent/orders/public-summary` — ringkasan order tanpa nama customer, kontak, no. invoice, broker, atau harga; `order_name` dan `desain_fix_url` hanya muncul bila `boleh_publikasi` true, selain itu label otomatis (mis. "Kaos · 50 pcs").
+  * `GET /api/agent/orders/:id/design-brief` — item, warna, ukuran + qty, catatan, `desain_fix_url`, Lembar PO; tanpa data kontak/harga.
+  * `GET /api/agent/me` — username + scope akun sendiri.
+* **Audit & batas** — semua aksi tulis agent masuk `AuditLog` (ditulis setelah response, kegagalan tulis tidak menggagalkan request); rate limit 60 request/menit per akun (`AGENT_RATE_LIMIT_PER_MIN`), `429` bila terlampaui. Percobaan key gagal dicatat di log server (alasan, prefix key, IP, path — tanpa secret).
+* **Halaman Owner "Aktivitas Agent"** — daftar `AuditLog` terbaru di atas, filter per agent (`GET /api/owner/agent-activity`, owner saja).
+* **Detail Order (admin/owner)** — kotak "Publikasi Desain": centang "Boleh dipublikasikan" + catatan izin.
+* **Operasional** — `npm run agents:create | list | rotate-key | disable` (perintah tulis wajib `--yes` dan menampilkan judul spreadsheet target), `npm run agents:smoke` untuk cek akses tiap agent. Lihat `README.md`.
+
+---
+
 # Data Model
 
 Backend menggunakan Google Sheets sebagai database; setiap sheet = satu tabel, diakses lewat generic repository dengan write-through cache dan per-sheet lock.
 
 ## Users
-id, username, password, role, employee_id
+id, username, password, role, employee_id, scopes, api_key_hash, api_key_prefix, disabled
+> Kolom `scopes` s/d `disabled` hanya dipakai akun `agent` (role `agent`, tanpa password). Baris lama kosong = tanpa scope, tanpa API key, aktif. `api_key_hash` adalah HMAC-SHA256 dari secret key; key asli tidak pernah disimpan.
 
 ## Employees
 id, name, phone, status, divisi, hourly_rate
@@ -313,7 +334,8 @@ id, employee_id, amount, reason, status, requested_at, approved_at, approved_by,
 id, employee_id, date, check_in, check_out, hours, payroll_id, notes
 
 ## Orders
-id, customer_id, order_name, status, created_at, notes, deadline, invoice_no, jenis_category, order_from, broker, desain_fix_url
+id, customer_id, order_name, status, created_at, notes, deadline, invoice_no, jenis_category, order_from, broker, desain_fix_url, boleh_publikasi, catatan_publikasi
+> `boleh_publikasi` (`"true"`/kosong) = izin customer desain dipublikasikan; kosong dianggap `false`.
 
 ## OrderItems
 id, order_id, nama_item, harga, qty, total, warna
@@ -333,6 +355,10 @@ id, surat_jalan_id, nama_item, qty
 
 ## LembarPO
 id, order_id, sablon_bordir, catatan, label, bahan_tipe, pola_potong, hangtag, created_at
+
+## AuditLog
+id (uuid), created_at, user_id, username, role, method, path, status_code, summary
+> Satu baris per aksi tulis (POST/PUT/PATCH/DELETE) yang dilakukan akun agent, termasuk yang ditolak (403/429). `summary` adalah isi request yang sudah disamarkan (password/key/token dibuang) dan dipotong ±500 karakter.
 
 ---
 

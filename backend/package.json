@@ -11,7 +11,8 @@
     "agents:create": "node scripts/agents.js create",
     "agents:list": "node scripts/agents.js list",
     "agents:rotate-key": "node scripts/agents.js rotate-key",
-    "agents:disable": "node scripts/agents.js disable"
+    "agents:disable": "node scripts/agents.js disable",
+    "agents:smoke": "node scripts/agent-smoke.js"
   },
   "keywords": [],
   "author": "",
