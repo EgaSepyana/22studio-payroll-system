@@ -244,6 +244,50 @@ export interface AgentActivity {
   agents: string[]
 }
 
+export interface HppFabric {
+  id: string
+  name: string
+  color: string
+  supplier: string
+  /** Rp per kg */
+  price: number
+  gsm: number
+  date: string
+  note: string
+}
+
+export interface HppThread {
+  id: string
+  brand: string
+  code: string
+  name: string
+  hex: string
+  /** Rp per cone */
+  price: number
+  /** Estimated pcs per cone */
+  yield: number
+  note: string
+}
+
+export type HppCalculationTab = 'kaos' | 'produk' | 'sablon' | 'gabung'
+
+export interface HppCalculationSummary {
+  id: string
+  created_at: string
+  created_by: string
+  tab: HppCalculationTab
+  name: string
+  qty: number
+  hpp: number
+  total: number
+  sale: number
+}
+
+export interface HppCalculation extends HppCalculationSummary {
+  /** The calculator's saved input state (see utils/hpp.ts restoreSavedData). */
+  data: unknown
+}
+
 export interface OrderShippingInfo {
   id: string
   order_id: string

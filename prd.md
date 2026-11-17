@@ -235,6 +235,12 @@ Admin dapat melihat kalender bulanan berisi tanggal mulai dan deadline seluruh O
 * **Kasbon** — kelola pengajuan kasbon karyawan: setujui/tolak; lihat status & sisa saldo tiap kasbon
 * **Absensi** — kelola absensi harian karyawan Finishing
 
+## Harga & Biaya
+
+* **Kalkulator HPP** (admin + owner) — hitung HPP/pcs, total HPP, dan saran harga jual (margin terhadap harga jual) untuk Kaos Polos, Polo/Sweatshirt/Kemeja/Jaket (aksesoris khusus per produk), Sablon Manual, dan paket produk + sablon; ringkasan tercetak/PDF dan salin teks
+* **Database Bahan & Benang** — harga kain per kg (supplier, warna, gramasi) dan kode warna benang (merek, kode, harga/cone, estimasi pcs per cone); dipilih dari kalkulator agar harga terisi otomatis
+* **Riwayat perhitungan** — simpan, muat ulang, dan hapus perhitungan (50 terbaru), tersimpan di Google Sheets
+
 ## Reports
 
 * Laporan harian, mingguan, bulanan, tahunan, per customer, per artikel, per karyawan
@@ -355,6 +361,17 @@ id, surat_jalan_id, nama_item, qty
 
 ## LembarPO
 id, order_id, sablon_bordir, catatan, label, bahan_tipe, pola_potong, hangtag, created_at
+
+## HppFabrics
+id (uuid), name, color, supplier, price, gsm, date, note
+
+## HppThreads
+id (uuid), brand, code, name, hex, price, yield, note
+> `brand` + `code` unik (tanpa membedakan huruf besar/kecil).
+
+## HppCalculations
+id (uuid), created_at, created_by, tab, name, qty, hpp, total, sale, data
+> `data` = seluruh isian kalkulator dalam JSON (maks. 40.000 karakter); kolom lain adalah ringkasan untuk daftar riwayat.
 
 ## AuditLog
 id (uuid), created_at, user_id, username, role, method, path, status_code, summary

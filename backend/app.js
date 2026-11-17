@@ -37,6 +37,7 @@ import publicCmsRoutes from './routes/publicCmsRoutes.js';
 import shortLinkRoutes from './routes/shortLinkRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
 import ownerAgentActivityRoutes from './routes/ownerAgentActivityRoutes.js';
+import hppRoutes from './routes/hppRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -61,6 +62,7 @@ app.use('/api/cashadvances', cashAdvanceRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/agent', agentRoutes);
+app.use('/api/hpp', hppRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/surat-jalan', suratJalanRoutes);

@@ -34,6 +34,7 @@ npm install
 npm run setup-sheets -- --yes   # one-time: creates sheet tabs, headers, and seeds an admin user (see the warning below)
 npm run dev                     # starts the API on http://localhost:3000
 npm test                        # backend tests (no Google Sheets access needed)
+                                # frontend: `cd frontend && npm test` (Kalkulator HPP formulas)
 ```
 
 > **`setup-sheets` writes to the spreadsheet in `GOOGLE_SHEETS_ID`.** It rewrites every header row, deletes a tab named `Sheet1`, and seeds `admin` / `admin_produksi` / `owner` accounts with default passwords. Only run it against a **dev copy** (Google Sheets → File → Make a copy). Without `--yes` it just prints the spreadsheet title and exits, so run it that way first and check the title. `backend/.env.example` lists every variable.
@@ -109,8 +110,9 @@ Do **not** run `setup-sheets` against production. Prepare the production spreads
 1. `Users` tab: add headers in `F1:I1`: `scopes`, `api_key_hash`, `api_key_prefix`, `disabled`.
 2. `Orders` tab: add headers in `M1:N1`: `boleh_publikasi`, `catatan_publikasi`.
 3. Add a new tab named `AuditLog` with headers in `A1:I1`: `id`, `created_at`, `user_id`, `username`, `role`, `method`, `path`, `status_code`, `summary`.
-4. Set `AGENT_KEY_SECRET` (and optionally `AGENT_RATE_LIMIT_PER_MIN`) in the Vercel project, then deploy.
-5. Create the production accounts deliberately, checking that the printed title is the production spreadsheet:
+4. Kalkulator HPP needs three more tabs, each with its headers in row 1 (`A1`…): `HppFabrics`: `id`, `name`, `color`, `supplier`, `price`, `gsm`, `date`, `note` · `HppThreads`: `id`, `brand`, `code`, `name`, `hex`, `price`, `yield`, `note` · `HppCalculations`: `id`, `created_at`, `created_by`, `tab`, `name`, `qty`, `hpp`, `total`, `sale`, `data`. Without them the menu shows errors, nothing else breaks.
+5. Set `AGENT_KEY_SECRET` (and optionally `AGENT_RATE_LIMIT_PER_MIN`) in the Vercel project, then deploy.
+6. Create the production accounts deliberately, checking that the printed title is the production spreadsheet:
 
    ```bash
    GOOGLE_SHEETS_ID=<production id> AGENT_KEY_SECRET=<production secret> npm run agents:create
