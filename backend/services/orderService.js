@@ -48,6 +48,10 @@ const STATUS_DONE = 'Done';
 const STATUS_DIKIRIM = 'Dikirim';
 const STATUS_DIAMBIL = 'Di Ambil Costumer';
 
+// Statuses PATCH /api/orders/:id/status may target (see setOrderStatus).
+// On Progress / Done stay automatic, driven by recalculateOrderStatus.
+export const STATUS_API_TARGETS = [STATUS_DESAIN_FIX, STATUS_DIKIRIM, STATUS_DIAMBIL];
+
 // The only manual (admin- or customer-triggered) transitions allowed via
 // updateOrder/approveDesign. Desain Fix -> On Progress -> Done are never in
 // this map — those stay purely automatic, driven by recalculateOrderStatus.
@@ -323,6 +327,28 @@ async function transitionOrderStatus(order, nextStatus, { note, actor, resi, shi
   const updated = await OrdersRepo.updateById(order.id, { status: nextStatus });
   await orderTimelineService.appendTimelineEntry(order.id, { stage: nextStatus, note, actor });
   return updated;
+}
+
+// Status change for PATCH /api/orders/:id/status. Follows exactly the human
+// rules (MANUAL_TRANSITIONS, Dikirim needs resi + shipping method) and writes
+// the same timeline entry; setting the current status is a no-op.
+export async function setOrderStatus(orderId, status, { actor, note, resi, shipping_method }) {
+  const order = await getHeaderOrThrow(orderId);
+  if (order.status === status) return { id: order.id, status: order.status };
+  const updated = await transitionOrderStatus(order, status, { note, actor, resi, shipping_method });
+  return { id: updated.id, status: updated.status };
+}
+
+export async function setPublishConsent(orderId, { boleh_publikasi, catatan_publikasi }) {
+  const order = await getHeaderOrThrow(orderId);
+  const patch = { boleh_publikasi: String(boleh_publikasi) };
+  if (catatan_publikasi !== undefined) patch.catatan_publikasi = catatan_publikasi;
+  const updated = await OrdersRepo.updateById(order.id, patch);
+  return {
+    id: updated.id,
+    boleh_publikasi: updated.boleh_publikasi === 'true',
+    catatan_publikasi: updated.catatan_publikasi || '',
+  };
 }
 
 export async function updateOrder(

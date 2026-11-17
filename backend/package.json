@@ -3,10 +3,16 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "setup-sheets": "node google-sheet/setup.js"
+    "setup-sheets": "node google-sheet/setup.js",
+    "snapshot:route-roles": "node scripts/snapshot-route-roles.js",
+    "agents:create": "node scripts/agents.js create",
+    "agents:list": "node scripts/agents.js list",
+    "agents:rotate-key": "node scripts/agents.js rotate-key",
+    "agents:disable": "node scripts/agents.js disable",
+    "agents:smoke": "node scripts/agent-smoke.js"
   },
   "keywords": [],
   "author": "",

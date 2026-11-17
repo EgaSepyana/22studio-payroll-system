@@ -245,7 +245,20 @@ export const CUSTOMER_CATEGORIES = [
 ];
 
 export const SHEET_SCHEMAS = {
-  Users: ['id', 'username', 'password', 'role', 'employee_id'],
+  // scopes/api_key_hash/api_key_prefix/disabled are appended for `agent`
+  // accounts (see docs/product/PRD-agent-access.md). Existing rows have them
+  // empty: no scopes, no key, enabled — see utils/agentFields.js.
+  Users: [
+    'id',
+    'username',
+    'password',
+    'role',
+    'employee_id',
+    'scopes',
+    'api_key_hash',
+    'api_key_prefix',
+    'disabled',
+  ],
   Employees: ['id', 'name', 'phone', 'status', 'divisi', 'hourly_rate', 'upah_lembur_per_jam'],
   Customers: ['id', 'name', 'pic', 'alamat', 'no_hp', 'category'],
   Articles: ['id', 'category_id', 'article_name', 'price', 'status', 'divisi'],
@@ -332,6 +345,10 @@ export const SHEET_SCHEMAS = {
     'order_from',
     'broker',
     'desain_fix_url',
+    // Customer consent to publish the finished design. Empty on existing
+    // rows = not allowed — see utils/agentFields.js.
+    'boleh_publikasi',
+    'catatan_publikasi',
   ],
   OrderItems: ['id', 'order_id', 'nama_item', 'harga', 'qty', 'total', 'warna'],
   OrderItemSizes: ['id', 'order_item_id', 'size', 'harga', 'qty'],
@@ -414,6 +431,15 @@ export const SHEET_SCHEMAS = {
   WATemplates: ['id', 'template_key', 'label', 'content'],
   OrderTimeline: ['id', 'order_id', 'stage', 'sub_stage', 'note', 'actor', 'created_at'],
   OrderShipping: ['id', 'order_id', 'method', 'resi', 'note', 'shipped_at'],
+  AuditLog: ['id', 'created_at', 'user_id', 'username', 'role', 'method', 'path', 'status_code', 'summary'],
+  // Kalkulator HPP (admin/owner): price databases + saved calculations.
+  // `data` of HppCalculations is the calculator's full input state as JSON
+  // (one cell, kept well under the 50k-character cell limit — see
+  // hppService.MAX_CALCULATION_DATA_LENGTH); the other columns summarise it
+  // so the history list never has to parse it.
+  HppFabrics: ['id', 'name', 'color', 'supplier', 'price', 'gsm', 'date', 'note'],
+  HppThreads: ['id', 'brand', 'code', 'name', 'hex', 'price', 'yield', 'note'],
+  HppCalculations: ['id', 'created_at', 'created_by', 'tab', 'name', 'qty', 'hpp', 'total', 'sale', 'data'],
   ArticlesCategory: ['id', 'name'],
   CustomerArticles: ['id', 'category_id', 'customer_id', 'created_at'],
   ShortLink: ['id', 'code', 'original_url', 'created_at'],
@@ -670,6 +696,15 @@ export const AppSettingsRepo = new SheetRepository('AppSettings', SHEET_SCHEMAS.
 export const WATemplatesRepo = new SheetRepository('WATemplates', SHEET_SCHEMAS.WATemplates);
 export const OrderTimelineRepo = new SheetRepository('OrderTimeline', SHEET_SCHEMAS.OrderTimeline);
 export const OrderShippingRepo = new SheetRepository('OrderShipping', SHEET_SCHEMAS.OrderShipping);
+// uuid ids: audit rows are written fire-and-forget by concurrent requests,
+// so sequential ids would race across serverless instances.
+export const AuditLogRepo = new SheetRepository('AuditLog', SHEET_SCHEMAS.AuditLog, { idStrategy: 'uuid' });
+// uuid ids: new sheets have no numeric-order dependents, and ids can't race.
+export const HppFabricsRepo = new SheetRepository('HppFabrics', SHEET_SCHEMAS.HppFabrics, { idStrategy: 'uuid' });
+export const HppThreadsRepo = new SheetRepository('HppThreads', SHEET_SCHEMAS.HppThreads, { idStrategy: 'uuid' });
+export const HppCalculationsRepo = new SheetRepository('HppCalculations', SHEET_SCHEMAS.HppCalculations, {
+  idStrategy: 'uuid',
+});
 export const ArticlesCategoryRepo = new SheetRepository('ArticlesCategory', SHEET_SCHEMAS.ArticlesCategory);
 export const CustomerArticlesRepo = new SheetRepository('CustomerArticles', SHEET_SCHEMAS.CustomerArticles);
 export const ShortLinkRepo = new SheetRepository('ShortLink', SHEET_SCHEMAS.ShortLink);

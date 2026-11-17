@@ -148,3 +148,22 @@
 * {
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Kalkulator HPP "Cetak / PDF": only the summary block is printed. The class
+   is added to <body> by the page just before window.print(). */
+@media print {
+  body.hpp-printing * {
+    visibility: hidden;
+  }
+  body.hpp-printing #hpp-print-area,
+  body.hpp-printing #hpp-print-area * {
+    visibility: visible;
+  }
+  body.hpp-printing #hpp-print-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 24px;
+  }
+}

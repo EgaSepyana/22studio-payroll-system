@@ -42,6 +42,15 @@ export function getRedis() {
   return client;
 }
 
+// For one-off scripts (e.g. the agents:* CLI): inserts take a Redis id lock,
+// and an open connection would keep the process alive after it finishes.
+export async function closeRedis() {
+  if (!client) return;
+  const closing = client;
+  client = null;
+  await closing.quit().catch(() => closing.disconnect());
+}
+
 // Prefixes a key with REDIS_QUEUE_DB as a logical namespace (see the "only
 // db 0" comment above) — lets several logical queues coexist on this one
 // physical Upstash instance/db without their keys colliding, which is what

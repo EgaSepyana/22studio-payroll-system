@@ -1,49 +1,133 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/response.js';
+import { isAgentKey } from '../utils/agentKeyUtils.js';
+import { authenticateAgentKey, usersAgentStore, AgentAuthError } from '../services/agentAuthService.js';
+import { logAgentAuthFailure } from '../utils/agentAuthLog.js';
+import { isForbiddenRoute, hasScope } from '../config/agentScopes.js';
+import { createAgentAuditor } from './agentAudit.js';
+import { createAgentRateLimiter } from './agentRateLimit.js';
 
-export function requireAuth(req, res, next) {
+function bearerToken(req) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return next(new ApiError(401, 'Not authenticated'));
-
-  try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    req.user = payload;
-    next();
-  } catch {
-    next(new ApiError(401, 'Invalid or expired token'));
-  }
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
-// EventSource (used by the notification SSE stream) cannot set custom
-// request headers, so it has no way to send the usual Authorization
-// header — the token has to travel as a query param instead for that one
-// route. Never used anywhere else: every other endpoint stays
-// header-only via requireAuth above, so this doesn't widen how any
-// existing route can be authenticated.
-export function requireAuthQueryOrHeader(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token || null;
-  if (!token) return next(new ApiError(401, 'Not authenticated'));
+// Agent accounts never authenticate with a JWT: they have no password and
+// login() refuses them, so an agent-role JWT can only be forged or stale.
+function verifyHumanJwt(token) {
+  const payload = jwt.verify(token, env.jwtSecret);
+  if (payload.role === 'agent') throw new Error('agent role in JWT');
+  return payload;
+}
 
-  try {
-    const payload = jwt.verify(token, env.jwtSecret);
-    req.user = payload;
-    next();
-  } catch {
-    next(new ApiError(401, 'Invalid or expired token'));
+// `agentStore`, `agentKeySecret`, `agentAuditor` and `agentRateLimiter` are
+// injectable so tests don't need Google Sheets. The default exports below
+// use the real ones.
+export function createAuthMiddleware({
+  agentStore,
+  agentKeySecret,
+  agentAuditor = createAgentAuditor(),
+  agentRateLimiter = createAgentRateLimiter(),
+} = {}) {
+  function requireAuth(req, res, next) {
+    const token = bearerToken(req);
+    if (!token) return next(new ApiError(401, 'Not authenticated'));
+
+    if (isAgentKey(token)) {
+      authenticateAgentKey(token, { store: agentStore, secret: agentKeySecret })
+        .then((user) => {
+          req.user = user;
+          // Audit first so rejected writes are recorded too, then count the
+          // request against this agent's rate limit.
+          agentAuditor(req, res, user);
+          agentRateLimiter(req, res, (limitError) => {
+            if (limitError) return next(limitError);
+            // Agents never get past auth on the areas the catalog forbids
+            // (/api/auth, /api/profile, /api/notifications, ...).
+            if (isForbiddenRoute(req.method, `${req.baseUrl || ''}${req.path || ''}`)) {
+              delete req.user;
+              return next(new ApiError(403, 'Forbidden'));
+            }
+            next();
+          });
+        })
+        .catch((err) => {
+          if (err instanceof AgentAuthError) logAgentAuthFailure(req, err);
+          next(err);
+        });
+      return;
+    }
+
+    try {
+      req.user = verifyHumanJwt(token);
+      next();
+    } catch {
+      next(new ApiError(401, 'Invalid or expired token'));
+    }
   }
+
+  // EventSource (used by the notification SSE stream) cannot set custom
+  // request headers, so it has no way to send the usual Authorization
+  // header — the token has to travel as a query param instead for that one
+  // route. Never used anywhere else: every other endpoint stays
+  // header-only via requireAuth above, so this doesn't widen how any
+  // existing route can be authenticated. Agent keys are refused here.
+  function requireAuthQueryOrHeader(req, res, next) {
+    const token = bearerToken(req) || req.query.token || null;
+    if (!token) return next(new ApiError(401, 'Not authenticated'));
+    if (isAgentKey(token)) return next(new ApiError(403, 'Forbidden'));
+
+    try {
+      req.user = verifyHumanJwt(token);
+      next();
+    } catch {
+      next(new ApiError(401, 'Invalid or expired token'));
+    }
+  }
+
+  return { requireAuth, requireAuthQueryOrHeader };
+}
+
+export const { requireAuth, requireAuthQueryOrHeader } = createAuthMiddleware({
+  agentStore: usersAgentStore,
+  agentKeySecret: env.agentKeySecret,
+});
+
+// The one route guard. `roles` are the human roles allowed (omit for any
+// authenticated human); `scope` is the agent scope that also lets an agent
+// through. Agents are default-deny: with no `scope` declared, or without that
+// scope on their account, they get 403. 'agent' is never a valid role here.
+// The function is named `routeGuard` and exposes `.roles` / `.scope` so the
+// route-guard snapshot and route-access tests can find and read it.
+export function allow({ roles, scope } = {}) {
+  if (roles?.includes('agent')) throw new Error("allow(): 'agent' is not a role, declare a scope instead");
+  const routeGuard = (req, res, next) => {
+    const user = req.user;
+    if (user?.role === 'agent') {
+      if (!scope || !hasScope(user, scope)) return next(new ApiError(403, 'Forbidden'));
+      req.agentScopeVerified = true;
+      return next();
+    }
+    if (!user || (roles && !roles.includes(user.role))) return next(new ApiError(403, 'Forbidden'));
+    next();
+  };
+  if (roles) routeGuard.roles = roles;
+  if (scope) routeGuard.scope = scope;
+  return routeGuard;
 }
 
 export function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return next(new ApiError(403, 'Forbidden'));
-    }
-    next();
-  };
+  return allow({ roles });
 }
+
+// Agent-only route: no human role may use it.
+export function requireAgentScope(scope) {
+  return allow({ roles: [], scope });
+}
+
+// Any authenticated human, never an agent.
+export const requireHuman = allow();
 
 // Gates a route to specific employee divisions (e.g. only Finishing may
 // create Surat Jalan). Admin always bypasses — this only ever narrows what
@@ -54,11 +138,17 @@ export function requireRole(...roles) {
 const DIVISI_BYPASS_ROLES = new Set(['admin', 'admin_produksi', 'owner']);
 
 export function requireDivisi(...divisions) {
-  return (req, res, next) => {
+  const routeGuard = (req, res, next) => {
     if (DIVISI_BYPASS_ROLES.has(req.user?.role)) return next();
+    // An agent has no divisi: it passes only after allow() verified its scope.
+    if (req.user?.role === 'agent') {
+      return req.agentScopeVerified ? next() : next(new ApiError(403, 'Forbidden'));
+    }
     if (!req.user || !divisions.includes(req.user.divisi)) {
       return next(new ApiError(403, 'Forbidden'));
     }
     next();
   };
+  routeGuard.divisions = divisions;
+  return routeGuard;
 }

@@ -32,6 +32,22 @@ const updateSchema = z.object({
   shipping_method: z.string().optional(),
 });
 
+export const statusSchema = z
+  .object({
+    status: z.enum(orderService.STATUS_API_TARGETS),
+    note: z.string().max(1000).optional(),
+    resi: z.string().max(100).optional(),
+    shipping_method: z.string().max(100).optional(),
+  })
+  .strict();
+
+export const publishConsentSchema = z
+  .object({
+    boleh_publikasi: z.boolean(),
+    catatan_publikasi: z.string().max(1000).optional(),
+  })
+  .strict();
+
 const filterSchema = z.object({
   customer_id: z.string().optional(),
   status: z.enum(ORDER_STATUSES).optional(),
@@ -120,6 +136,23 @@ export async function detail(req, res, next) {
 export async function update(req, res, next) {
   try {
     ok(res, await orderService.updateOrder(req.params.id, updateSchema.parse(req.body)));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateStatus(req, res, next) {
+  try {
+    const { status, ...details } = statusSchema.parse(req.body);
+    ok(res, await orderService.setOrderStatus(req.params.id, status, { actor: req.user.username, ...details }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updatePublishConsent(req, res, next) {
+  try {
+    ok(res, await orderService.setPublishConsent(req.params.id, publishConsentSchema.parse(req.body)));
   } catch (err) {
     next(err);
   }

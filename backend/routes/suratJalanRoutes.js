@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as suratJalanController from '../controllers/suratJalanController.js';
-import { requireAuth, requireRole, requireDivisi } from '../middleware/auth.js';
+import { requireAuth, allow, requireRole, requireDivisi } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -10,17 +10,21 @@ router.use(requireAuth);
 // plus are the only ones who can edit/delete the header itself (reassigning
 // the customer or removing a document altogether stays an admin-level
 // correction, not something a Finishing employee can do).
-const employeeAllowed = [requireRole('admin', 'admin_produksi', 'owner', 'employee'), requireDivisi('Finishing')];
+// Agents holding the route's scope skip requireDivisi (they have no divisi).
+const employeeAllowed = (scope) => [
+  allow({ roles: ['admin', 'admin_produksi', 'owner', 'employee'], scope }),
+  requireDivisi('Finishing'),
+];
 
-router.post('/', ...employeeAllowed, suratJalanController.create);
-router.get('/', ...employeeAllowed, suratJalanController.list);
-router.get('/:id', ...employeeAllowed, suratJalanController.detail);
-router.get('/:id/pdf', ...employeeAllowed, suratJalanController.pdf);
-router.put('/:id', requireRole('admin', 'admin_produksi', 'owner'), suratJalanController.update);
+router.post('/', ...employeeAllowed('surat-jalan:write'), suratJalanController.create);
+router.get('/', ...employeeAllowed('surat-jalan:read'), suratJalanController.list);
+router.get('/:id', ...employeeAllowed('surat-jalan:read'), suratJalanController.detail);
+router.get('/:id/pdf', ...employeeAllowed('surat-jalan:read'), suratJalanController.pdf);
+router.put('/:id', allow({ roles: ['admin', 'admin_produksi', 'owner'], scope: 'surat-jalan:write' }), suratJalanController.update);
 router.delete('/:id', requireRole('admin', 'admin_produksi', 'owner'), suratJalanController.remove);
 
-router.post('/:id/items', ...employeeAllowed, suratJalanController.addItem);
-router.put('/:id/items/:itemId', ...employeeAllowed, suratJalanController.updateItem);
-router.delete('/:id/items/:itemId', ...employeeAllowed, suratJalanController.removeItem);
+router.post('/:id/items', ...employeeAllowed('surat-jalan:write'), suratJalanController.addItem);
+router.put('/:id/items/:itemId', ...employeeAllowed('surat-jalan:write'), suratJalanController.updateItem);
+router.delete('/:id/items/:itemId', ...employeeAllowed(), suratJalanController.removeItem);
 
 export default router;

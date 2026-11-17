@@ -35,6 +35,9 @@ import ownerReportRoutes from './routes/ownerReportRoutes.js';
 import publicOrderRoutes from './routes/publicOrderRoutes.js';
 import publicCmsRoutes from './routes/publicCmsRoutes.js';
 import shortLinkRoutes from './routes/shortLinkRoutes.js';
+import agentRoutes from './routes/agentRoutes.js';
+import ownerAgentActivityRoutes from './routes/ownerAgentActivityRoutes.js';
+import hppRoutes from './routes/hppRoutes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -58,6 +61,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/cashadvances', cashAdvanceRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/agent', agentRoutes);
+app.use('/api/hpp', hppRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/surat-jalan', suratJalanRoutes);
@@ -75,6 +80,7 @@ app.use('/api/owner/liabilities', ownerLiabilityRoutes);
 app.use('/api/owner/assets', ownerAssetRoutes);
 app.use('/api/owner/inventory', ownerInventoryRoutes);
 app.use('/api/owner/reports', ownerReportRoutes);
+app.use('/api/owner/agent-activity', ownerAgentActivityRoutes);
 // Mounted at distinct sub-paths (not both at /api/public) so each router's
 // own rate limiter only ever applies to its own requests — two routers
 // sharing one prefix would otherwise both run their middleware for every

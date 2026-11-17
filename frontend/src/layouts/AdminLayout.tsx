@@ -22,6 +22,7 @@ import {
   Tags,
   Globe,
   Landmark,
+  Calculator,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -93,6 +94,10 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/kasbon', label: 'Kasbon', icon: HandCoins },
       { to: '/admin/attendance', label: 'Absensi', icon: Clock },
     ],
+  },
+  {
+    label: 'Harga & Biaya',
+    items: [{ to: '/admin/hpp', label: 'Kalkulator HPP', icon: Calculator }],
   },
   {
     label: 'Report',

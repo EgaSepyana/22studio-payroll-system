@@ -1,0 +1,1601 @@
+{
+  "DELETE /api/article-categories/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/articles/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/attendance/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/cms/:section/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/customers/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/employees/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/hpp/calculations/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/hpp/fabrics/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/hpp/threads/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/lembar-po/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/orders/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/orders/:id/dp/:dpId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/orders/:id/items/:itemId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/orders/:id/items/:itemId/sizes/:sizeId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/assets/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/cash/accounts/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/cash/reconciliations/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/cash/transfers/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/expenses/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/income/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/inventory/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/liabilities/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/liabilities/:id/payments/:paymentId": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/settings/categories/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/owner/settings/locations/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/surat-jalan/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/surat-jalan/:id/items/:itemId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "DELETE /api/tasks/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "DELETE /api/worklogs/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/agent/me": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
+  "GET /api/agent/orders/:id/design-brief": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
+  "GET /api/agent/orders/public-summary": {
+    "auth": "jwt",
+    "roles": [],
+    "divisi": null
+  },
+  "GET /api/article-categories": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/articles": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/attendance": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/attendance/mine": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/attendance/today": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/auth/me": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/cash-accounts": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cashadvances": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cashadvances/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cashadvances/mine": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/cms/:section": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cms/contact-info": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cms/founders-promise": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/cms/general": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/customers": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/dashboard/admin": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/dashboard/employee": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/employees": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/employees/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/health": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/hpp/calculations": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/hpp/calculations/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/hpp/fabrics": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/hpp/threads": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/lembar-po": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/lembar-po/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/lembar-po/:id/pdf": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/lembar-po/by-order/:orderId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/lembar-po/order-ids": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/notifications": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/notifications/stream": {
+    "auth": "jwt-or-query-token",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/notifications/unread-count": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id/dp/preview-pelunasan": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id/invoice-excel": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id/invoice-pdf": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id/timeline": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/orders/:id/tracking-link": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/agent-activity": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/assets": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/assets/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/cash/accounts": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/cash/accounts/balances": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/cash/reconciliations": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/cash/reconciliations/preview-balance": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/cash/transfers": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/dashboard": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/expenses": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/expenses/order-picker": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/expenses/order-profitability/:orderId": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/income": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/inventory": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/inventory/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/liabilities": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/liabilities/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/reports/balance-sheet": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/reports/profit-loss": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/settings/business": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/settings/categories": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/owner/settings/locations": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/payroll": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/payroll/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/payroll/export": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/payroll/mine": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/payroll/range": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/profile": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/public/cms/content": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/public/order-timeline": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "GET /api/reports": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/reports/export": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/settings/bank-account": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/settings/wa-templates": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/surat-jalan": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "GET /api/surat-jalan/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "GET /api/surat-jalan/:id/pdf": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "GET /api/tasks": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/tasks/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/tasks/:id/progress-photos": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/tasks/available": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/tasks/mine": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /api/worklogs": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/worklogs/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/worklogs/export": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "GET /api/worklogs/mine": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "GET /s/:code": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "PATCH /api/attendance/check-out": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/cashadvances/:id/approve": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/cashadvances/:id/reject": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/orders/:id/publish-consent": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/orders/:id/status": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/payroll/:id/pay": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PATCH /api/payroll/range/pay": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/article-categories": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/articles": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/attendance": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/attendance/check-in": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "POST /api/auth/login": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "POST /api/auth/logout": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "POST /api/cashadvances": {
+    "auth": "jwt",
+    "roles": [
+      "employee"
+    ],
+    "divisi": null
+  },
+  "POST /api/cms/:section": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/customers": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/employees": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/hpp/calculations": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/hpp/fabrics": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/hpp/threads": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/lembar-po": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/notifications/:id/read": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/notifications/read-all": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders/:id/dp": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders/:id/follow-up": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders/:id/items": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders/:id/items/:itemId/sizes": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/orders/:id/items/template": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/assets": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/assets/buy": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/assets/sell": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/cash/accounts": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/cash/reconciliations": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/cash/transfers": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/expenses": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/income": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/inventory": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/inventory/stock-in": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/inventory/stock-out": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/liabilities": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/liabilities/:id/payments": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/settings/categories": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/owner/settings/locations": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/public/orders/design/approve": {
+    "auth": "none",
+    "roles": null,
+    "divisi": null
+  },
+  "POST /api/surat-jalan": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "POST /api/surat-jalan/:id/items": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "POST /api/tasks": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/tasks/:id/progress": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/uploads/cms-image": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/uploads/design": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "POST /api/uploads/laporan-pengerjaan": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "POST /api/worklogs": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/article-categories/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/article-categories/:id/customers": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/articles/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/attendance/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/auth/change-password": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "PUT /api/cms/:section/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/cms/:section/reorder": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/cms/contact-info": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/cms/founders-promise": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/cms/general": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/customers/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/customers/:id/categories": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/employees/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/hpp/fabrics/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/hpp/threads/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/lembar-po/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/orders/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/orders/:id/dp/:dpId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/orders/:id/items/:itemId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/orders/:id/items/:itemId/sizes/:sizeId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/cash/accounts/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/cash/transfers/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/inventory/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/liabilities/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/settings/business": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/settings/categories/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/owner/settings/locations/:id": {
+    "auth": "jwt",
+    "roles": [
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/profile": {
+    "auth": "jwt",
+    "roles": null,
+    "divisi": null
+  },
+  "PUT /api/settings/bank-account": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/settings/wa-templates/:templateKey": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/surat-jalan/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/surat-jalan/:id/items/:itemId": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "employee",
+      "owner"
+    ],
+    "divisi": [
+      "Finishing"
+    ]
+  },
+  "PUT /api/tasks/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "admin_produksi",
+      "owner"
+    ],
+    "divisi": null
+  },
+  "PUT /api/worklogs/:id": {
+    "auth": "jwt",
+    "roles": [
+      "admin",
+      "employee",
+      "owner"
+    ],
+    "divisi": null
+  }
+}

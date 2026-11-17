@@ -14,6 +14,13 @@ function required(name) {
 export const env = {
   port: process.env.PORT || 3000,
   jwtSecret: required('JWT_SECRET'),
+  // Keys the HMAC of agent API keys (see utils/agentKeyUtils.js). Optional so
+  // the app boots without agents; agent keys are rejected while it's unset.
+  agentKeySecret: process.env.AGENT_KEY_SECRET || null,
+  // Requests per minute allowed per agent account (see middleware/agentRateLimit.js).
+  agentRateLimitPerMin: Number.isInteger(Number(process.env.AGENT_RATE_LIMIT_PER_MIN)) && Number(process.env.AGENT_RATE_LIMIT_PER_MIN) > 0
+    ? Number(process.env.AGENT_RATE_LIMIT_PER_MIN)
+    : 60,
   googleSheetsId: required('GOOGLE_SHEETS_ID'),
   // On serverless platforms (Vercel) there's no writable/persistent filesystem to
   // ship a service-account.json to, and it shouldn't be committed to git anyway —

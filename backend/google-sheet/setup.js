@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { getSheetsClient, SPREADSHEET_ID } from './sheetClient.js';
+import { guardSheetWrite } from './writeGuard.js';
 import {
   SHEET_SCHEMAS,
   UsersRepo,
@@ -184,6 +185,7 @@ async function seedCmsContent() {
 }
 
 async function main() {
+  await guardSheetWrite();
   await ensureSheets();
   await seedAdmin();
   await seedAdminProduksi();

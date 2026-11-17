@@ -57,6 +57,9 @@ import { Badge } from '@/components/ui/badge'
 import { OrderTaskStatusBadge } from '@/components/OrderTaskStatusBadge'
 import { RowActionsMenu } from '@/components/RowActionsMenu'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { useAuth } from '@/hooks/useAuth'
 import * as orderApi from '@/services/orderApi'
 import * as cashAccountLookupApi from '@/services/cashAccountLookupApi'
 import { getErrorMessage } from '@/services/api'
@@ -578,10 +581,65 @@ function StatusTransitionDialog({
   )
 }
 
+// Customer consent to publish the finished design (read by the marketing
+// agent through the filtered public-summary endpoint). Admin/owner only —
+// the backend refuses admin_produksi on this route too.
+function PublishConsentCard({
+  orderId,
+  initialAllowed,
+  initialNote,
+  onSaved,
+}: {
+  orderId: string
+  initialAllowed: boolean
+  initialNote: string
+  onSaved: () => void
+}) {
+  const [allowed, setAllowed] = React.useState(initialAllowed)
+  const [note, setNote] = React.useState(initialNote)
+  const dirty = allowed !== initialAllowed || note !== initialNote
+
+  const mutation = useMutation({
+    mutationFn: () => orderApi.updatePublishConsent(orderId, { boleh_publikasi: allowed, catatan_publikasi: note }),
+    onSuccess: () => {
+      toast.success('Izin publikasi disimpan')
+      onSaved()
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  })
+
+  return (
+    <Card className="mb-4 shadow-sm">
+      <CardContent className="flex flex-col gap-3">
+        <h3 className="font-heading text-sm font-semibold">Publikasi Desain</h3>
+        <div className="flex items-center gap-2">
+          <Checkbox id="boleh-publikasi" checked={allowed} onCheckedChange={(v) => setAllowed(v === true)} />
+          <Label htmlFor="boleh-publikasi">Boleh dipublikasikan</Label>
+        </div>
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Catatan izin (mis. customer setuju via WA tanggal ...)"
+          maxLength={1000}
+          rows={2}
+        />
+        <div>
+          <Button size="sm" disabled={!dirty || mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending && <Loader2 className="size-4 animate-spin" />}
+            Simpan
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const canEditPublishConsent = user?.role === 'admin' || user?.role === 'owner'
   const [addItemDialogOpen, setAddItemDialogOpen] = React.useState(false)
   const [editingItem, setEditingItem] = React.useState<OrderItem | null>(null)
   const [deletingItem, setDeletingItem] = React.useState<OrderItem | null>(null)
@@ -877,6 +935,16 @@ export default function OrderDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {canEditPublishConsent && (
+        <PublishConsentCard
+          key={`${data.boleh_publikasi}|${data.catatan_publikasi}`}
+          orderId={data.id}
+          initialAllowed={data.boleh_publikasi === 'true'}
+          initialNote={data.catatan_publikasi || ''}
+          onSaved={invalidate}
+        />
+      )}
 
       {timelineData && timelineData.timeline.length > 0 && (
         <Card className="mb-4 shadow-sm">
