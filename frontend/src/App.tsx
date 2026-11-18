@@ -39,6 +39,7 @@ import OwnerProfitLoss from '@/pages/owner/ProfitLoss'
 import OwnerBalanceSheet from '@/pages/owner/BalanceSheet'
 import OwnerAgentActivity from '@/pages/owner/AgentActivity'
 import AdminHpp from '@/pages/admin/Hpp'
+import AdminHppMaterials from '@/pages/admin/HppMaterials'
 
 import EmployeeDashboard from '@/pages/employee/Dashboard'
 import EmployeeInput from '@/pages/employee/InputPekerjaan'
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/admin/pengaturan-aplikasi" element={<AdminPengaturanAplikasi />} />
               <Route path="/admin/cms" element={<AdminCmsLandingPage />} />
               <Route path="/admin/hpp" element={<AdminHpp />} />
+              <Route path="/admin/bahan-benang" element={<AdminHppMaterials />} />
             </Route>
           </Route>
         </Route>

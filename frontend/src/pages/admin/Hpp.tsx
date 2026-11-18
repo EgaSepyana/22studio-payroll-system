@@ -6,7 +6,6 @@ import {
   Boxes,
   Calculator,
   Copy,
-  Database,
   Layers,
   Loader2,
   Printer,
@@ -32,7 +31,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { HppDatabase } from './hpp/HppDatabase'
 import { HppHistory } from './hpp/HppHistory'
 import { NoteField, NumField, SelectField, TextField, type Option } from './hpp/fields'
 import * as hppApi from '@/services/hppApi'
@@ -62,14 +60,11 @@ import {
 } from '@/utils/hpp'
 import type { HppCalculation, HppFabric, HppThread } from '@/types'
 
-type PageTab = HppTab | 'database'
-
-const TABS: { value: PageTab; label: string; icon: typeof Shirt }[] = [
+const TABS: { value: HppTab; label: string; icon: typeof Shirt }[] = [
   { value: 'kaos', label: 'Kaos Polos', icon: Shirt },
   { value: 'produk', label: 'Produk Konveksi', icon: Scissors },
   { value: 'sablon', label: 'Sablon Manual', icon: Printer },
   { value: 'gabung', label: 'Kaos + Sablon', icon: Layers },
-  { value: 'database', label: 'Database Bahan & Benang', icon: Database },
 ]
 
 const toOptions = (values: string[]): Option[] => values.map((v) => ({ value: v, label: v }))
@@ -150,7 +145,7 @@ export default function HppPage() {
   const queryClient = useQueryClient()
   const topRef = React.useRef<HTMLDivElement>(null)
   const [state, setState] = React.useState<HppState>(defaultState)
-  const [tab, setTab] = React.useState<PageTab>('kaos')
+  const [tab, setTab] = React.useState<HppTab>('kaos')
   const [resetOpen, setResetOpen] = React.useState(false)
   const [printedAt, setPrintedAt] = React.useState('')
 
@@ -158,8 +153,7 @@ export default function HppPage() {
   const { data: threads = [] } = useQuery({ queryKey: ['hpp-threads'], queryFn: hppApi.listThreads })
 
   const results = React.useMemo(() => calcAll(state), [state])
-  const calcTab = tab === 'database' ? null : tab
-  const active = calcTab ? results[calcTab] : null
+  const active = results[tab]
 
   const produk = state.produk[state.produkType]
   const productDef = PRODUCT_DEFS[state.produkType]
@@ -218,15 +212,14 @@ export default function HppPage() {
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      if (!active || !calcTab) throw new Error('Tidak ada perhitungan untuk disimpan')
       return hppApi.saveCalculation({
-        tab: calcTab,
+        tab,
         name: active.name.trim() || 'Tanpa nama',
         qty: active.q,
         hpp: active.hpp,
         total: active.total,
         sale: active.sale,
-        data: toSavedData(calcTab, state),
+        data: toSavedData(tab, state),
       })
     },
     onSuccess: () => {
@@ -245,7 +238,6 @@ export default function HppPage() {
   }
 
   async function copySummary() {
-    if (!active) return
     try {
       await navigator.clipboard.writeText(summaryText(active))
       toast.success('Ringkasan disalin')
@@ -271,7 +263,7 @@ export default function HppPage() {
         breadcrumbs={[{ label: 'Dashboard', to: '/admin' }, { label: 'Kalkulator HPP' }]}
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as PageTab)} className="mb-4">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as HppTab)} className="mb-4">
         <TabsList className="h-auto w-full flex-wrap justify-start gap-1 p-1 group-data-horizontal/tabs:h-auto">
           {TABS.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value} className="h-8 flex-none px-3">
@@ -281,16 +273,14 @@ export default function HppPage() {
         </TabsList>
       </Tabs>
 
-      {active && (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard label="Jumlah Produksi" value={`${active.q} pcs`} icon={Boxes} />
-          <StatCard label="HPP / pcs" value={formatCurrency(active.hpp)} icon={Calculator} accent="success" />
-          <StatCard label="Total HPP" value={formatCurrency(active.total)} icon={Wallet} />
-          <StatCard label="Saran Harga Jual / pcs" value={formatCurrency(active.sale)} icon={Tag} accent="warning" />
-        </div>
-      )}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Jumlah Produksi" value={`${active.q} pcs`} icon={Boxes} />
+        <StatCard label="HPP / pcs" value={formatCurrency(active.hpp)} icon={Calculator} accent="success" />
+        <StatCard label="Total HPP" value={formatCurrency(active.total)} icon={Wallet} />
+        <StatCard label="Saran Harga Jual / pcs" value={formatCurrency(active.sale)} icon={Tag} accent="warning" />
+      </div>
 
-      <div className={cn('grid gap-4', active && 'xl:grid-cols-[minmax(0,1fr)_320px]')}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
           {tab === 'kaos' && (
             <div className="flex flex-col gap-4">
@@ -509,52 +499,48 @@ export default function HppPage() {
               </Card>
             </div>
           )}
-
-          {tab === 'database' && <HppDatabase fabrics={fabrics} threads={threads} />}
         </div>
 
-        {active && (
-          <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
-            <Card className="shadow-sm">
-              <CardContent className="flex flex-col gap-1">
-                <div className="bg-primary text-primary-foreground mb-2 rounded-lg px-4 py-3 text-sm font-semibold">
-                  Ringkasan Perhitungan
-                </div>
-                <ResultRows r={active} />
-                <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-                  Harga jual didasarkan pada <strong>margin laba kotor terhadap harga jual</strong>, bukan markup dari HPP. Belum
-                  mencakup pajak, diskon, ongkir pelanggan atau komisi marketplace.
-                </p>
-              </CardContent>
-            </Card>
+        <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
+          <Card className="shadow-sm">
+            <CardContent className="flex flex-col gap-1">
+              <div className="bg-primary text-primary-foreground mb-2 rounded-lg px-4 py-3 text-sm font-semibold">
+                Ringkasan Perhitungan
+              </div>
+              <ResultRows r={active} />
+              <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+                Harga jual didasarkan pada <strong>margin laba kotor terhadap harga jual</strong>, bukan markup dari HPP. Belum
+                mencakup pajak, diskon, ongkir pelanggan atau komisi marketplace.
+              </p>
+            </CardContent>
+          </Card>
 
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Aksi Perhitungan</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-2">
-                <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                  Simpan
-                </Button>
-                <Button variant="outline" onClick={printSummary}>
-                  <Printer className="size-4" /> Cetak / PDF
-                </Button>
-                <Button variant="outline" onClick={copySummary}>
-                  <Copy className="size-4" /> Salin Ringkasan
-                </Button>
-                <Button variant="outline" onClick={() => setResetOpen(true)}>
-                  <RotateCcw className="size-4" /> Reset Form
-                </Button>
-              </CardContent>
-            </Card>
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Aksi Perhitungan</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-2">
+              <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Simpan
+              </Button>
+              <Button variant="outline" onClick={printSummary}>
+                <Printer className="size-4" /> Cetak / PDF
+              </Button>
+              <Button variant="outline" onClick={copySummary}>
+                <Copy className="size-4" /> Salin Ringkasan
+              </Button>
+              <Button variant="outline" onClick={() => setResetOpen(true)}>
+                <RotateCcw className="size-4" /> Reset Form
+              </Button>
+            </CardContent>
+          </Card>
 
-            <p className="text-muted-foreground px-1 text-xs leading-relaxed">
-              Angka awal hanya simulasi, bukan harga biaya aktual 22STUDIO. Sesuaikan dengan konsumsi kain, tarif kerja, afdruk, tinta,
-              jumlah cetak, dan harga bahan yang berlaku.
-            </p>
-          </aside>
-        )}
+          <p className="text-muted-foreground px-1 text-xs leading-relaxed">
+            Angka awal hanya simulasi, bukan harga biaya aktual 22STUDIO. Sesuaikan dengan konsumsi kain, tarif kerja, afdruk, tinta,
+            jumlah cetak, dan harga bahan yang berlaku.
+          </p>
+        </aside>
       </div>
 
       <HppHistory onLoad={loadCalculation} />
@@ -580,18 +566,16 @@ export default function HppPage() {
       </AlertDialog>
 
       {/* Shown only when printing (see index.css). */}
-      {active && (
-        <div id="hpp-print-area" className="hidden print:block">
-          <h1 className="text-xl font-bold">22STUDIO · Kalkulator HPP</h1>
-          <p className="mb-4 text-sm">
-            {active.name || 'Tanpa nama'} · {active.q} pcs
-          </p>
-          <ResultRows r={active} />
-          <p className="mt-6 text-xs">
-            Dokumen estimasi biaya internal 22STUDIO · Dicetak dari Kalkulator HPP · {printedAt ? formatDateTime(printedAt) : ''}
-          </p>
-        </div>
-      )}
+      <div id="hpp-print-area" className="hidden print:block">
+        <h1 className="text-xl font-bold">22STUDIO · Kalkulator HPP</h1>
+        <p className="mb-4 text-sm">
+          {active.name || 'Tanpa nama'} · {active.q} pcs
+        </p>
+        <ResultRows r={active} />
+        <p className="mt-6 text-xs">
+          Dokumen estimasi biaya internal 22STUDIO · Dicetak dari Kalkulator HPP · {printedAt ? formatDateTime(printedAt) : ''}
+        </p>
+      </div>
     </div>
   )
 }
